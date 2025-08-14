@@ -1,0 +1,214 @@
+"""
+The main entrypoint for the Chatnificent package.
+
+This module contains the primary Chatnificent class and the abstract base classes
+(interfaces) for each of the extensible pillars. These interfaces form the
+contract that enables the package's "hackability."
+"""
+
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional
+
+import dash_bootstrap_components as dbc
+from dash import Dash, Input, Output, State, callback, callback_context, no_update
+from dash.development.base_component import Component as DashComponent
+
+from .action_handlers import BaseActionHandler, NoActionHandler
+from .auth_managers import BaseAuthManager, SingleUserAuthManager
+from .conversation_managers import (
+    BaseConversationManager,
+    InMemoryConversationManager,
+)
+from .knowledge_retrievers import BaseKnowledgeRetriever, NoKnowledgeRetriever
+from .layout_builders import BaseLayoutBuilder, DefaultLayoutBuilder
+from .llm_providers import BaseLLMProvider, OpenAIProvider
+from .message_formatters import BaseMessageFormatter, DefaultMessageFormatter
+from .models import ASSISTANT_ROLE, USER_ROLE, ChatMessage, Conversation
+from .persistence_managers import (
+    BasePersistenceManager,
+    InMemoryPersistenceManager,
+)
+
+
+class Chatnificent(Dash):
+    """
+    The main class for the Chatnificent LLM Chat UI Framework.
+
+    This class acts as the central orchestrator, using the injected "pillar"
+    components to manage the application's behavior. The constructor uses
+    concrete default implementations, making it easy to get started while
+    remaining fully customizable.
+    """
+
+    def __init__(
+        self,
+        # --- Pillar Injection using Pythonic None-as-default pattern ---
+        layout_builder: Optional[BaseLayoutBuilder] = None,
+        llm_provider: Optional[BaseLLMProvider] = None,
+        persistence_manager: Optional[BasePersistenceManager] = None,
+        message_formatter: Optional[BaseMessageFormatter] = None,
+        conversation_manager: Optional[BaseConversationManager] = None,
+        auth_manager: Optional[BaseAuthManager] = None,
+        action_handler: Optional[BaseActionHandler] = None,
+        knowledge_retriever: Optional[BaseKnowledgeRetriever] = None,
+        # --- Other Dash kwargs ---
+        **kwargs,
+    ):
+        if "external_stylesheets" not in kwargs:
+            kwargs["external_stylesheets"] = []
+
+        if dbc.themes.BOOTSTRAP not in kwargs["external_stylesheets"]:
+            kwargs["external_stylesheets"].append(dbc.themes.BOOTSTRAP)
+        super().__init__(**kwargs)
+        # This pattern avoids the mutable default argument issue.
+        self.layout_builder = (
+            layout_builder if layout_builder is not None else DefaultLayoutBuilder()
+        )
+        self.llm_provider = (
+            llm_provider if llm_provider is not None else OpenAIProvider()
+        )
+        self.persistence_manager = (
+            persistence_manager
+            if persistence_manager is not None
+            else InMemoryPersistenceManager()
+        )
+        self.message_formatter = (
+            message_formatter
+            if message_formatter is not None
+            else DefaultMessageFormatter()
+        )
+        self.conversation_manager = (
+            conversation_manager
+            if conversation_manager is not None
+            else InMemoryConversationManager()
+        )
+        self.auth_manager = (
+            auth_manager if auth_manager is not None else SingleUserAuthManager()
+        )
+        self.action_handler = (
+            action_handler if action_handler is not None else NoActionHandler()
+        )
+        self.knowledge_retriever = (
+            knowledge_retriever
+            if knowledge_retriever is not None
+            else NoKnowledgeRetriever()
+        )
+
+        # Build the layout using the injected builder
+        self.layout = self.layout_builder.build_layout()
+        self._validate_layout()
+        self._register_callbacks()
+
+    def _validate_layout(self):
+        """Ensures the layout contains all required component IDs."""
+        # In a real implementation, this would traverse the layout
+        # and check for the existence of IDs like 'url', 'chat-display',
+        # 'user-input', 'send-button', 'conversation-list', etc.
+        pass
+
+    def _register_callbacks(self):
+        """Registers all the callbacks that orchestrate the pillars."""
+
+        @self.callback(
+            Output("chat-display", "children"),
+            Output("user-input", "value"),
+            Output("conversation-list", "children"),
+            Input("send-button", "n_clicks"),
+            Input("url", "pathname"),
+            State("user-input", "value"),
+        )
+        def handle_interaction(n_clicks, pathname, user_input_value):
+            """Orchestrates the main chat interaction loop and view updates."""
+            ctx = callback_context
+            triggered_id = ctx.triggered_id
+
+            user_id = self.auth_manager.get_current_user_id(pathname=pathname)
+
+            # Determine conversation ID from URL
+            try:
+                convo_id = pathname.strip("/").split("/")[-1]
+            except IndexError:
+                convo_id = self.conversation_manager.get_next_conversation_id(user_id)
+
+            # --- Handle User Message Submission ---
+            if triggered_id == "send-button" and n_clicks and user_input_value:
+                conversation = self.persistence_manager.load_conversation(
+                    convo_id, user_id
+                )
+
+                user_message = ChatMessage(role=USER_ROLE, content=user_input_value)
+                conversation.messages.append(user_message)
+
+                # In a real implementation, RAG and tool-calling logic would go here.
+
+                assistant_response_content = self.llm_provider.generate_response(
+                    conversation.messages
+                )
+                assistant_message = ChatMessage(
+                    role=ASSISTANT_ROLE, content=assistant_response_content
+                )
+                conversation.messages.append(assistant_message)
+
+                self.persistence_manager.save_conversation(conversation, user_id)
+
+                formatted_messages = self.message_formatter.format_messages(
+                    conversation.messages
+                )
+                conversation_list = self.conversation_manager.list_conversations(
+                    user_id
+                )
+
+                return formatted_messages, "", conversation_list
+
+            # --- Handle Page Load / URL Change ---
+            conversation = self.persistence_manager.load_conversation(convo_id, user_id)
+            formatted_messages = self.message_formatter.format_messages(
+                conversation.messages
+            )
+            conversation_list = self.conversation_manager.list_conversations(user_id)
+
+            return formatted_messages, "", conversation_list
+
+        # @self.callback(
+        #     Output("url", "pathname", allow_duplicate=True),
+        #     Input({"type": "convo-item", "id": None}, "n_clicks"),
+        #     State("url", "pathname"),
+        #     prevent_initial_call=True,
+        # )
+        # def handle_conversation_selection(n_clicks, pathname):
+        #     """Navigates to a selected conversation."""
+        #     if not any(n_clicks):
+        #         return no_update
+
+        #     ctx = callback_context
+        #     convo_id = ctx.triggered_id["id"]
+        #     user_id = self.auth_manager.get_current_user_id(pathname=pathname)
+
+        #     return f"/{user_id}/{convo_id}"
+
+        @self.callback(
+            Output("url", "pathname", allow_duplicate=True),
+            Input("new-chat-button", "n_clicks"),
+            State("url", "pathname"),
+            prevent_initial_call=True,
+        )
+        def handle_new_chat(n_clicks, pathname):
+            """Creates a new chat and navigates to it."""
+            if not n_clicks:
+                return no_update
+            user_id = self.auth_manager.get_current_user_id(pathname=pathname)
+            new_convo_id = self.conversation_manager.get_next_conversation_id(user_id)
+
+            return f"/{user_id}/{new_convo_id}"
+
+        @self.callback(
+            Output("sidebar", "is_open"),
+            Input("open-sidebar-button", "n_clicks"),
+            State("sidebar", "is_open"),
+            prevent_initial_call=True,
+        )
+        def toggle_sidebar(n_clicks, is_open):
+            """Toggles the sidebar's visibility."""
+            if n_clicks:
+                return not is_open
+            return is_open

@@ -139,7 +139,7 @@ class Chatnificent(Dash):
                 message_dicts = [msg.model_dump() for msg in conversation.messages]
 
                 assistant_response = self.llm_provider.generate_response(
-                    message_dicts, model="gpt-4o"
+                    message_dicts
                 )
 
                 response_dict = assistant_response.model_dump()

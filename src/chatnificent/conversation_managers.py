@@ -32,11 +32,6 @@ class InMemoryConversationManager(BaseConversationManager):
             self._conversations[user_id] = []
         next_id = len(self._conversations[user_id]) + 1
 
-        # Add a placeholder title for the new conversation
-        new_convo = {"id": str(next_id), "title": f"Chat {next_id}"}
-        if not any(c["id"] == str(next_id) for c in self._conversations[user_id]):
-            self._conversations[user_id].append(new_convo)
-
         return str(next_id)
 
 

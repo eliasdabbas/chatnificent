@@ -10,19 +10,18 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
 import dash_bootstrap_components as dbc
-from dash import Dash, Input, Output, State, callback, callback_context, no_update
+from dash import ALL, Dash, Input, Output, State, callback, callback_context, no_update
 from dash.development.base_component import Component as DashComponent
 
 from .action_handlers import BaseActionHandler, NoActionHandler
 from .auth_managers import BaseAuthManager, SingleUserAuthManager
-from .conversation_managers import (
-    BaseConversationManager,
-    InMemoryConversationManager,
-)
 from .knowledge_retrievers import BaseKnowledgeRetriever, NoKnowledgeRetriever
 from .layout_builders import BaseLayoutBuilder, DefaultLayoutBuilder
 from .llm_providers import BaseLLMProvider, OpenAIProvider
-from .message_formatters import BaseMessageFormatter, DefaultMessageFormatter
+from .message_formatters import (
+    BaseMessageFormatter,
+    DefaultMessageFormatter,
+)
 from .models import ASSISTANT_ROLE, USER_ROLE, ChatMessage, Conversation
 from .persistence_managers import (
     BasePersistenceManager,
@@ -47,7 +46,6 @@ class Chatnificent(Dash):
         llm_provider: Optional[BaseLLMProvider] = None,
         persistence_manager: Optional[BasePersistenceManager] = None,
         message_formatter: Optional[BaseMessageFormatter] = None,
-        conversation_manager: Optional[BaseConversationManager] = None,
         auth_manager: Optional[BaseAuthManager] = None,
         action_handler: Optional[BaseActionHandler] = None,
         knowledge_retriever: Optional[BaseKnowledgeRetriever] = None,
@@ -76,11 +74,6 @@ class Chatnificent(Dash):
             message_formatter
             if message_formatter is not None
             else DefaultMessageFormatter()
-        )
-        self.conversation_manager = (
-            conversation_manager
-            if conversation_manager is not None
-            else InMemoryConversationManager()
         )
         self.auth_manager = (
             auth_manager if auth_manager is not None else SingleUserAuthManager()
@@ -128,63 +121,116 @@ class Chatnificent(Dash):
             try:
                 convo_id = pathname.strip("/").split("/")[-1]
             except IndexError:
-                convo_id = self.conversation_manager.get_next_conversation_id(user_id)
+                convo_id = self.persistence_manager.get_next_conversation_id(user_id)
 
             # --- Handle User Message Submission ---
             if triggered_id == "send-button" and n_clicks and user_input_value:
                 conversation = self.persistence_manager.load_conversation(
-                    convo_id, user_id
+                    user_id, convo_id
                 )
+
+                # Create new conversation if it doesn't exist
+                if conversation is None:
+                    conversation = Conversation(id=convo_id)
 
                 user_message = ChatMessage(role=USER_ROLE, content=user_input_value)
                 conversation.messages.append(user_message)
 
-                # In a real implementation, RAG and tool-calling logic would go here.
+                message_dicts = [msg.model_dump() for msg in conversation.messages]
 
-                assistant_response_content = self.llm_provider.generate_response(
-                    conversation.messages
+                assistant_response = self.llm_provider.generate_response(
+                    message_dicts, model="gpt-4o"
                 )
+
+                response_dict = assistant_response.model_dump()
+                assistant_response_content = response_dict["choices"][0]["message"][
+                    "content"
+                ]
+
                 assistant_message = ChatMessage(
                     role=ASSISTANT_ROLE, content=assistant_response_content
                 )
                 conversation.messages.append(assistant_message)
 
-                self.persistence_manager.save_conversation(conversation, user_id)
+                self.persistence_manager.save_conversation(user_id, conversation)
 
                 formatted_messages = self.message_formatter.format_messages(
                     conversation.messages
                 )
-                conversation_list = self.conversation_manager.list_conversations(
-                    user_id
-                )
+
+                # Build conversation list UI components
+                conversation_ids = self.persistence_manager.list_conversations(user_id)
+                conversation_list = []
+                for convo_id in conversation_ids:
+                    conv = self.persistence_manager.load_conversation(user_id, convo_id)
+                    # Only include conversations that have messages
+                    if conv and conv.messages:
+                        first_message = next(
+                            (msg for msg in conv.messages if msg.role == "user"), None
+                        )
+                        if first_message:
+                            content = first_message.content
+                            title = content[:50] + ("..." if len(content) > 50 else "")
+
+                            conversation_list.append(
+                                dbc.ListGroupItem(
+                                    title,
+                                    id={"type": "convo-item", "id": convo_id},
+                                    n_clicks=0,
+                                    action=True,
+                                )
+                            )
 
                 return formatted_messages, "", conversation_list
 
             # --- Handle Page Load / URL Change ---
-            conversation = self.persistence_manager.load_conversation(convo_id, user_id)
+            conversation = self.persistence_manager.load_conversation(user_id, convo_id)
+            if conversation is None:
+                conversation = Conversation(id=convo_id)
             formatted_messages = self.message_formatter.format_messages(
                 conversation.messages
             )
-            conversation_list = self.conversation_manager.list_conversations(user_id)
+
+            conversation_ids = self.persistence_manager.list_conversations(user_id)
+            conversation_list = []
+            for convo_id in conversation_ids:
+                conv = self.persistence_manager.load_conversation(user_id, convo_id)
+                # Only include conversations that have messages
+                if conv and conv.messages:
+                    first_message = next(
+                        (msg for msg in conv.messages if msg.role == "user"), None
+                    )
+                    if first_message:
+                        content = first_message.content
+                        title = content[:40] + ("..." if len(content) > 40 else "")
+
+                        conversation_list.append(
+                            dbc.ListGroupItem(
+                                title,
+                                id={"type": "convo-item", "id": convo_id},
+                                n_clicks=0,
+                                action=True,
+                            )
+                        )
 
             return formatted_messages, "", conversation_list
 
-        # @self.callback(
-        #     Output("url", "pathname", allow_duplicate=True),
-        #     Input({"type": "convo-item", "id": None}, "n_clicks"),
-        #     State("url", "pathname"),
-        #     prevent_initial_call=True,
-        # )
-        # def handle_conversation_selection(n_clicks, pathname):
-        #     """Navigates to a selected conversation."""
-        #     if not any(n_clicks):
-        #         return no_update
+        @self.callback(
+            Output("url", "pathname", allow_duplicate=True),
+            Input({"type": "convo-item", "id": ALL}, "n_clicks"),
+            State("url", "pathname"),
+            prevent_initial_call=True,
+        )
+        def handle_conversation_selection(n_clicks, pathname):
+            """Navigates to a selected conversation."""
+            if not any(n_clicks):
+                return no_update
 
-        #     ctx = callback_context
-        #     convo_id = ctx.triggered_id["id"]
-        #     user_id = self.auth_manager.get_current_user_id(pathname=pathname)
+            ctx = callback_context
+            convo_id = ctx.triggered_id["id"]
+            user_id = self.auth_manager.get_current_user_id(pathname=pathname)
 
-        #     return f"/{user_id}/{convo_id}"
+            return f"/{user_id}/{convo_id}"
 
         @self.callback(
             Output("url", "pathname", allow_duplicate=True),
@@ -196,19 +242,45 @@ class Chatnificent(Dash):
             """Creates a new chat and navigates to it."""
             if not n_clicks:
                 return no_update
-            user_id = self.auth_manager.get_current_user_id(pathname=pathname)
-            new_convo_id = self.conversation_manager.get_next_conversation_id(user_id)
 
-            return f"/{user_id}/{new_convo_id}"
+            user_id = self.auth_manager.get_current_user_id(pathname=pathname)
+            path_parts = [p for p in pathname.strip("/").split("/") if p]
+            current_convo_id = path_parts[-1] if len(path_parts) >= 2 else None
+
+            if current_convo_id:
+                current_conversation = self.persistence_manager.load_conversation(
+                    user_id, current_convo_id
+                )
+
+                if current_conversation and current_conversation.messages:
+                    # Current conversation has messages, create a new one
+                    new_convo_id = self.persistence_manager.get_next_conversation_id(
+                        user_id
+                    )
+                    return f"/{user_id}/{new_convo_id}"
+                else:
+                    return no_update
+            else:
+                new_convo_id = self.persistence_manager.get_next_conversation_id(
+                    user_id
+                )
+                return f"/{user_id}/{new_convo_id}"
 
         @self.callback(
             Output("sidebar", "is_open"),
             Input("open-sidebar-button", "n_clicks"),
+            Input("new-chat-button", "n_clicks"),
             State("sidebar", "is_open"),
             prevent_initial_call=True,
         )
-        def toggle_sidebar(n_clicks, is_open):
+        def toggle_sidebar(hamburger_clicks, new_chat_clicks, is_open):
             """Toggles the sidebar's visibility."""
-            if n_clicks:
+            ctx = callback_context
+            triggered_id = ctx.triggered_id
+
+            if triggered_id == "open-sidebar-button":
                 return not is_open
+            elif triggered_id == "new-chat-button":
+                return False
+
             return is_open

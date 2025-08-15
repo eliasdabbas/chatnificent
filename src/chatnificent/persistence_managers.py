@@ -1,8 +1,7 @@
 """Concrete implementations for persistence managers."""
 
 from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 from .models import Conversation
 
@@ -11,12 +10,12 @@ class BasePersistenceManager(ABC):
     """Interface for saving and loading conversation data."""
 
     @abstractmethod
-    def load_conversation(self, convo_id: str, user_id: str) -> Conversation:
+    def load_conversation(self, user_id: str, convo_id: str) -> Optional[Conversation]:
         """Loads a single conversation from the persistence layer."""
         pass
 
     @abstractmethod
-    def save_conversation(self, conversation: Conversation, user_id: str):
+    def save_conversation(self, user_id: str, conversation: Conversation):
         """Saves a single conversation to the persistence layer."""
         pass
 
@@ -27,10 +26,10 @@ class InMemoryPersistenceManager(BasePersistenceManager):
     def __init__(self):
         self._store: Dict[str, Conversation] = {}
 
-    def load_conversation(self, convo_id: str, user_id: str) -> Conversation:
-        return self._store.get(convo_id, Conversation(id=convo_id))
+    def load_conversation(self, user_id: str, convo_id: str) -> Optional[Conversation]:
+        return self._store.get(convo_id)
 
-    def save_conversation(self, conversation: Conversation, user_id: str):
+    def save_conversation(self, user_id: str, conversation: Conversation):
         self._store[conversation.id] = conversation.copy(deep=True)
 
 
@@ -40,8 +39,8 @@ class FilePersistenceManager(BasePersistenceManager):
     def __init__(self, base_dir: str):
         pass
 
-    def load_conversation(self, convo_id: str, user_id: str) -> Conversation:
+    def load_conversation(self, user_id: str, convo_id: str) -> Optional[Conversation]:
         pass
 
-    def save_conversation(self, conversation: Conversation, user_id: str):
+    def save_conversation(self, user_id: str, conversation: Conversation):
         pass

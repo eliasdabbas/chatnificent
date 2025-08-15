@@ -15,7 +15,7 @@ class BaseAuthManager(ABC):
 class SingleUserAuthManager(BaseAuthManager):
     """A simple auth manager for single-user apps."""
 
-    def __init__(self, user_id: str = "default_user"):
+    def __init__(self, user_id: str = "chat"):
         self._user_id = user_id
 
     def get_current_user_id(self, **kwargs) -> str:

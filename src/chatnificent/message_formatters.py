@@ -14,7 +14,7 @@ class BaseMessageFormatter(ABC):
 
     @abstractmethod
     def format_messages(self, messages: List[ChatMessage]) -> List[DashComponent]:
-        """Converts a list of message models into a list of renderable Dash components."""
+        """Converts a list of message models into renderable Dash components."""
         pass
 
 

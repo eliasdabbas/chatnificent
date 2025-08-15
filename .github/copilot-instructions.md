@@ -55,7 +55,159 @@ if __name__ == "__main__":
 - `dash` component IDs should always use snake_case
 - `cassName` and CSS IDs should always use kebab-case
 
+## Package Architecture
 
+The following modules comprise the architecture of the package:
+
+src/
+└── chatnificent/
+    ├── __init__.py
+    ├── action_handlers.py
+    ├── auth_managers.py
+    ├── conversation_managers.py
+    ├── knowledge_retrievers.py
+    ├── layout_builders.py
+    ├── llm_providers.py
+    ├── message_formatters.py
+    ├── models.py
+    ├── persistence_managers.py
+    ├── py.typed
+    └── themes.py
+
+
+We are following strict guidlines, especially separation of concerns and following the
+UNIX philosophy of having each component do one thing and do it well.
+
+It is important to follow the following rule: every method of every one of these classes
+should only be concerned with what it is supposed to do (read_messages, get_current_user, etc.).
+When we want composite functionality, it should be orchestrated by callbacks or other functions/methods.
+We don't want to pollute the atomic methods with anything other than what they actually do.
+
+### Most Important BaseClasses
+
+`auth_managers.py`
+
+```python
+class BaseAuthManager(ABC):
+    """Interface for identifying the current user."""
+
+    @abstractmethod
+    def get_current_user_id(self, **kwargs) -> str:
+        """Determines and returns the ID of the current user."""
+        pass
+```
+
+`conversation_managers.py`:
+
+```python
+class BaseConversationManager(ABC):
+    """Interface for managing conversation lifecycle."""
+
+    @abstractmethod
+    def list_conversations(self, user_id: str) -> List[Dict[str, str]]:
+        """Lists all conversations for a given user."""
+        pass
+
+    @abstractmethod
+    def get_next_conversation_id(self, user_id: str) -> str:
+        """Generates a new, unique conversation ID for a user."""
+        pass
+
+```
+
+`layout_builders.py`
+
+```python
+class BaseLayoutBuilder(ABC):
+    """Interface for building the Dash component layout."""
+
+    @abstractmethod
+    def build_layout(self) -> DashComponent:
+        """Constructs and returns the entire Dash component tree for the UI."""
+        pass
+
+# check this concrete implementation when needed:
+class DefaultLayoutBuilder(BaseLayoutBuilder):
+
+```
+
+`llm_providers.py`
+
+```python
+class BaseLLMProvider(ABC):
+    """Abstract Base Class for all LLM providers."""
+
+    @abstractmethod
+    def generate_response(
+        self, messages: List[Dict[str, Any]], model: str, **kwargs: Any
+    ) -> Union[Any, Iterator[Any]]:
+        """Generates a response from the LLM provider.
+
+        Parameters
+        ----------
+        messages : List[Dict[str, Any]]
+            A list of message dictionaries, conforming to the provider's
+            expected format.
+        model : str
+            The specific model to use for the generation.
+        **kwargs : Any
+            Provider-specific parameters (e.g., stream, temperature) to be
+            passed directly to the SDK.
+
+        Returns
+        -------
+        Union[Any, Iterator[Any]]
+            The provider's native, rich response object for a non-streaming
+            call, or an iterator of native chunk objects for a streaming call.
+        """
+        pass
+
+```
+
+`message_formatters.py
+
+```python
+class BaseMessageFormatter(ABC):
+    """Interface for converting message data into Dash components."""
+
+    @abstractmethod
+    def format_messages(self, messages: List[ChatMessage]) -> List[DashComponent]:
+        """Converts a list of message models into renderable Dash components."""
+        pass
+
+```
+
+`models.py`
+
+```python
+class ChatMessage(BaseModel):
+    """Represents a single message within a conversation."""
+
+    role: Role
+    content: str
+
+class Conversation(BaseModel):
+    """Represents a complete chat conversation session."""
+
+    messages: List[ChatMessage] = Field(default_factory=list)
+```
+
+`persistence_managers.py`
+
+```python
+class BasePersistenceManager(ABC):
+    """Interface for saving and loading conversation data."""
+
+    @abstractmethod
+    def load_conversation(self, convo_id: str, user_id: str) -> Conversation:
+        """Loads a single conversation from the persistence layer."""
+        pass
+
+    @abstractmethod
+    def save_conversation(self, conversation: Conversation, user_id: str):
+        """Saves a single conversation to the persistence layer."""
+        pass
+```
 
 ## Python-specific guidelines
 

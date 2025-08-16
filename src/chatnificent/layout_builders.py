@@ -27,7 +27,7 @@ class DefaultLayoutBuilder(BaseLayoutBuilder):
         return html.Div(
             className="d-flex flex-column vh-100",
             children=[
-                dcc.Location(id="url", refresh=False),
+                dcc.Location(id="url_location", refresh=False),
                 self.build_header(),
                 html.Div(
                     className="d-flex flex-grow-1",
@@ -54,7 +54,7 @@ class DefaultLayoutBuilder(BaseLayoutBuilder):
                             children=[
                                 dbc.Col(
                                     dbc.Button(
-                                        "☰", id="open-sidebar-button", n_clicks=0
+                                        "☰", id="sidebar_toggle_button", n_clicks=0
                                     ),
                                     width="auto",
                                 ),
@@ -69,14 +69,14 @@ class DefaultLayoutBuilder(BaseLayoutBuilder):
     def build_sidebar(self) -> DashComponent:
         """Builds the sidebar component."""
         return dbc.Offcanvas(
-            id="sidebar",
+            id="sidebar_offcanvas",
             is_open=False,
             title="Conversations",
             children=[
-                dbc.ListGroup(id="conversation-list", children=[]),
+                html.Div(id="convo_list_div", children=[]),
                 dbc.Button(
                     "New Chat",
-                    id="new-chat-button",
+                    id="new_chat_button",
                     color="primary",
                     className="w-100 mt-3",
                 ),
@@ -86,7 +86,7 @@ class DefaultLayoutBuilder(BaseLayoutBuilder):
     def build_chat_area(self) -> DashComponent:
         """Builds the main chat display area."""
         return html.Main(
-            id="chat-display", className="flex-grow-1 p-3", style={"overflowY": "auto"}
+            id="chat_area_main", className="flex-grow-1 p-3", style={"overflowY": "auto"}
         )
 
     def build_input_area(self) -> DashComponent:
@@ -96,8 +96,8 @@ class DefaultLayoutBuilder(BaseLayoutBuilder):
             children=[
                 dbc.InputGroup(
                     [
-                        dbc.Textarea(id="user-input", placeholder="Type a message..."),
-                        dbc.Button("Send", id="send-button", color="primary"),
+                        dbc.Textarea(id="user_input_textarea", placeholder="Type a message..."),
+                        dbc.Button("Send", id="chat_send_button", color="primary"),
                     ]
                 )
             ],

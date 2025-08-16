@@ -34,20 +34,39 @@ class BaseLLMProvider(ABC):
         """
         pass
 
+    @abstractmethod
+    def extract_content(self, response: Any) -> str:
+        """Extracts the text content from the provider's response object.
+
+        Parameters
+        ----------
+        response : Any
+            The provider's native response object from generate_response.
+
+        Returns
+        -------
+        str
+            The extracted text content from the response.
+        """
+        pass
+
 
 class OpenAIProvider(BaseLLMProvider):
-    def __init__(self):
+    def __init__(self, default_model: str = "gpt-4o"):
         from openai import OpenAI
 
         self.client = OpenAI()
+        self.model = default_model
 
     def generate_response(
-        self, messages: List[Dict[str, Any]], model: str, **kwargs: Any
+        self, messages: List[Dict[str, Any]], model=None, **kwargs: Any
     ) -> Any:
-        print("Generating response!!!!!!")
         return self.client.chat.completions.create(
-            messages=messages, model=model, **kwargs
+            messages=messages, model=model or self.model, **kwargs
         )
+
+    def extract_content(self, response: Any) -> str:
+        return response.choices[0].message.content
 
 
 class GeminiProvider(BaseLLMProvider):
@@ -61,15 +80,26 @@ class GeminiProvider(BaseLLMProvider):
         current_message = messages[-1]["content"]
         return chat.send_message(current_message)
 
+    def extract_content(self, response: Any) -> str:
+        return response.text
+
 
 class AnthropicProvider(BaseLLMProvider):
-    def __init__(self):
+    def __init__(self, default_model: str = "claude-3-5-sonnet-20241022"):
         from anthropic import Anthropic
 
         self.client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        self.model = default_model
 
-    def generate_response(self, messages, model, **kwargs):
-        return self.client.messages.create(model=model, messages=messages, **kwargs)
+    def generate_response(self, messages, model=None, **kwargs):
+        if "max_tokens" not in kwargs:
+            kwargs["max_tokens"] = 4096
+        return self.client.messages.create(
+            model=model or self.model, messages=messages, **kwargs
+        )
+
+    def extract_content(self, response: Any) -> str:
+        return response.content[0].text
 
 
 class OllamaProvider(BaseLLMProvider):
@@ -80,6 +110,9 @@ class OllamaProvider(BaseLLMProvider):
 
     def generate_response(self, messages, model, **kwargs):
         return self.client.chat(model=model, messages=messages, **kwargs)
+
+    def extract_content(self, response: Any) -> str:
+        return response["message"]["content"]
 
 
 class OpenRouterProvider(BaseLLMProvider):
@@ -100,6 +133,9 @@ class OpenRouterProvider(BaseLLMProvider):
             model=model, messages=messages, **kwargs
         )
 
+    def extract_content(self, response: Any) -> str:
+        return response.choices[0].message.content
+
 
 class DeepSeekProvider(BaseLLMProvider):
     def __init__(self):
@@ -114,3 +150,6 @@ class DeepSeekProvider(BaseLLMProvider):
         return self.client.chat.completions.create(
             model=model, messages=messages, **kwargs
         )
+
+    def extract_content(self, response: Any) -> str:
+        return response.choices[0].message.content

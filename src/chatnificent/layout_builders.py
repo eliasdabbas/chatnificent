@@ -29,40 +29,52 @@ class DefaultLayoutBuilder(BaseLayoutBuilder):
             children=[
                 dcc.Location(id="url_location", refresh=False),
                 self.build_header(),
-                html.Div(
-                    className="d-flex flex-grow-1",
-                    style={"overflow": "hidden"},
+                dbc.Container(
+                    fluid=True,
+                    className="flex-grow-1 d-flex flex-column",
+                    style={"minHeight": "0"},
                     children=[
-                        self.build_sidebar(),
-                        self.build_chat_area(),
+                        dbc.Row(
+                            justify="center",
+                            className="flex-grow-1",
+                            style={"minHeight": "0"},
+                            children=[
+                                dbc.Col(
+                                    lg=7,
+                                    md=12,
+                                    className="d-flex flex-column",
+                                    style={"minHeight": "0"},
+                                    children=[
+                                        self.build_chat_area(),
+                                        self.build_input_area(),
+                                    ],
+                                )
+                            ],
+                        )
                     ],
                 ),
-                self.build_input_area(),
+                self.build_sidebar(),
             ],
         )
 
     def build_header(self) -> DashComponent:
         """Builds the header component."""
         return html.Header(
-            className="p-2 bg-light border-bottom",
+            className="p-2",
+            style={"width": "300px"},
             children=[
-                dbc.Container(
-                    fluid=True,
-                    children=[
-                        dbc.Row(
-                            align="center",
-                            children=[
-                                dbc.Col(
-                                    dbc.Button(
-                                        "☰", id="sidebar_toggle_button", n_clicks=0
-                                    ),
-                                    width="auto",
-                                ),
-                                dbc.Col(html.H4("Chatnificent", className="m-0")),
-                            ],
-                        )
-                    ],
-                )
+                html.Button(
+                    html.I(className="bi bi-list"),
+                    id="sidebar_toggle_button",
+                    n_clicks=0,
+                    style={
+                        "border": "none",
+                        "background": "none",
+                        "fontSize": "48px",
+                        "display": "block",
+                        "margin": "0 auto",
+                    },
+                ),
             ],
         )
 
@@ -71,15 +83,17 @@ class DefaultLayoutBuilder(BaseLayoutBuilder):
         return dbc.Offcanvas(
             id="sidebar_offcanvas",
             is_open=False,
-            title="Conversations",
+            backdrop=False,
+            style={"width": "300px"},
             children=[
-                html.Div(id="convo_list_div", children=[]),
-                dbc.Button(
-                    "New Chat",
+                html.Div(
+                    [html.I(className="bi bi-pencil-square"), " New chat"],
                     id="new_chat_button",
-                    color="primary",
-                    className="w-100 mt-3",
+                    n_clicks=0,
+                    className="w-100 mb-3 p-2",
+                    style={"cursor": "pointer", "textAlign": "center"},
                 ),
+                html.Div(id="convo_list_div", children=[]),
             ],
         )
 
@@ -94,15 +108,39 @@ class DefaultLayoutBuilder(BaseLayoutBuilder):
     def build_input_area(self) -> DashComponent:
         """Builds the user input area."""
         return html.Footer(
-            className="p-3 bg-light border-top",
+            className="p-3 position-sticky bottom-0 bg-white",
+            style={"zIndex": "100"},
             children=[
-                dbc.InputGroup(
-                    [
+                html.Div(
+                    className="d-flex",
+                    style={
+                        "border": "1px solid #dee2e6",
+                        "borderRadius": "25px",
+                        "overflow": "hidden",
+                    },
+                    children=[
                         dbc.Textarea(
-                            id="user_input_textarea", placeholder="Type a message..."
+                            id="user_input_textarea",
+                            placeholder="Ask...",
+                            rows=4,
+                            autoFocus=True,
+                            style={"border": "none", "resize": "none"},
+                            className="flex-grow-1",
                         ),
-                        dbc.Button("Send", id="chat_send_button", color="primary"),
-                    ]
+                        html.Button(
+                            html.I(className="bi bi-send"),
+                            id="chat_send_button",
+                            n_clicks=0,
+                            style={
+                                "border": "none",
+                                "background": "none",
+                                "fontSize": "32px",
+                                "padding": "4px",
+                                "outline": "none",
+                                "boxShadow": "none",
+                            },
+                        ),
+                    ],
                 )
             ],
         )

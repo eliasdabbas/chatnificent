@@ -37,10 +37,10 @@ class DefaultMessageFormatter(BaseMessageFormatter):
         }
         if message.role == USER_ROLE:
             style["marginLeft"] = "auto"
-            style["backgroundColor"] = "#dcf8c6"
+            style["backgroundColor"] = "#efefef"
         else:
             style["marginRight"] = "auto"
             style["backgroundColor"] = "#ffffff"
             style["border"] = "1px solid #eee"
 
-        return html.Div(dcc.Markdown(message.content), style=style)
+        return html.Div([dcc.Markdown(message.content)], style=style)

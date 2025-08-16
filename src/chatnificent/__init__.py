@@ -20,9 +20,11 @@ from .llm_providers import BaseLLMProvider, OpenAIProvider
 from .message_formatters import (
     BaseMessageFormatter,
     DefaultMessageFormatter,
+    MarkdownFormatter,
 )
 from .persistence_managers import (
     BasePersistenceManager,
+    FilePersistenceManager,
     InMemoryPersistenceManager,
 )
 
@@ -55,6 +57,11 @@ class Chatnificent(Dash):
 
         if dbc.themes.BOOTSTRAP not in kwargs["external_stylesheets"]:
             kwargs["external_stylesheets"].append(dbc.themes.BOOTSTRAP)
+
+        # Add Bootstrap Icons
+        bootstrap_icons_cdn = "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"
+        if bootstrap_icons_cdn not in kwargs["external_stylesheets"]:
+            kwargs["external_stylesheets"].append(bootstrap_icons_cdn)
         super().__init__(**kwargs)
         # This pattern avoids the mutable default argument issue.
         self.layout_builder = (
@@ -69,9 +76,7 @@ class Chatnificent(Dash):
             else InMemoryPersistenceManager()
         )
         self.message_formatter = (
-            message_formatter
-            if message_formatter is not None
-            else DefaultMessageFormatter()
+            message_formatter if message_formatter is not None else MarkdownFormatter()
         )
         self.auth_manager = (
             auth_manager if auth_manager is not None else SingleUserAuthManager()
@@ -133,4 +138,5 @@ class Chatnificent(Dash):
     def _register_callbacks(self):
         """Registers all the callbacks that orchestrate the pillars."""
         from .callbacks import register_callbacks
+
         register_callbacks(self)

@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
 import dash_bootstrap_components as dbc
-from dash import ALL, Dash, Input, Output, State, callback, callback_context, no_update
+from dash import ALL, Dash, Input, Output, State, callback, callback_context, html, no_update
 from dash.development.base_component import Component as DashComponent
 
 from .action_handlers import BaseActionHandler, NoActionHandler
@@ -103,12 +103,12 @@ class Chatnificent(Dash):
         """Registers all the callbacks that orchestrate the pillars."""
 
         @self.callback(
-            Output("chat-display", "children"),
-            Output("user-input", "value"),
-            Output("conversation-list", "children"),
-            Input("send-button", "n_clicks"),
-            Input("url", "pathname"),
-            State("user-input", "value"),
+            Output("chat_area_main", "children"),
+            Output("user_input_textarea", "value"),
+            Output("convo_list_div", "children"),
+            Input("chat_send_button", "n_clicks"),
+            Input("url_location", "pathname"),
+            State("user_input_textarea", "value"),
         )
         def handle_interaction(n_clicks, pathname, user_input_value):
             """Orchestrates the main chat interaction loop and view updates."""
@@ -124,7 +124,7 @@ class Chatnificent(Dash):
                 convo_id = self.persistence_manager.get_next_conversation_id(user_id)
 
             # --- Handle User Message Submission ---
-            if triggered_id == "send-button" and n_clicks and user_input_value:
+            if triggered_id == "chat_send_button" and n_clicks and user_input_value:
                 conversation = self.persistence_manager.load_conversation(
                     user_id, convo_id
                 )
@@ -142,10 +142,9 @@ class Chatnificent(Dash):
                     message_dicts
                 )
 
-                response_dict = assistant_response.model_dump()
-                assistant_response_content = response_dict["choices"][0]["message"][
-                    "content"
-                ]
+                assistant_response_content = self.llm_provider.extract_content(
+                    assistant_response
+                )
 
                 assistant_message = ChatMessage(
                     role=ASSISTANT_ROLE, content=assistant_response_content
@@ -173,11 +172,11 @@ class Chatnificent(Dash):
                             title = content[:50] + ("..." if len(content) > 50 else "")
 
                             conversation_list.append(
-                                dbc.ListGroupItem(
+                                html.Div(
                                     title,
                                     id={"type": "convo-item", "id": convo_id},
                                     n_clicks=0,
-                                    action=True,
+                                    style={"cursor": "pointer"},
                                 )
                             )
 
@@ -205,20 +204,20 @@ class Chatnificent(Dash):
                         title = content[:40] + ("..." if len(content) > 40 else "")
 
                         conversation_list.append(
-                            dbc.ListGroupItem(
+                            html.Div(
                                 title,
                                 id={"type": "convo-item", "id": convo_id},
                                 n_clicks=0,
-                                action=True,
+                                style={"cursor": "pointer"},
                             )
                         )
 
             return formatted_messages, "", conversation_list
 
         @self.callback(
-            Output("url", "pathname", allow_duplicate=True),
+            Output("url_location", "pathname", allow_duplicate=True),
             Input({"type": "convo-item", "id": ALL}, "n_clicks"),
-            State("url", "pathname"),
+            State("url_location", "pathname"),
             prevent_initial_call=True,
         )
         def handle_conversation_selection(n_clicks, pathname):
@@ -233,9 +232,9 @@ class Chatnificent(Dash):
             return f"/{user_id}/{convo_id}"
 
         @self.callback(
-            Output("url", "pathname", allow_duplicate=True),
-            Input("new-chat-button", "n_clicks"),
-            State("url", "pathname"),
+            Output("url_location", "pathname", allow_duplicate=True),
+            Input("new_chat_button", "n_clicks"),
+            State("url_location", "pathname"),
             prevent_initial_call=True,
         )
         def handle_new_chat(n_clicks, pathname):
@@ -267,10 +266,10 @@ class Chatnificent(Dash):
                 return f"/{user_id}/{new_convo_id}"
 
         @self.callback(
-            Output("sidebar", "is_open"),
-            Input("open-sidebar-button", "n_clicks"),
-            Input("new-chat-button", "n_clicks"),
-            State("sidebar", "is_open"),
+            Output("sidebar_offcanvas", "is_open"),
+            Input("sidebar_toggle_button", "n_clicks"),
+            Input("new_chat_button", "n_clicks"),
+            State("sidebar_offcanvas", "is_open"),
             prevent_initial_call=True,
         )
         def toggle_sidebar(hamburger_clicks, new_chat_clicks, is_open):
@@ -278,9 +277,9 @@ class Chatnificent(Dash):
             ctx = callback_context
             triggered_id = ctx.triggered_id
 
-            if triggered_id == "open-sidebar-button":
+            if triggered_id == "sidebar_toggle_button":
                 return not is_open
-            elif triggered_id == "new-chat-button":
+            elif triggered_id == "new_chat_button":
                 return False
 
             return is_open

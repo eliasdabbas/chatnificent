@@ -10,7 +10,17 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
 import dash_bootstrap_components as dbc
-from dash import ALL, Dash, Input, Output, State, callback, callback_context, html, no_update
+from dash import (
+    ALL,
+    Dash,
+    Input,
+    Output,
+    State,
+    callback,
+    callback_context,
+    html,
+    no_update,
+)
 from dash.development.base_component import Component as DashComponent
 
 from .action_handlers import BaseActionHandler, NoActionHandler
@@ -94,10 +104,43 @@ class Chatnificent(Dash):
 
     def _validate_layout(self):
         """Ensures the layout contains all required component IDs."""
-        # In a real implementation, this would traverse the layout
-        # and check for the existence of IDs like 'url', 'chat-display',
-        # 'user-input', 'send-button', 'conversation-list', etc.
-        pass
+        required_ids = {
+            "url_location",
+            "chat_area_main",
+            "user_input_textarea",
+            "convo_list_div",
+            "chat_send_button",
+            "new_chat_button",
+            "sidebar_offcanvas",
+            "sidebar_toggle_button",
+        }
+
+        found_ids = set()
+
+        def collect_ids(component):
+            """Recursively collects all component IDs from the layout tree."""
+            if hasattr(component, "id") and component.id:
+                if isinstance(component.id, str):
+                    found_ids.add(component.id)
+
+            if hasattr(component, "children"):
+                children = component.children
+                if children is None:
+                    return
+                elif isinstance(children, list):
+                    for child in children:
+                        if child is not None:
+                            collect_ids(child)
+                else:
+                    collect_ids(children)
+
+        collect_ids(self.layout)
+
+        missing_ids = required_ids - found_ids
+        if missing_ids:
+            raise ValueError(
+                f"Layout validation failed. Missing required component IDs: {sorted(missing_ids)}"
+            )
 
     def _register_callbacks(self):
         """Registers all the callbacks that orchestrate the pillars."""
@@ -138,9 +181,7 @@ class Chatnificent(Dash):
 
                 message_dicts = [msg.model_dump() for msg in conversation.messages]
 
-                assistant_response = self.llm_provider.generate_response(
-                    message_dicts
-                )
+                assistant_response = self.llm_provider.generate_response(message_dicts)
 
                 assistant_response_content = self.llm_provider.extract_content(
                     assistant_response

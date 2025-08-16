@@ -1,57 +1,58 @@
-"""Default callback handlers for the Chatnificent application."""
+"""Atomic callback architecture for Chatnificent."""
 
-from dash import ALL, Input, Output, State, callback_context, html, no_update
+from dash import ALL, Input, Output, State, callback_context, no_update
 
 from .models import ASSISTANT_ROLE, USER_ROLE, ChatMessage, Conversation
 
 
 def register_callbacks(app):
-    """Registers all default callbacks with the Chatnificent app instance."""
 
     @app.callback(
-        Output("chat_area_main", "children"),
-        Output("user_input_textarea", "value"),
-        Output("convo_list_div", "children"),
-        Input("chat_send_button", "n_clicks"),
-        Input("url_location", "pathname"),
-        State("user_input_textarea", "value"),
+        [
+            Output("chat_area_main", "children"),
+            Output("user_input_textarea", "value"),
+            Output("chat_send_button", "disabled"),
+        ],
+        [Input("chat_send_button", "n_clicks")],
+        [State("user_input_textarea", "value"), State("url_location", "pathname")],
     )
-    def handle_interaction(n_clicks, pathname, user_input_value):
-        """Orchestrates the main chat interaction loop and view updates."""
-        ctx = callback_context
-        triggered_id = ctx.triggered_id
+    def send_message(n_clicks, user_input, pathname):
+        if not n_clicks or not user_input or not user_input.strip():
+            return no_update, no_update, no_update
 
-        user_id = app.auth_manager.get_current_user_id(pathname=pathname)
-
-        # Determine conversation ID from URL
         try:
-            convo_id = pathname.strip("/").split("/")[-1]
-        except IndexError:
-            convo_id = app.persistence_manager.get_next_conversation_id(user_id)
+            user_id = app.auth_manager.get_current_user_id(pathname=pathname)
+            path_parts = pathname.strip("/").split("/")
 
-        # --- Handle User Message Submission ---
-        if triggered_id == "chat_send_button" and n_clicks and user_input_value:
+            if len(path_parts) >= 2 and path_parts[-1] and path_parts[-1] != "NEW":
+                convo_id = path_parts[-1]
+            else:
+                convo_id = app.persistence_manager.get_next_conversation_id(user_id)
+
             conversation = app.persistence_manager.load_conversation(user_id, convo_id)
-
-            # Create new conversation if it doesn't exist
-            if conversation is None:
+            if not conversation:
                 conversation = Conversation(id=convo_id)
 
-            user_message = ChatMessage(role=USER_ROLE, content=user_input_value)
+            user_message = ChatMessage(role=USER_ROLE, content=user_input.strip())
             conversation.messages.append(user_message)
 
             message_dicts = [msg.model_dump() for msg in conversation.messages]
+            result = app.llm_provider.generate_response(message_dicts)
 
-            assistant_response = app.llm_provider.generate_response(message_dicts)
+            # Handle both old and new response formats for backward compatibility
+            if isinstance(result, dict) and "content" in result:
+                ai_content = result["content"]
+                if "raw_response" in result and hasattr(
+                    app.persistence_manager, "save_raw_api_response"
+                ):
+                    app.persistence_manager.save_raw_api_response(
+                        user_id, convo_id, result["raw_response"]
+                    )
+            else:
+                ai_content = app.llm_provider.extract_content(result)
 
-            assistant_response_content = app.llm_provider.extract_content(
-                assistant_response
-            )
-
-            assistant_message = ChatMessage(
-                role=ASSISTANT_ROLE, content=assistant_response_content
-            )
-            conversation.messages.append(assistant_message)
+            ai_message = ChatMessage(role=ASSISTANT_ROLE, content=ai_content)
+            conversation.messages.append(ai_message)
 
             app.persistence_manager.save_conversation(user_id, conversation)
 
@@ -59,125 +60,229 @@ def register_callbacks(app):
                 conversation.messages
             )
 
-            # Build conversation list UI components
-            conversation_ids = app.persistence_manager.list_conversations(user_id)
-            conversation_list = []
-            for convo_id in conversation_ids:
-                conv = app.persistence_manager.load_conversation(user_id, convo_id)
-                # Only include conversations that have messages
-                if conv and conv.messages:
-                    first_message = next(
-                        (msg for msg in conv.messages if msg.role == "user"), None
-                    )
-                    if first_message:
-                        content = first_message.content
-                        title = content[:50] + ("..." if len(content) > 50 else "")
+            return formatted_messages, "", False
 
-                        conversation_list.append(
-                            html.Div(
-                                title,
-                                id={"type": "convo-item", "id": convo_id},
-                                n_clicks=0,
-                                style={"cursor": "pointer"},
-                            )
-                        )
+        except Exception as e:
+            error_message = f"I encountered an error: {str(e)}. Please try again."
+            error_response = ChatMessage(role=ASSISTANT_ROLE, content=error_message)
 
-            return formatted_messages, "", conversation_list
-
-        # --- Handle Page Load / URL Change ---
-        conversation = app.persistence_manager.load_conversation(user_id, convo_id)
-        if conversation is None:
-            conversation = Conversation(id=convo_id)
-        formatted_messages = app.message_formatter.format_messages(
-            conversation.messages
-        )
-
-        conversation_ids = app.persistence_manager.list_conversations(user_id)
-        conversation_list = []
-        for convo_id in conversation_ids:
-            conv = app.persistence_manager.load_conversation(user_id, convo_id)
-            # Only include conversations that have messages
-            if conv and conv.messages:
-                first_message = next(
-                    (msg for msg in conv.messages if msg.role == "user"), None
+            if "conversation" in locals():
+                conversation.messages.append(error_response)
+                app.persistence_manager.save_conversation(user_id, conversation)
+                formatted_messages = app.message_formatter.format_messages(
+                    conversation.messages
                 )
-                if first_message:
-                    content = first_message.content
-                    title = content[:40] + ("..." if len(content) > 40 else "")
+                return formatted_messages, "", False
 
-                    conversation_list.append(
-                        html.Div(
-                            title,
-                            id={"type": "convo-item", "id": convo_id},
-                            n_clicks=0,
-                            style={"cursor": "pointer"},
-                        )
-                    )
+            return [{"role": ASSISTANT_ROLE, "content": error_message}], "", False
 
-        return formatted_messages, "", conversation_list
+    @app.callback(
+        Output("chat_area_main", "children", allow_duplicate=True),
+        [Input("url_location", "pathname")],
+        prevent_initial_call="initial_duplicate",
+    )
+    def load_conversation(pathname):
+        try:
+            user_id = app.auth_manager.get_current_user_id(pathname=pathname)
+            path_parts = pathname.strip("/").split("/")
+
+            if not path_parts or not path_parts[-1] or path_parts[-1] == "NEW":
+                return []
+
+            convo_id = path_parts[-1]
+            conversation = app.persistence_manager.load_conversation(user_id, convo_id)
+
+            if not conversation or not conversation.messages:
+                return []
+
+            return app.message_formatter.format_messages(conversation.messages)
+
+        except Exception:
+            return []
+
+    @app.callback(
+        [
+            Output("url_location", "pathname", allow_duplicate=True),
+            Output("sidebar_offcanvas", "is_open", allow_duplicate=True),
+        ],
+        [Input("new_chat_button", "n_clicks")],
+        [State("url_location", "pathname")],
+        prevent_initial_call=True,
+    )
+    def create_new_chat(n_clicks, current_pathname):
+        if not n_clicks:
+            return no_update, no_update
+
+        try:
+            user_id = app.auth_manager.get_current_user_id(pathname=current_pathname)
+            new_convo_id = app.persistence_manager.get_next_conversation_id(user_id)
+            new_path = f"/{user_id}/{new_convo_id}"
+            return new_path, False
+        except Exception:
+            return no_update, no_update
 
     @app.callback(
         Output("url_location", "pathname", allow_duplicate=True),
-        Input({"type": "convo-item", "id": ALL}, "n_clicks"),
-        State("url_location", "pathname"),
+        [Input({"type": "convo-item", "id": ALL}, "n_clicks")],
+        [State("url_location", "pathname")],
         prevent_initial_call=True,
     )
-    def handle_conversation_selection(n_clicks, pathname):
-        """Navigates to a selected conversation."""
+    def switch_conversation(n_clicks, current_pathname):
         if not any(n_clicks):
             return no_update
 
-        ctx = callback_context
-        convo_id = ctx.triggered_id["id"]
-        user_id = app.auth_manager.get_current_user_id(pathname=pathname)
-
-        return f"/{user_id}/{convo_id}"
-
-    @app.callback(
-        Output("url_location", "pathname", allow_duplicate=True),
-        Input("new_chat_button", "n_clicks"),
-        State("url_location", "pathname"),
-        prevent_initial_call=True,
-    )
-    def handle_new_chat(n_clicks, pathname):
-        """Creates a new chat and navigates to it."""
-        if not n_clicks:
+        try:
+            ctx = callback_context
+            selected_convo_id = ctx.triggered_id["id"]
+            user_id = app.auth_manager.get_current_user_id(pathname=current_pathname)
+            return f"/{user_id}/{selected_convo_id}"
+        except Exception:
             return no_update
-
-        user_id = app.auth_manager.get_current_user_id(pathname=pathname)
-        path_parts = [p for p in pathname.strip("/").split("/") if p]
-        current_convo_id = path_parts[-1] if len(path_parts) >= 2 else None
-
-        if current_convo_id:
-            current_conversation = app.persistence_manager.load_conversation(
-                user_id, current_convo_id
-            )
-
-            if current_conversation and current_conversation.messages:
-                # Current conversation has messages, create a new one
-                new_convo_id = app.persistence_manager.get_next_conversation_id(user_id)
-                return f"/{user_id}/{new_convo_id}"
-            else:
-                return no_update
-        else:
-            new_convo_id = app.persistence_manager.get_next_conversation_id(user_id)
-            return f"/{user_id}/{new_convo_id}"
 
     @app.callback(
         Output("sidebar_offcanvas", "is_open"),
-        Input("sidebar_toggle_button", "n_clicks"),
-        Input("new_chat_button", "n_clicks"),
-        State("sidebar_offcanvas", "is_open"),
+        [
+            Input("sidebar_toggle_button", "n_clicks"),
+            Input({"type": "convo-item", "id": ALL}, "n_clicks"),
+        ],
+        [State("sidebar_offcanvas", "is_open")],
         prevent_initial_call=True,
     )
-    def toggle_sidebar(hamburger_clicks, new_chat_clicks, is_open):
-        """Toggles the sidebar's visibility."""
+    def toggle_sidebar(toggle_clicks, convo_clicks, is_open):
         ctx = callback_context
         triggered_id = ctx.triggered_id
 
         if triggered_id == "sidebar_toggle_button":
             return not is_open
-        elif triggered_id == "new_chat_button":
+        elif (
+            isinstance(triggered_id, dict) and triggered_id.get("type") == "convo-item"
+        ):
             return False
 
-        return is_open
+        return no_update
+
+    @app.callback(
+        Output("convo_list_div", "children"),
+        [
+            Input("url_location", "pathname"),
+            Input("chat_area_main", "children"),
+        ],  # Update when messages change
+    )
+    def update_conversation_list(pathname, chat_messages):
+        from dash import html
+
+        try:
+            user_id = app.auth_manager.get_current_user_id(pathname=pathname)
+            conversation_ids = app.persistence_manager.list_conversations(user_id)
+
+            conversation_items = []
+            for convo_id in conversation_ids:
+                conv = app.persistence_manager.load_conversation(user_id, convo_id)
+
+                if conv and conv.messages:
+                    first_user_msg = next(
+                        (msg for msg in conv.messages if msg.role == USER_ROLE), None
+                    )
+                    if first_user_msg:
+                        title = first_user_msg.content[:40] + (
+                            "..." if len(first_user_msg.content) > 40 else ""
+                        )
+
+                        conversation_items.append(
+                            html.Div(
+                                title,
+                                id={"type": "convo-item", "id": convo_id},
+                                n_clicks=0,
+                                style={
+                                    "cursor": "pointer",
+                                    "padding": "8px",
+                                    "borderBottom": "1px solid #eee",
+                                    "wordWrap": "break-word",
+                                },
+                            )
+                        )
+
+            return conversation_items
+
+        except Exception:
+            return []
+
+    _register_clientside_callbacks(app)
+
+
+def _register_clientside_callbacks(app):
+    # ENTER key → click send button
+    app.clientside_callback(
+        """
+        function(n_submit) {
+            if (n_submit > 0) {
+                const sendButton = document.getElementById('chat_send_button');
+                if (sendButton && !sendButton.disabled) {
+                    sendButton.click();
+                }
+            }
+            return {};
+        }
+        """,
+        Output("user_input_textarea", "style", allow_duplicate=True),
+        [Input("user_input_textarea", "n_submit")],
+        prevent_initial_call=True,
+    )
+
+    # Auto-scroll to bottom
+    app.clientside_callback(
+        """
+        function(chat_content) {
+            if (chat_content && chat_content.length > 0) {
+                setTimeout(() => {
+                    const chatArea = document.getElementById('chat_area_main');
+                    if (chatArea) {
+                        chatArea.scrollTop = chatArea.scrollHeight;
+                    }
+                }, 100);
+            }
+            return {};
+        }
+        """,
+        Output("chat_area_main", "style", allow_duplicate=True),
+        [Input("chat_area_main", "children")],
+        prevent_initial_call=True,
+    )
+
+    # Focus input after sending
+    app.clientside_callback(
+        """
+        function(input_value) {
+            if (input_value === "") {
+                setTimeout(() => {
+                    const textarea = document.getElementById('user_input_textarea');
+                    if (textarea) {
+                        textarea.focus();
+                    }
+                }, 100);
+            }
+            return {};
+        }
+        """,
+        Output("user_input_textarea", "style", allow_duplicate=True),
+        [Input("user_input_textarea", "value")],
+        prevent_initial_call=True,
+    )
+
+    app.clientside_callback(
+        """
+        function(textarea_value) {
+            if (textarea_value) {
+                const rtlPattern = '[\\u0590-\\u05ff\\u0600-\\u06ff\\u0750-\\u077f' +
+                                   '\\u08a0-\\u08ff\\ufb1d-\\ufb4f\\ufb50-\\ufdff\\ufe70-\\ufeff]';
+                const rtlRegex = new RegExp(rtlPattern);
+                const isRTL = rtlRegex.test(textarea_value);
+                return isRTL ? 'rtl' : 'ltr';
+            }
+            return 'ltr';
+        }
+        """,
+        Output("user_input_textarea", "dir", allow_duplicate=True),
+        Input("user_input_textarea", "value"),
+        prevent_initial_call=True,
+    )

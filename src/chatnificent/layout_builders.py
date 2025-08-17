@@ -19,9 +19,6 @@ class BaseLayoutBuilder(ABC):
 class DefaultLayoutBuilder(BaseLayoutBuilder):
     """Builds the standard, default layout for the chat application."""
 
-    # def build_layout(self) -> DashComponent:
-    #     return html.Div([html.H1("Hello world")])
-
     def build_layout(self) -> DashComponent:
         """Constructs the main layout Div."""
         return html.Div(

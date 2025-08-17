@@ -12,7 +12,7 @@ class BaseLLMProvider(ABC):
     @abstractmethod
     def generate_response(
         self, messages: List[Dict[str, Any]], model: str, **kwargs: Any
-    ) -> Union[Any, Iterator[Any]]:
+    ) -> Union[Dict[str, Any], Any, Iterator[Any]]:
         """Generates a response from the LLM provider.
 
         Parameters
@@ -60,10 +60,15 @@ class OpenAIProvider(BaseLLMProvider):
 
     def generate_response(
         self, messages: List[Dict[str, Any]], model=None, **kwargs: Any
-    ) -> Any:
-        return self.client.chat.completions.create(
+    ) -> Dict[str, Any]:
+        raw_response = self.client.chat.completions.create(
             messages=messages, model=model or self.model, **kwargs
         )
+
+        return {
+            "content": raw_response.choices[0].message.content,
+            "raw_response": raw_response.model_dump(),
+        }
 
     def extract_content(self, response: Any) -> str:
         return response.choices[0].message.content
@@ -94,9 +99,14 @@ class AnthropicProvider(BaseLLMProvider):
     def generate_response(self, messages, model=None, **kwargs):
         if "max_tokens" not in kwargs:
             kwargs["max_tokens"] = 4096
-        return self.client.messages.create(
+        raw_response = self.client.messages.create(
             model=model or self.model, messages=messages, **kwargs
         )
+
+        return {
+            "content": raw_response.content[0].text,
+            "raw_response": raw_response.model_dump(),
+        }
 
     def extract_content(self, response: Any) -> str:
         return response.content[0].text
@@ -109,7 +119,12 @@ class OllamaProvider(BaseLLMProvider):
         self.client = Client()
 
     def generate_response(self, messages, model, **kwargs):
-        return self.client.chat(model=model, messages=messages, **kwargs)
+        raw_response = self.client.chat(model=model, messages=messages, **kwargs)
+
+        return {
+            "content": raw_response["message"]["content"],
+            "raw_response": raw_response,
+        }
 
     def extract_content(self, response: Any) -> str:
         return response["message"]["content"]

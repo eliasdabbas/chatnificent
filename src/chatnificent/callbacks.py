@@ -6,7 +6,6 @@ from .models import ASSISTANT_ROLE, USER_ROLE, ChatMessage, Conversation
 
 
 def register_callbacks(app):
-
     @app.callback(
         [
             Output("chat_area_main", "children"),
@@ -56,9 +55,7 @@ def register_callbacks(app):
 
             app.store.save_conversation(user_id, conversation)
 
-            formatted_messages = app.fmt.format_messages(
-                conversation.messages
-            )
+            formatted_messages = app.fmt.format_messages(conversation.messages)
 
             return formatted_messages, "", False
 
@@ -69,9 +66,7 @@ def register_callbacks(app):
             if "conversation" in locals():
                 conversation.messages.append(error_response)
                 app.store.save_conversation(user_id, conversation)
-                formatted_messages = app.fmt.format_messages(
-                    conversation.messages
-                )
+                formatted_messages = app.fmt.format_messages(conversation.messages)
                 return formatted_messages, "", False
 
             return [{"role": ASSISTANT_ROLE, "content": error_message}], "", False

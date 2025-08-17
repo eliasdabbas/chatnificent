@@ -50,7 +50,12 @@ class InMemory(Store):
 
     def list_conversations(self, user_id: str) -> List[str]:
         """Lists all conversation IDs for a given user."""
-        return list(self._store.keys())
+        # Sort by conversation ID in descending order (latest first)
+        return sorted(
+            self._store.keys(),
+            key=lambda x: int(x) if x.isdigit() else 0,
+            reverse=True
+        )
 
     def get_next_conversation_id(self, user_id: str) -> str:
         """Generates a new, unique conversation ID for a user."""
@@ -177,7 +182,9 @@ class File(Store):
                         conversations.append(item.name)
 
                 return sorted(
-                    conversations, key=lambda x: int(x) if x.isdigit() else float("inf")
+                    conversations,
+                    key=lambda x: (user_dir / x).stat().st_mtime,
+                    reverse=True
                 )
 
             except (PermissionError, OSError):

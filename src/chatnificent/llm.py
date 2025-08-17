@@ -1,12 +1,11 @@
 """Concrete implementations for LLM providers."""
 
-import json
 import os
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Iterator, List, Union
 
 
-class BaseLLMProvider(ABC):
+class LLM(ABC):
     """Abstract Base Class for all LLM providers."""
 
     @abstractmethod
@@ -51,7 +50,7 @@ class BaseLLMProvider(ABC):
         pass
 
 
-class OpenAIProvider(BaseLLMProvider):
+class OpenAI(LLM):
     def __init__(self, default_model: str = "gpt-4o"):
         from openai import OpenAI
 
@@ -74,7 +73,7 @@ class OpenAIProvider(BaseLLMProvider):
         return response.choices[0].message.content
 
 
-class GeminiProvider(BaseLLMProvider):
+class Gemini(LLM):
     def __init__(self):
         from google import genai
 
@@ -89,7 +88,7 @@ class GeminiProvider(BaseLLMProvider):
         return response.text
 
 
-class AnthropicProvider(BaseLLMProvider):
+class Anthropic(LLM):
     def __init__(self, default_model: str = "claude-3-5-sonnet-20241022"):
         from anthropic import Anthropic
 
@@ -112,7 +111,7 @@ class AnthropicProvider(BaseLLMProvider):
         return response.content[0].text
 
 
-class OllamaProvider(BaseLLMProvider):
+class Ollama(LLM):
     def __init__(self):
         from ollama import Client
 
@@ -130,7 +129,7 @@ class OllamaProvider(BaseLLMProvider):
         return response["message"]["content"]
 
 
-class OpenRouterProvider(BaseLLMProvider):
+class OpenRouter(LLM):
     def __init__(self):
         from openai import OpenAI
 
@@ -152,7 +151,7 @@ class OpenRouterProvider(BaseLLMProvider):
         return response.choices[0].message.content
 
 
-class DeepSeekProvider(BaseLLMProvider):
+class DeepSeek(LLM):
     def __init__(self):
         from openai import OpenAI
 

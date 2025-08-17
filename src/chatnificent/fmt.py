@@ -11,7 +11,7 @@ from dash.development.base_component import Component as DashComponent
 from .models import USER_ROLE, ChatMessage
 
 
-class BaseMessageFormatter(ABC):
+class Fmt(ABC):
     """Interface for converting message data into Dash components."""
 
     @abstractmethod
@@ -20,7 +20,7 @@ class BaseMessageFormatter(ABC):
         pass
 
 
-class DefaultMessageFormatter(BaseMessageFormatter):
+class Default(Fmt):
     """The default formatter, rendering messages as simple styled divs."""
 
     def format_messages(self, messages: List[ChatMessage]) -> List[DashComponent]:
@@ -48,7 +48,7 @@ class DefaultMessageFormatter(BaseMessageFormatter):
         return html.Div([dcc.Markdown(message.content)], style=style)
 
 
-class MarkdownFormatter(BaseMessageFormatter):
+class Markdown(Fmt):
     """Enhanced formatter with markdown rendering, RTL support, and copy functionality."""
 
     def format_messages(self, messages: List[ChatMessage]) -> List[DashComponent]:

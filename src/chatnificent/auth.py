@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 
 
-class BaseAuthManager(ABC):
+class Auth(ABC):
     """Interface for identifying the current user."""
 
     @abstractmethod
@@ -12,7 +12,7 @@ class BaseAuthManager(ABC):
         pass
 
 
-class SingleUserAuthManager(BaseAuthManager):
+class SingleUser(Auth):
     """A simple auth manager for single-user apps."""
 
     def __init__(self, user_id: str = "chat"):

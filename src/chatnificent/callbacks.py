@@ -21,15 +21,15 @@ def register_callbacks(app):
             return no_update, no_update, no_update
 
         try:
-            user_id = app.auth_manager.get_current_user_id(pathname=pathname)
+            user_id = app.auth.get_current_user_id(pathname=pathname)
             path_parts = pathname.strip("/").split("/")
 
             if len(path_parts) >= 2 and path_parts[-1] and path_parts[-1] != "NEW":
                 convo_id = path_parts[-1]
             else:
-                convo_id = app.persistence_manager.get_next_conversation_id(user_id)
+                convo_id = app.store.get_next_conversation_id(user_id)
 
-            conversation = app.persistence_manager.load_conversation(user_id, convo_id)
+            conversation = app.store.load_conversation(user_id, convo_id)
             if not conversation:
                 conversation = Conversation(id=convo_id)
 
@@ -37,26 +37,26 @@ def register_callbacks(app):
             conversation.messages.append(user_message)
 
             message_dicts = [msg.model_dump() for msg in conversation.messages]
-            result = app.llm_provider.generate_response(message_dicts)
+            result = app.llm.generate_response(message_dicts)
 
             # Handle both old and new response formats for backward compatibility
             if isinstance(result, dict) and "content" in result:
                 ai_content = result["content"]
                 if "raw_response" in result and hasattr(
-                    app.persistence_manager, "save_raw_api_response"
+                    app.store, "save_raw_api_response"
                 ):
-                    app.persistence_manager.save_raw_api_response(
+                    app.store.save_raw_api_response(
                         user_id, convo_id, result["raw_response"]
                     )
             else:
-                ai_content = app.llm_provider.extract_content(result)
+                ai_content = app.llm.extract_content(result)
 
             ai_message = ChatMessage(role=ASSISTANT_ROLE, content=ai_content)
             conversation.messages.append(ai_message)
 
-            app.persistence_manager.save_conversation(user_id, conversation)
+            app.store.save_conversation(user_id, conversation)
 
-            formatted_messages = app.message_formatter.format_messages(
+            formatted_messages = app.fmt.format_messages(
                 conversation.messages
             )
 
@@ -68,8 +68,8 @@ def register_callbacks(app):
 
             if "conversation" in locals():
                 conversation.messages.append(error_response)
-                app.persistence_manager.save_conversation(user_id, conversation)
-                formatted_messages = app.message_formatter.format_messages(
+                app.store.save_conversation(user_id, conversation)
+                formatted_messages = app.fmt.format_messages(
                     conversation.messages
                 )
                 return formatted_messages, "", False
@@ -83,19 +83,19 @@ def register_callbacks(app):
     )
     def load_conversation(pathname):
         try:
-            user_id = app.auth_manager.get_current_user_id(pathname=pathname)
+            user_id = app.auth.get_current_user_id(pathname=pathname)
             path_parts = pathname.strip("/").split("/")
 
             if not path_parts or not path_parts[-1] or path_parts[-1] == "NEW":
                 return []
 
             convo_id = path_parts[-1]
-            conversation = app.persistence_manager.load_conversation(user_id, convo_id)
+            conversation = app.store.load_conversation(user_id, convo_id)
 
             if not conversation or not conversation.messages:
                 return []
 
-            return app.message_formatter.format_messages(conversation.messages)
+            return app.fmt.format_messages(conversation.messages)
 
         except Exception:
             return []
@@ -114,8 +114,8 @@ def register_callbacks(app):
             return no_update, no_update
 
         try:
-            user_id = app.auth_manager.get_current_user_id(pathname=current_pathname)
-            new_convo_id = app.persistence_manager.get_next_conversation_id(user_id)
+            user_id = app.auth.get_current_user_id(pathname=current_pathname)
+            new_convo_id = app.store.get_next_conversation_id(user_id)
             new_path = f"/{user_id}/{new_convo_id}"
             return new_path, False
         except Exception:
@@ -134,7 +134,7 @@ def register_callbacks(app):
         try:
             ctx = callback_context
             selected_convo_id = ctx.triggered_id["id"]
-            user_id = app.auth_manager.get_current_user_id(pathname=current_pathname)
+            user_id = app.auth.get_current_user_id(pathname=current_pathname)
             return f"/{user_id}/{selected_convo_id}"
         except Exception:
             return no_update
@@ -172,12 +172,12 @@ def register_callbacks(app):
         from dash import html
 
         try:
-            user_id = app.auth_manager.get_current_user_id(pathname=pathname)
-            conversation_ids = app.persistence_manager.list_conversations(user_id)
+            user_id = app.auth.get_current_user_id(pathname=pathname)
+            conversation_ids = app.store.list_conversations(user_id)
 
             conversation_items = []
             for convo_id in conversation_ids:
-                conv = app.persistence_manager.load_conversation(user_id, convo_id)
+                conv = app.store.load_conversation(user_id, convo_id)
 
                 if conv and conv.messages:
                     first_user_msg = next(

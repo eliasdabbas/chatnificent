@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from .models import Conversation
 
 
-class BasePersistenceManager(ABC):
+class Store(ABC):
     """Interface for saving and loading conversation data."""
 
     @abstractmethod
@@ -36,7 +36,7 @@ class BasePersistenceManager(ABC):
         pass
 
 
-class InMemoryPersistenceManager(BasePersistenceManager):
+class InMemory(Store):
     """Saves and loads conversations from an in-memory dictionary."""
 
     def __init__(self):
@@ -57,7 +57,7 @@ class InMemoryPersistenceManager(BasePersistenceManager):
         return str(len(self._store) + 1)
 
 
-class FilePersistenceManager(BasePersistenceManager):
+class File(Store):
     """Saves and loads conversations from the local file system as JSON."""
 
     def __init__(self, base_dir: str):
@@ -212,7 +212,7 @@ class FilePersistenceManager(BasePersistenceManager):
                 return "001"
 
 
-class SQLitePersistenceManager(BasePersistenceManager):
+class SQLite(Store):
     """Saves and loads conversations using SQLite database."""
 
     def __init__(self, db_path: str):

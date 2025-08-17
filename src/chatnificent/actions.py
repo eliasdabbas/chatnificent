@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any, List
 
 
-class BaseActionHandler(ABC):
+class Action(ABC):
     """Interface for executing agentic tools."""
 
     @abstractmethod
@@ -18,7 +18,7 @@ class BaseActionHandler(ABC):
         pass
 
 
-class NoActionHandler(BaseActionHandler):
+class NoAction(Action):
     """Default handler that provides no tools and does nothing."""
 
     def get_tools(self) -> List:

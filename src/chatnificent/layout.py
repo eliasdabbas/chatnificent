@@ -7,7 +7,7 @@ from dash import dcc, html
 from dash.development.base_component import Component as DashComponent
 
 
-class BaseLayoutBuilder(ABC):
+class Layout(ABC):
     """Interface for building the Dash component layout."""
 
     @abstractmethod
@@ -16,7 +16,7 @@ class BaseLayoutBuilder(ABC):
         pass
 
 
-class DefaultLayoutBuilder(BaseLayoutBuilder):
+class Default(Layout):
     """Builds the standard, default layout for the chat application."""
 
     def build_layout(self) -> DashComponent:

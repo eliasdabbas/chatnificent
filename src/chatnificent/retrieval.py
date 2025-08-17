@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 
-class BaseKnowledgeRetriever(ABC):
+class Retrieval(ABC):
     """Interface for retrieving context for RAG."""
 
     @abstractmethod
@@ -13,7 +13,7 @@ class BaseKnowledgeRetriever(ABC):
         return None
 
 
-class NoKnowledgeRetriever(BaseKnowledgeRetriever):
+class NoRetrieval(Retrieval):
     """Default retriever that performs no action."""
 
     def retrieve(self, query, user_id, convo_id):

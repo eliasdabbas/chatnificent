@@ -12,20 +12,15 @@ from typing import Any, Dict, List, Optional
 import dash_bootstrap_components as dbc
 from dash import Dash
 
-from .action_handlers import BaseActionHandler, NoActionHandler
-from .auth_managers import BaseAuthManager, SingleUserAuthManager
-from .knowledge_retrievers import BaseKnowledgeRetriever, NoKnowledgeRetriever
-from .layout_builders import BaseLayoutBuilder, DefaultLayoutBuilder
-from .llm_providers import BaseLLMProvider, OpenAIProvider
-from .message_formatters import (
-    BaseMessageFormatter,
-    DefaultMessageFormatter,
-    MarkdownFormatter,
-)
-from .persistence_managers import (
-    BasePersistenceManager,
-    FilePersistenceManager,
-    InMemoryPersistenceManager,
+from . import (
+    actions,
+    auth,
+    fmt,
+    layout,
+    llm,
+    retrieval,
+    store,
+    themes,
 )
 
 
@@ -41,14 +36,13 @@ class Chatnificent(Dash):
 
     def __init__(
         self,
-        # --- Pillar Injection using Pythonic None-as-default pattern ---
-        layout_builder: Optional[BaseLayoutBuilder] = None,
-        llm_provider: Optional[BaseLLMProvider] = None,
-        persistence_manager: Optional[BasePersistenceManager] = None,
-        message_formatter: Optional[BaseMessageFormatter] = None,
-        auth_manager: Optional[BaseAuthManager] = None,
-        action_handler: Optional[BaseActionHandler] = None,
-        knowledge_retriever: Optional[BaseKnowledgeRetriever] = None,
+        layout: Optional[layout.Layout] = None,
+        llm: Optional[llm.LLM] = None,
+        store: Optional[store.Store] = None,
+        fmt: Optional[fmt.Fmt] = None,
+        auth: Optional[auth.Auth] = None,
+        action: Optional[actions.Action] = None,
+        retrieval: Optional[retrieval.Retrieval] = None,
         # --- Other Dash kwargs ---
         **kwargs,
     ):
@@ -58,36 +52,28 @@ class Chatnificent(Dash):
         if dbc.themes.BOOTSTRAP not in kwargs["external_stylesheets"]:
             kwargs["external_stylesheets"].append(dbc.themes.BOOTSTRAP)
 
-        # Add Bootstrap Icons
         bootstrap_icons_cdn = "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"
         if bootstrap_icons_cdn not in kwargs["external_stylesheets"]:
             kwargs["external_stylesheets"].append(bootstrap_icons_cdn)
         super().__init__(**kwargs)
         # This pattern avoids the mutable default argument issue.
-        self.layout_builder = (
-            layout_builder if layout_builder is not None else DefaultLayoutBuilder()
-        )
-        self.llm_provider = (
-            llm_provider if llm_provider is not None else OpenAIProvider()
-        )
-        self.persistence_manager = (
-            persistence_manager
-            if persistence_manager is not None
-            else InMemoryPersistenceManager()
-        )
-        self.message_formatter = (
-            message_formatter if message_formatter is not None else MarkdownFormatter()
-        )
-        self.auth_manager = (
-            auth_manager if auth_manager is not None else SingleUserAuthManager()
-        )
-        self.action_handler = (
-            action_handler if action_handler is not None else NoActionHandler()
-        )
-        self.knowledge_retriever = (
-            knowledge_retriever
-            if knowledge_retriever is not None
-            else NoKnowledgeRetriever()
+        # Use globals() to access modules that are shadowed by parameters
+        layout_module = globals()["layout"]
+        llm_module = globals()["llm"]
+        store_module = globals()["store"]
+        fmt_module = globals()["fmt"]
+        auth_module = globals()["auth"]
+        actions_module = globals()["actions"]
+        retrieval_module = globals()["retrieval"]
+
+        self.layout_builder = layout if layout is not None else layout_module.Default()
+        self.llm = llm if llm is not None else llm_module.OpenAI()
+        self.store = store if store is not None else store_module.InMemory()
+        self.fmt = fmt if fmt is not None else fmt_module.Markdown()
+        self.auth = auth if auth is not None else auth_module.SingleUser()
+        self.actions = action if action is not None else actions_module.NoAction()
+        self.retrieval = (
+            retrieval if retrieval is not None else retrieval_module.NoRetrieval()
         )
 
         # Build the layout using the injected builder
@@ -132,7 +118,8 @@ class Chatnificent(Dash):
         missing_ids = required_ids - found_ids
         if missing_ids:
             raise ValueError(
-                f"Layout validation failed. Missing required component IDs: {sorted(missing_ids)}"
+                f"Layout validation failed. Missing required component IDs: "
+                f"{sorted(missing_ids)}"
             )
 
     def _register_callbacks(self):

@@ -1,10 +1,10 @@
-"""Concrete implementations for action handlers."""
+"""Concrete implementations for tool handlers."""
 
 from abc import ABC, abstractmethod
 from typing import Any, List
 
 
-class Action(ABC):
+class Tool(ABC):
     """Interface for executing agentic tools."""
 
     @abstractmethod
@@ -18,7 +18,7 @@ class Action(ABC):
         pass
 
 
-class NoAction(Action):
+class NoTool(Tool):
     """Default handler that provides no tools and does nothing."""
 
     def get_tools(self) -> List:

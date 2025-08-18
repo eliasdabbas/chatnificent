@@ -74,13 +74,14 @@ class OpenAI(LLM):
 
 
 class Gemini(LLM):
-    def __init__(self):
+    def __init__(self, default_model: str = "gemini-1.5-flash"):
         from google import genai
 
         self.client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+        self.model = default_model
 
-    def generate_response(self, messages, model, **kwargs):
-        chat = self.client.chats.create(model=model)
+    def generate_response(self, messages, model=None, **kwargs):
+        chat = self.client.chats.create(model=model or self.model)
         current_message = messages[-1]["content"]
         return chat.send_message(current_message)
 
@@ -112,13 +113,16 @@ class Anthropic(LLM):
 
 
 class Ollama(LLM):
-    def __init__(self):
+    def __init__(self, default_model: str = "llama3.1"):
         from ollama import Client
 
         self.client = Client()
+        self.model = default_model
 
-    def generate_response(self, messages, model, **kwargs):
-        raw_response = self.client.chat(model=model, messages=messages, **kwargs)
+    def generate_response(self, messages, model=None, **kwargs):
+        raw_response = self.client.chat(
+            model=model or self.model, messages=messages, **kwargs
+        )
 
         return {
             "content": raw_response["message"]["content"],
@@ -130,21 +134,24 @@ class Ollama(LLM):
 
 
 class OpenRouter(LLM):
-    def __init__(self):
+    def __init__(self, default_model: str = "openai/gpt-4o-mini"):
         from openai import OpenAI
 
         self.client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=os.environ["OPENROUTER_API_KEY"],
+        )
+        self.model = default_model
+
+    def generate_response(self, messages, model=None, **kwargs):
+        return self.client.chat.completions.create(
+            model=model or self.model,
+            messages=messages,
             extra_headers={
                 "HTTP-Referer": "Chatnificent.com",
                 "X-Title": "Chatnificent",
             },
-        )
-
-    def generate_response(self, messages, model, **kwargs):
-        return self.client.chat.completions.create(
-            model=model, messages=messages, **kwargs
+            **kwargs,
         )
 
     def extract_content(self, response: Any) -> str:
@@ -152,17 +159,18 @@ class OpenRouter(LLM):
 
 
 class DeepSeek(LLM):
-    def __init__(self):
+    def __init__(self, default_model: str = "deepseek/deepseek-chat"):
         from openai import OpenAI
 
         self.client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=os.environ["OPENROUTER_API_KEY"],
         )
+        self.model = default_model
 
-    def generate_response(self, messages, model, **kwargs):
+    def generate_response(self, messages, model=None, **kwargs):
         return self.client.chat.completions.create(
-            model=model, messages=messages, **kwargs
+            model=model or self.model, messages=messages, **kwargs
         )
 
     def extract_content(self, response: Any) -> str:

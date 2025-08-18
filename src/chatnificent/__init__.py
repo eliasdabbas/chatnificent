@@ -13,7 +13,6 @@ import dash_bootstrap_components as dbc
 from dash import Dash
 
 from . import (
-    actions,
     auth,
     fmt,
     layout,
@@ -21,6 +20,7 @@ from . import (
     retrieval,
     store,
     themes,
+    tools,
 )
 
 
@@ -41,11 +41,73 @@ class Chatnificent(Dash):
         store: Optional[store.Store] = None,
         fmt: Optional[fmt.Fmt] = None,
         auth: Optional[auth.Auth] = None,
-        action: Optional[actions.Action] = None,
+        tools: Optional[tools.Tool] = None,
         retrieval: Optional[retrieval.Retrieval] = None,
         # --- Other Dash kwargs ---
         **kwargs,
     ):
+        """
+        Initialize the Chatnificent application with configurable pillars.
+
+        This constructor implements dependency injection for the framework's
+        7 core "pillars",
+        each responsible for a specific aspect of the chat application.
+        Default implementations
+        are provided for immediate use, while custom implementations can be injected for
+        specialized behavior.
+
+        Parameters
+        ----------
+        layout : layout.Layout, optional
+            Layout builder for constructing the Dash component tree.
+            Defaults to layout.Default() which provides a standard chat UI.
+        llm : llm.LLM, optional
+            LLM provider for generating responses from language models.
+            Defaults to llm.OpenAI() for OpenAI GPT integration.
+        store : store.Store, optional
+            Persistence manager for saving/loading conversations.
+            Defaults to store.InMemory() for session-only storage.
+        fmt : fmt.Fmt, optional
+            Message formatter for converting messages to Dash components.
+            Defaults to fmt.Markdown() for rich text rendering.
+        auth : auth.Auth, optional
+            Authentication manager for user identification.
+            Defaults to auth.SingleUser() for single-user mode.
+        tools : tools.Tool, optional
+            Tool handler for LLM function calling capabilities.
+            Defaults to tools.NoTool() (no function calling).
+        retrieval : retrieval.Retrieval, optional
+            Knowledge retriever for RAG/context capabilities.
+            Defaults to retrieval.NoRetrieval() (no RAG).
+        **kwargs
+            Additional arguments passed to the Dash constructor.
+
+        Notes
+        -----
+        The constructor automatically adds Bootstrap CSS and Bootstrap Icons
+        to external_stylesheets if not already present.
+
+        Raises
+        ------
+        ValueError
+            If the layout is missing required component IDs needed
+            for the chat functionality.
+
+        Examples
+        --------
+        Basic usage with defaults:
+
+        >>> app = Chatnificent()
+
+        Custom configuration:
+
+        >>> app = Chatnificent(
+        ...     llm=llm.Anthropic(api_key="your-key"),
+        ...     store=store.File(directory="./conversations"),
+        ...     fmt=fmt.Code(),  # For code-focused formatting
+        ...     tools=tools.Calculator(),  # Add function calling
+        ... )
+        """
         if "external_stylesheets" not in kwargs:
             kwargs["external_stylesheets"] = []
 
@@ -63,7 +125,7 @@ class Chatnificent(Dash):
         store_module = globals()["store"]
         fmt_module = globals()["fmt"]
         auth_module = globals()["auth"]
-        actions_module = globals()["actions"]
+        tools_module = globals()["tools"]
         retrieval_module = globals()["retrieval"]
 
         self.layout_builder = layout if layout is not None else layout_module.Default()
@@ -71,7 +133,7 @@ class Chatnificent(Dash):
         self.store = store if store is not None else store_module.InMemory()
         self.fmt = fmt if fmt is not None else fmt_module.Markdown()
         self.auth = auth if auth is not None else auth_module.SingleUser()
-        self.actions = action if action is not None else actions_module.NoAction()
+        self.tools = tools if tools is not None else tools_module.NoTool()
         self.retrieval = (
             retrieval if retrieval is not None else retrieval_module.NoRetrieval()
         )

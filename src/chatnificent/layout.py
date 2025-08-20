@@ -105,7 +105,7 @@ class Default(Layout):
     def build_input_area(self) -> DashComponent:
         """Builds the user input area."""
         return html.Footer(
-            className="p-3 position-sticky bottom-0 bg-white",
+            className="p-3 position-sticky bottom-0",
             style={"zIndex": "100"},
             children=[
                 html.Div(
@@ -130,7 +130,6 @@ class Default(Layout):
                             n_clicks=0,
                             style={
                                 "border": "none",
-                                "background": "none",
                                 "fontSize": "32px",
                                 "padding": "4px",
                                 "outline": "none",

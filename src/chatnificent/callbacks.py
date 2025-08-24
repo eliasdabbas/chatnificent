@@ -8,12 +8,15 @@ from .models import ASSISTANT_ROLE, USER_ROLE, ChatMessage, Conversation
 def register_callbacks(app):
     @app.callback(
         [
-            Output("chat_area_main", "children"),
-            Output("user_input_textarea", "value"),
-            Output("chat_send_button", "disabled"),
+            Output("messages_container", "children"),
+            Output("input_textarea", "value"),
+            Output("submit_button", "disabled"),
         ],
-        [Input("chat_send_button", "n_clicks")],
-        [State("user_input_textarea", "value"), State("url_location", "pathname")],
+        [Input("submit_button", "n_clicks")],
+        [State("input_textarea", "value"), State("url_location", "pathname")],
+        running=[
+            (Output("status_indicator", "hidden"), False, True)
+        ],
     )
     def send_message(n_clicks, user_input, pathname):
         if not n_clicks or not user_input or not user_input.strip():
@@ -38,7 +41,6 @@ def register_callbacks(app):
             message_dicts = [msg.model_dump() for msg in conversation.messages]
             result = app.llm.generate_response(message_dicts)
 
-            # Handle both old and new response formats for backward compatibility
             if isinstance(result, dict) and "content" in result:
                 ai_content = result["content"]
                 if "raw_response" in result and hasattr(
@@ -55,7 +57,9 @@ def register_callbacks(app):
 
             app.store.save_conversation(user_id, conversation)
 
-            formatted_messages = app.fmt.format_messages(conversation.messages)
+            formatted_messages = app.layout_builder.build_messages(
+                conversation.messages
+            )
 
             return formatted_messages, "", False
 
@@ -66,13 +70,16 @@ def register_callbacks(app):
             if "conversation" in locals():
                 conversation.messages.append(error_response)
                 app.store.save_conversation(user_id, conversation)
-                formatted_messages = app.fmt.format_messages(conversation.messages)
+
+                formatted_messages = app.layout_builder.build_messages(
+                    conversation.messages
+                )
                 return formatted_messages, "", False
 
             return [{"role": ASSISTANT_ROLE, "content": error_message}], "", False
 
     @app.callback(
-        Output("chat_area_main", "children", allow_duplicate=True),
+        Output("messages_container", "children", allow_duplicate=True),
         [Input("url_location", "pathname")],
         prevent_initial_call="initial_duplicate",
     )
@@ -90,7 +97,7 @@ def register_callbacks(app):
             if not conversation or not conversation.messages:
                 return []
 
-            return app.fmt.format_messages(conversation.messages)
+            return app.layout_builder.build_messages(conversation.messages)
 
         except Exception:
             return []
@@ -98,9 +105,9 @@ def register_callbacks(app):
     @app.callback(
         [
             Output("url_location", "pathname", allow_duplicate=True),
-            Output("sidebar_offcanvas", "is_open", allow_duplicate=True),
+            Output("sidebar", "hidden", allow_duplicate=True),
         ],
-        [Input("new_chat_button", "n_clicks")],
+        [Input("new_conversation_button", "n_clicks")],
         [State("url_location", "pathname")],
         prevent_initial_call=True,
     )
@@ -112,56 +119,48 @@ def register_callbacks(app):
             user_id = app.auth.get_current_user_id(pathname=current_pathname)
             new_convo_id = app.store.get_next_conversation_id(user_id)
             new_path = f"/{user_id}/{new_convo_id}"
-            return new_path, False
+            return new_path, True
         except Exception:
             return no_update, no_update
 
     @app.callback(
-        Output("url_location", "pathname", allow_duplicate=True),
+        [
+            Output("url_location", "pathname", allow_duplicate=True),
+            Output("sidebar", "hidden", allow_duplicate=True),
+        ],
         [Input({"type": "convo-item", "id": ALL}, "n_clicks")],
         [State("url_location", "pathname")],
         prevent_initial_call=True,
     )
     def switch_conversation(n_clicks, current_pathname):
         if not any(n_clicks):
-            return no_update
+            return no_update, no_update
 
         try:
             ctx = callback_context
             selected_convo_id = ctx.triggered_id["id"]
             user_id = app.auth.get_current_user_id(pathname=current_pathname)
-            return f"/{user_id}/{selected_convo_id}"
+            return f"/{user_id}/{selected_convo_id}", True
         except Exception:
-            return no_update
+            return no_update, no_update
 
     @app.callback(
-        Output("sidebar_offcanvas", "is_open"),
-        [
-            Input("sidebar_toggle_button", "n_clicks"),
-            Input({"type": "convo-item", "id": ALL}, "n_clicks"),
-        ],
-        [State("sidebar_offcanvas", "is_open")],
+        Output("sidebar", "hidden"),
+        [Input("sidebar_toggle", "n_clicks")],
+        [State("sidebar", "hidden")],
         prevent_initial_call=True,
     )
-    def toggle_sidebar(toggle_clicks, convo_clicks, is_open):
-        ctx = callback_context
-        triggered_id = ctx.triggered_id
-
-        if triggered_id == "sidebar_toggle_button":
-            return not is_open
-        elif (
-            isinstance(triggered_id, dict) and triggered_id.get("type") == "convo-item"
-        ):
-            return False
-
-        return no_update
+    def toggle_sidebar(toggle_clicks, is_hidden):
+        if not toggle_clicks:
+            return no_update
+        return not is_hidden
 
     @app.callback(
-        Output("convo_list_div", "children"),
+        Output("conversations_list", "children"),
         [
             Input("url_location", "pathname"),
-            Input("chat_area_main", "children"),
-        ],  # Update when messages change
+            Input("messages_container", "children"),
+        ],
     )
     def update_conversation_list(pathname, chat_messages):
         from dash import html
@@ -206,41 +205,61 @@ def register_callbacks(app):
 
 
 def _register_clientside_callbacks(app):
-    # ENTER key → click send button
+    # Enter to send functionality - setup on page load
     app.clientside_callback(
         """
-        function(n_submit) {
-            if (n_submit > 0) {
-                const sendButton = document.getElementById('chat_send_button');
-                if (sendButton && !sendButton.disabled) {
-                    sendButton.click();
+        function(pathname) {
+            // Set up enter to send functionality when page loads/changes
+            setTimeout(function() {
+                const textarea = document.getElementById('input_textarea');
+                const submitButton = document.getElementById('submit_button');
+
+                if (textarea && submitButton && !window.enterListenerSetup) {
+                    // Set flag to avoid setting up multiple listeners
+                    window.enterListenerSetup = true;
+
+                    // Define the handler function
+                    window.enterToSendHandler = function(e) {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            // Only send if there's text content
+                            if (textarea.value.trim()) {
+                                submitButton.click();
+                            }
+                        }
+                        // Shift+Enter will naturally create a newline (default behavior)
+                    };
+
+                    // Add the event listener
+                    textarea.addEventListener('keydown', window.enterToSendHandler);
                 }
-            }
-            return {};
+            }, 100);
+
+            return window.dash_clientside.no_update;
         }
         """,
-        Output("user_input_textarea", "style", allow_duplicate=True),
-        [Input("user_input_textarea", "n_submit")],
+        Output("submit_button", "n_clicks", allow_duplicate=True),
+        [Input("url_location", "pathname")],
         prevent_initial_call=True,
     )
 
     # Auto-scroll to bottom
     app.clientside_callback(
         """
-        function(chat_content) {
-            if (chat_content && chat_content.length > 0) {
-                setTimeout(() => {
-                    const chatArea = document.getElementById('chat_area_main');
-                    if (chatArea) {
-                        chatArea.scrollTop = chatArea.scrollHeight;
+        function(messages_content) {
+            if (messages_content && messages_content.length > 0) {
+                setTimeout(function() {
+                    const messagesContainer = document.getElementById('messages_container');
+                    if (messagesContainer) {
+                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
                     }
                 }, 100);
             }
-            return {};
+            return window.dash_clientside.no_update;
         }
         """,
-        Output("chat_area_main", "style", allow_duplicate=True),
-        [Input("chat_area_main", "children")],
+        Output("messages_container", "data-scroll-trigger", allow_duplicate=True),
+        [Input("messages_container", "children")],
         prevent_initial_call=True,
     )
 
@@ -250,7 +269,7 @@ def _register_clientside_callbacks(app):
         function(input_value) {
             if (input_value === "") {
                 setTimeout(() => {
-                    const textarea = document.getElementById('user_input_textarea');
+                    const textarea = document.getElementById('input_textarea');
                     if (textarea) {
                         textarea.focus();
                     }
@@ -259,11 +278,12 @@ def _register_clientside_callbacks(app):
             return {};
         }
         """,
-        Output("user_input_textarea", "style", allow_duplicate=True),
-        [Input("user_input_textarea", "value")],
+        Output("input_textarea", "style", allow_duplicate=True),
+        [Input("input_textarea", "value")],
         prevent_initial_call=True,
     )
 
+    # Auto-detect RTL text
     app.clientside_callback(
         """
         function(textarea_value) {
@@ -277,7 +297,7 @@ def _register_clientside_callbacks(app):
             return 'ltr';
         }
         """,
-        Output("user_input_textarea", "dir", allow_duplicate=True),
-        Input("user_input_textarea", "value"),
+        Output("input_textarea", "dir", allow_duplicate=True),
+        Input("input_textarea", "value"),
         prevent_initial_call=True,
     )

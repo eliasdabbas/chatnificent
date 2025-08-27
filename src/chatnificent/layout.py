@@ -846,7 +846,7 @@ class Mantine(Layout):
         )
 
 
-class Default(Layout):
+class Minimal(Layout):
     """Minimal layout using only standard Dash/HTML components."""
 
     def __init__(self, theme: Optional[str] = None):
@@ -863,13 +863,8 @@ class Default(Layout):
         return html.Div(
             [
                 dcc.Location(id="url_location", refresh=False),
-                html.Div(
-                    [
-                        self.build_header(),
-                        self.build_sidebar(),
-                    ],
-                    style={"display": "flex", "flexDirection": "row"},
-                ),
+                self.build_header(),
+                self.build_sidebar(),
                 html.Div(
                     [
                         html.Div(
@@ -878,33 +873,64 @@ class Default(Layout):
                                 self.build_input_area(),
                             ],
                             style={
-                                "maxWidth": "700px",
-                                "margin": "auto",
-                                "paddingTop": "32px",
+                                "width": "40%",
+                                "margin": "0 auto",
+                                "paddingTop": "60px",  # Account for fixed header
+                                "paddingBottom": "20px",
                             },
                         )
                     ],
-                    style={"marginLeft": "260px"},
+                    style={
+                        "width": "100%",
+                        "minHeight": "100vh",
+                    },
                 ),
-            ]
+            ],
+            style={
+                "fontFamily": "Arial, sans-serif",
+            },
         )
 
     def build_header(self) -> DashComponent:
         return html.Button(
-            "☰", id="sidebar_toggle", n_clicks=0, style={"margin": "8px"}
+            "☰",
+            id="sidebar_toggle",
+            n_clicks=0,
+            style={
+                "position": "fixed",
+                "top": "12px",
+                "left": "12px",
+                "zIndex": "9999",
+                "border": "none",
+                "background": "rgba(255, 255, 255, 0.9)",
+                "fontSize": "44px",
+                "padding": "8px",
+                "borderRadius": "4px",
+                "cursor": "pointer",
+            },
         )
 
     def build_sidebar(self) -> DashComponent:
         return html.Div(
             [
-                html.H2("Conversations"),
-                html.Ul(id="conversations_list"),
-                html.Button(
-                    "New Conversation",
+                html.Br(),
+                html.Br(),
+                html.Br(),
+                html.Br(),
+                html.Br(),
+                html.Span(
+                    html.B("✏️ New chat"),
                     id="new_conversation_button",
                     n_clicks=0,
-                    style={"margin": "8px"},
+                    style={
+                        "margin": "8px",
+                        "cursor": "pointer",
+                    },
                 ),
+                html.Br(),
+                html.Br(),
+                html.Br(),
+                html.Ul(id="conversations_list"),
             ],
             id="sidebar",
             hidden=True,
@@ -913,8 +939,12 @@ class Default(Layout):
                 "background": "#f8f9fa",
                 "padding": "16px",
                 "position": "fixed",
+                "top": "0",
+                "left": "0",
                 "height": "100vh",
                 "overflowY": "auto",
+                "zIndex": "1000",
+                "borderRight": "1px solid #dee2e6",
             },
         )
 
@@ -928,7 +958,6 @@ class Default(Layout):
                         "minHeight": "300px",
                         "padding": "16px",
                         "background": "#fff",
-                        "border": "1px solid #eee",
                         "borderRadius": "8px",
                         "marginBottom": "16px",
                         "flexGrow": 20,
@@ -940,26 +969,73 @@ class Default(Layout):
     def build_input_area(self) -> DashComponent:
         return html.Div(
             [
-                dcc.Textarea(
-                    id="input_textarea",
+                html.Div(
+                    [
+                        html.Span(
+                            "Working...",
+                            style={"marginRight": "8px"},
+                        ),
+                    ],
+                    id="status_indicator",
+                    hidden=True,
                     style={
-                        "width": "100%",
-                        "borderRadius": "4px",
-                        "padding": "8px",
-                        "minHeight": "140px",
+                        "textAlign": "left",
+                        "color": "#888",
+                        "fontSize": "15px",
+                        "marginBottom": "8px",
+                        "fontStyle": "italic",
+                        "fontWeight": "300",
                     },
                 ),
-                html.Button(
-                    "Send",
-                    id="submit_button",
-                    n_clicks=0,
+                html.Div(
+                    [
+                        dcc.Textarea(
+                            id="input_textarea",
+                            rows=4,
+                            style={
+                                "gridArea": "textarea",
+                                "width": "100%",
+                                "resize": "none",
+                                "border": "1px solid #ccc",
+                                "padding": "8px",
+                                "boxSizing": "border-box",
+                                "borderRadius": "25px 0 0 25px",
+                            },
+                        ),
+                        html.Button(
+                            "Send",
+                            id="submit_button",
+                            n_clicks=0,
+                            style={
+                                "gridArea": "button",
+                                "width": "100%",
+                                "height": "100%",
+                                "border": "1px solid #ccc",
+                                "cursor": "pointer",
+                                "borderRadius": "0 25px 25px 0",
+                            },
+                        ),
+                    ],
                     style={
-                        "marginTop": "8px",
-                        "float": "right",
+                        "display": "grid",
+                        "gridTemplateColumns": "85% 15%",
+                        "gridTemplateAreas": '"textarea button"',
+                        "width": "100%",
+                        "gap": "0px",
                     },
                 ),
             ],
-            style={"marginTop": "16px"},
+            style={
+                "position": "fixed",
+                "bottom": "0",
+                "left": "50%",
+                "transform": "translateX(-50%)",
+                "width": "40%",
+                "backgroundColor": "white",
+                "padding": "15px",
+                "zIndex": "1000",
+                # "borderTop": "1px solid #eee",
+            },
         )
 
     # ===== MESSAGE FORMATTING METHODS =====

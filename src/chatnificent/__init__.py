@@ -95,15 +95,49 @@ class Chatnificent(Dash):
         ...     store=store.File(directory="./conversations"),
         ... )
         """
-        from . import layout as layout_module
+        if layout:
+            self.layout_builder = layout
+        else:
+            try:
+                from .layout import Bootstrap
+
+                self.layout_builder = Bootstrap()
+            except ImportError:
+                import warnings
+
+                warnings.warn(
+                    "Chatnificent is running with a minimal layout because 'dash-bootstrap-components' is not installed. "
+                    'For the default UI, install with: pip install "chatnificent[default]"',
+                    UserWarning,
+                )
+                from .layout import Minimal
+
+                self.layout_builder = Minimal()
+
+        if llm:
+            self.llm = llm
+        else:
+            try:
+                from .llm import OpenAI
+
+                self.llm = OpenAI()
+            except ImportError:
+                import warnings
+
+                warnings.warn(
+                    "Chatnificent is running with a simple EchoLLM because the 'openai' package is not installed. "
+                    'For the default OpenAI integration, install with: pip install "chatnificent[default]"',
+                    UserWarning,
+                )
+                from .llm import Echo
+
+                self.llm = Echo()
 
         llm_module = globals()["llm"]
         store_module = globals()["store"]
         auth_module = globals()["auth"]
         tools_module = globals()["tools"]
         retrieval_module = globals()["retrieval"]
-
-        self.layout_builder = layout if layout is not None else layout_module.Default()
 
         if "external_stylesheets" not in kwargs:
             kwargs["external_stylesheets"] = []
@@ -117,7 +151,6 @@ class Chatnificent(Dash):
 
         super().__init__(**kwargs)
 
-        self.llm = llm if llm is not None else llm_module.OpenAI()
         self.store = store if store is not None else store_module.InMemory()
         self.auth = auth if auth is not None else auth_module.SingleUser()
         self.tools = tools if tools is not None else tools_module.NoTool()

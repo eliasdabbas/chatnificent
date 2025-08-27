@@ -11,8 +11,11 @@ class LLM(ABC):
     @abstractmethod
     def generate_response(
         self, messages: List[Dict[str, Any]], model: str, **kwargs: Any
-    ) -> Union[Dict[str, Any], Any, Iterator[Any]]:
+    ) -> Any:
         """Generates a response from the LLM provider.
+
+        This method should return the provider's native, rich response object
+        directly from their SDK.
 
         Parameters
         ----------
@@ -27,15 +30,14 @@ class LLM(ABC):
 
         Returns
         -------
-        Union[Any, Iterator[Any]]
-            The provider's native, rich response object for a non-streaming
-            call, or an iterator of native chunk objects for a streaming call.
+        Any
+            The provider's native, rich response object.
         """
         pass
 
     @abstractmethod
     def extract_content(self, response: Any) -> str:
-        """Extracts the text content from the provider's response object.
+        """Extracts the text content from the provider's native response object.
 
         Parameters
         ----------
@@ -59,15 +61,10 @@ class OpenAI(LLM):
 
     def generate_response(
         self, messages: List[Dict[str, Any]], model=None, **kwargs: Any
-    ) -> Dict[str, Any]:
-        raw_response = self.client.chat.completions.create(
+    ) -> Any:
+        return self.client.chat.completions.create(
             messages=messages, model=model or self.model, **kwargs
         )
-
-        return {
-            "content": raw_response.choices[0].message.content,
-            "raw_response": raw_response.model_dump(),
-        }
 
     def extract_content(self, response: Any) -> str:
         return response.choices[0].message.content
@@ -99,14 +96,9 @@ class Anthropic(LLM):
     def generate_response(self, messages, model=None, **kwargs):
         if "max_tokens" not in kwargs:
             kwargs["max_tokens"] = 4096
-        raw_response = self.client.messages.create(
+        return self.client.messages.create(
             model=model or self.model, messages=messages, **kwargs
         )
-
-        return {
-            "content": raw_response.content[0].text,
-            "raw_response": raw_response.model_dump(),
-        }
 
     def extract_content(self, response: Any) -> str:
         return response.content[0].text
@@ -120,14 +112,7 @@ class Ollama(LLM):
         self.model = default_model
 
     def generate_response(self, messages, model=None, **kwargs):
-        raw_response = self.client.chat(
-            model=model or self.model, messages=messages, **kwargs
-        )
-
-        return {
-            "content": raw_response["message"]["content"],
-            "raw_response": raw_response,
-        }
+        return self.client.chat(model=model or self.model, messages=messages, **kwargs)
 
     def extract_content(self, response: Any) -> str:
         return response["message"]["content"]

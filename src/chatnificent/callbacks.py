@@ -14,9 +14,7 @@ def register_callbacks(app):
         ],
         [Input("submit_button", "n_clicks")],
         [State("input_textarea", "value"), State("url_location", "pathname")],
-        running=[
-            (Output("status_indicator", "hidden"), False, True)
-        ],
+        running=[(Output("status_indicator", "hidden"), False, True)],
     )
     def send_message(n_clicks, user_input, pathname):
         if not n_clicks or not user_input or not user_input.strip():
@@ -39,18 +37,22 @@ def register_callbacks(app):
             conversation.messages.append(user_message)
 
             message_dicts = [msg.model_dump() for msg in conversation.messages]
-            result = app.llm.generate_response(message_dicts)
-
-            if isinstance(result, dict) and "content" in result:
-                ai_content = result["content"]
-                if "raw_response" in result and hasattr(
-                    app.store, "save_raw_api_response"
-                ):
-                    app.store.save_raw_api_response(
-                        user_id, convo_id, result["raw_response"]
-                    )
-            else:
-                ai_content = app.llm.extract_content(result)
+            raw_response = app.llm.generate_response(message_dicts)
+            ai_content = app.llm.extract_content(raw_response)
+            # if isinstance(raw_response, dict) and "content" in raw_response:
+            #     ai_content = raw_response["content"]
+            #     if "raw_response" in raw_response and hasattr(
+            #         app.store, "save_raw_api_response"
+            #     ):
+            #         app.store.save_raw_api_response(
+            #             user_id, convo_id, raw_response["raw_response"]
+            #         )
+            if hasattr(app.store, "save_raw_api_response"):
+                try:
+                    response_to_save = raw_response.model_dump()
+                except AttributeError:
+                    response_to_save = raw_response
+                app.store.save_raw_api_response(user_id, convo_id, response_to_save)
 
             ai_message = ChatMessage(role=ASSISTANT_ROLE, content=ai_content)
             conversation.messages.append(ai_message)

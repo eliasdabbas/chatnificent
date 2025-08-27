@@ -175,3 +175,25 @@ class DeepSeek(LLM):
 
     def extract_content(self, response: Any) -> str:
         return response.choices[0].message.content
+
+
+class Echo(LLM):
+    def __init__(self, default_model: str = "echo-v1"):
+        self.model = default_model
+
+    def generate_response(self, messages, model=None, **kwargs):
+        import time
+
+        time.sleep(0.8)
+        user_prompt = messages[-1]["content"] if messages else "No message provided"
+        content = f"**Echo LLM - static response for testing**\n\n_Your prompt:_\n\n\n\n{user_prompt}"
+
+        return {
+            "content": content,
+            "raw_response": "Echo LLM - static response for testing",
+        }
+
+    def extract_content(self, response: Any) -> str:
+        if isinstance(response, dict) and "content" in response:
+            return response["content"]
+        return str(response)

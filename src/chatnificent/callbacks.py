@@ -13,21 +13,23 @@ def register_callbacks(app):
             Output("submit_button", "disabled"),
         ],
         [Input("submit_button", "n_clicks")],
-        [State("input_textarea", "value"), State("url_location", "pathname")],
+        [
+            State("input_textarea", "value"),
+            State("url_location", "pathname"),
+            State("url_location", "search"),
+        ],
         running=[(Output("status_indicator", "hidden"), False, True)],
     )
-    def send_message(n_clicks, user_input, pathname):
+    def send_message(n_clicks, user_input, pathname, search):
         if not n_clicks or not user_input or not user_input.strip():
             return no_update, no_update, no_update
 
         try:
-            user_id = app.auth.get_current_user_id(pathname=pathname)
-            path_parts = pathname.strip("/").split("/")
-
-            if len(path_parts) >= 2 and path_parts[-1] and path_parts[-1] != "NEW":
-                convo_id = path_parts[-1]
-            else:
-                convo_id = app.store.get_next_conversation_id(user_id)
+            url_parts = app.url.parse(pathname, search)
+            user_id = url_parts.user_id or app.auth.get_current_user_id(
+                pathname=pathname
+            )
+            convo_id = url_parts.convo_id or app.store.get_next_conversation_id(user_id)
 
             conversation = app.store.load_conversation(user_id, convo_id)
             if not conversation:
@@ -39,14 +41,7 @@ def register_callbacks(app):
             message_dicts = [msg.model_dump() for msg in conversation.messages]
             raw_response = app.llm.generate_response(message_dicts)
             ai_content = app.llm.extract_content(raw_response)
-            # if isinstance(raw_response, dict) and "content" in raw_response:
-            #     ai_content = raw_response["content"]
-            #     if "raw_response" in raw_response and hasattr(
-            #         app.store, "save_raw_api_response"
-            #     ):
-            #         app.store.save_raw_api_response(
-            #             user_id, convo_id, raw_response["raw_response"]
-            #         )
+
             if hasattr(app.store, "save_raw_api_response"):
                 try:
                     response_to_save = raw_response.model_dump()
@@ -82,18 +77,21 @@ def register_callbacks(app):
 
     @app.callback(
         Output("messages_container", "children", allow_duplicate=True),
-        [Input("url_location", "pathname")],
+        [
+            Input("url_location", "pathname"),
+            Input("url_location", "search"),  # Add search for query params
+        ],
         prevent_initial_call="initial_duplicate",
     )
-    def load_conversation(pathname):
+    def load_conversation(pathname, search):
         try:
-            user_id = app.auth.get_current_user_id(pathname=pathname)
-            path_parts = pathname.strip("/").split("/")
-
-            if not path_parts or not path_parts[-1] or path_parts[-1] == "NEW":
+            url_parts = app.url.parse(pathname, search)
+            convo_id = url_parts.convo_id
+            if not convo_id:
                 return []
-
-            convo_id = path_parts[-1]
+            user_id = url_parts.user_id or app.auth.get_current_user_id(
+                pathname=pathname
+            )
             conversation = app.store.load_conversation(user_id, convo_id)
 
             if not conversation or not conversation.messages:
@@ -119,8 +117,7 @@ def register_callbacks(app):
 
         try:
             user_id = app.auth.get_current_user_id(pathname=current_pathname)
-            new_convo_id = app.store.get_next_conversation_id(user_id)
-            new_path = f"/{user_id}/{new_convo_id}"
+            new_path = app.url.build_new_chat_path(user_id)
             return new_path, True
         except Exception:
             return no_update, no_update
@@ -142,7 +139,8 @@ def register_callbacks(app):
             ctx = callback_context
             selected_convo_id = ctx.triggered_id["id"]
             user_id = app.auth.get_current_user_id(pathname=current_pathname)
-            return f"/{user_id}/{selected_convo_id}", True
+            new_path = app.url.build_conversation_path(user_id, selected_convo_id)
+            return new_path, True
         except Exception:
             return no_update, no_update
 
@@ -161,14 +159,21 @@ def register_callbacks(app):
         Output("conversations_list", "children"),
         [
             Input("url_location", "pathname"),
+            Input("url_location", "search"),
             Input("messages_container", "children"),
         ],
     )
-    def update_conversation_list(pathname, chat_messages):
+    def update_conversation_list(pathname, search, chat_messages):
         from dash import html
 
         try:
-            user_id = app.auth.get_current_user_id(pathname=pathname)
+            # === REFACTORED URL LOGIC ===
+            url_parts = app.url.parse(pathname, search)
+            user_id = url_parts.user_id or app.auth.get_current_user_id(
+                pathname=pathname
+            )
+            # ============================
+
             conversation_ids = app.store.list_conversations(user_id)
 
             conversation_items = []
@@ -207,7 +212,6 @@ def register_callbacks(app):
 
 
 def _register_clientside_callbacks(app):
-    # Enter to send functionality - setup on page load
     app.clientside_callback(
         """
         function(pathname) {

@@ -10,14 +10,7 @@ from typing import Optional
 
 from dash import Dash
 
-from . import (
-    auth,
-    layout,
-    llm,
-    retrieval,
-    store,
-    tools,
-)
+from . import auth, layout, llm, retrieval, store, tools, url
 
 
 class Chatnificent(Dash):
@@ -38,6 +31,7 @@ class Chatnificent(Dash):
         auth: Optional[auth.Auth] = None,
         tools: Optional[tools.Tool] = None,
         retrieval: Optional[retrieval.Retrieval] = None,
+        url: Optional["url.URL"] = None,
         **kwargs,
     ) -> None:
         """
@@ -138,6 +132,7 @@ class Chatnificent(Dash):
         auth_module = globals()["auth"]
         tools_module = globals()["tools"]
         retrieval_module = globals()["retrieval"]
+        url_module = globals()["url"]
 
         if "external_stylesheets" not in kwargs:
             kwargs["external_stylesheets"] = []
@@ -157,6 +152,7 @@ class Chatnificent(Dash):
         self.retrieval = (
             retrieval if retrieval is not None else retrieval_module.NoRetrieval()
         )
+        self.url = url if url is not None else url_module.PathBased()
 
         self.layout = self.layout_builder.build_layout()
         self._register_callbacks()

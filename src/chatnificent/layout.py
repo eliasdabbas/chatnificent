@@ -153,6 +153,9 @@ class Bootstrap(Layout):
         self.dbc = dbc
         super().__init__(theme)
 
+    # Remove the overridden get_current_styles method - use base class implementation
+    # The base class already correctly traverses the layout tree
+
     def get_external_stylesheets(self) -> List[Union[str, Dict]]:
         """Return Bootstrap stylesheets based on theme variant."""
         themes = {
@@ -686,8 +689,8 @@ class Mantine(Layout):
                                                     },
                                                 ),
                                                 self.dmc.ActionIcon(
-                                                    children="↑",  # Proper send arrow icon
-                                                    id="submit_button",  # CALLBACK COMPONENT
+                                                    children="↑",
+                                                    id="submit_button",
                                                     n_clicks=0,
                                                     variant="light",
                                                     size="lg",

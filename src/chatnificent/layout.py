@@ -184,7 +184,7 @@ class Bootstrap(Layout):
         return self.dbc.Container(
             [
                 dcc.Location(id="url_location", refresh=False),
-                self.build_header(),
+                self.build_sidebar_toggle(),
                 self.build_sidebar(),
                 self.dbc.Row(
                     [
@@ -208,22 +208,22 @@ class Bootstrap(Layout):
             style={"height": "100vh"},
         )
 
-    def build_header(self) -> DashComponent:
+    def build_sidebar_toggle(self) -> DashComponent:
         """Simple fixed burger menu button only."""
         return self.dbc.Button(
             html.I(className="bi bi-list"),
             id="sidebar_toggle",
             n_clicks=0,
+            className="navbar-brand",
             style={
-                "border": "none",
-                "background": "rgba(255, 255, 255, 0.9)",
-                "color": "var(--bs-dark)",
-                "fontSize": "42px",
                 "position": "fixed",
                 "top": "12px",
                 "left": "12px",
-                "padding": "4px",
-                "borderRadius": "4px",
+                "border": "none",
+                "background": "transparent",
+                "color": "var(--bs-dark)",
+                "fontSize": "34px",
+                "padding": "0.5rem",
                 "cursor": "pointer",
                 "zIndex": "9999",
             },
@@ -519,7 +519,7 @@ class Mantine(Layout):
             theme={"colorScheme": self.theme_name or "light"},
             children=[
                 dcc.Location(id="url_location", refresh=False),
-                self.build_header(),
+                self.build_sidebar_toggle(),
                 self.build_sidebar(),
                 html.Div(  # Equivalent to dbc.Row
                     [
@@ -540,7 +540,7 @@ class Mantine(Layout):
             ],
         )
 
-    def build_header(self) -> DashComponent:
+    def build_sidebar_toggle(self) -> DashComponent:
         """Header with burger menu - uses ActionIcon but keeps same styling."""
         return self.dmc.ActionIcon(
             children="☰",
@@ -863,7 +863,7 @@ class Minimal(Layout):
         return html.Div(
             [
                 dcc.Location(id="url_location", refresh=False),
-                self.build_header(),
+                self.build_sidebar_toggle(),
                 self.build_sidebar(),
                 html.Div(
                     [
@@ -891,7 +891,7 @@ class Minimal(Layout):
             },
         )
 
-    def build_header(self) -> DashComponent:
+    def build_sidebar_toggle(self) -> DashComponent:
         return html.Button(
             "☰",
             id="sidebar_toggle",
@@ -943,7 +943,7 @@ class Minimal(Layout):
                 "left": "0",
                 "height": "100vh",
                 "overflowY": "auto",
-                "zIndex": "1000",
+                "zIndex": "1040",
                 "borderRight": "1px solid #dee2e6",
             },
         )

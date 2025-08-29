@@ -52,9 +52,7 @@ class InMemory(Store):
         """Lists all conversation IDs for a given user."""
         # Sort by conversation ID in descending order (latest first)
         return sorted(
-            self._store.keys(),
-            key=lambda x: int(x) if x.isdigit() else 0,
-            reverse=True
+            self._store.keys(), key=lambda x: int(x) if x.isdigit() else 0, reverse=True
         )
 
     def get_next_conversation_id(self, user_id: str) -> str:
@@ -87,10 +85,10 @@ class File(Store):
         return user_dir
 
     def _get_conversation_dir(self, user_id: str, convo_id: str) -> Path:
-        """Get conversation directory path, create if needed."""
-        convo_dir = self._get_user_dir(user_id) / convo_id
-        convo_dir.mkdir(exist_ok=True)
-        return convo_dir
+        """
+        Gets the conversation directory path.
+        """
+        return self._get_user_dir(user_id) / convo_id
 
     def _get_write_lock(self, user_id: str, convo_id: str) -> Lock:
         """Get or create a write lock for a specific conversation."""
@@ -117,10 +115,13 @@ class File(Store):
             f.write(json.dumps(data) + "\n")
 
     def load_conversation(self, user_id: str, convo_id: str) -> Optional[Conversation]:
-        """Load conversation from messages.json file."""
+        """
+        Load conversation from messages.json file.
+        """
         try:
-            convo_dir = self._get_conversation_dir(user_id, convo_id)
-            messages_file = convo_dir / "messages.json"
+            messages_file = (
+                self._get_conversation_dir(user_id, convo_id) / "messages.json"
+            )
 
             if not messages_file.exists():
                 return None
@@ -135,12 +136,15 @@ class File(Store):
             return None
 
     def save_conversation(self, user_id: str, conversation: Conversation):
-        """Save conversation to messages.json with atomic write."""
+        """
+        Save conversation to messages.json with atomic write.
+        """
         lock = self._get_write_lock(user_id, conversation.id)
 
         with lock:
             try:
                 convo_dir = self._get_conversation_dir(user_id, conversation.id)
+                convo_dir.mkdir(exist_ok=True)
                 messages_file = convo_dir / "messages.json"
 
                 messages_data = [msg.model_dump() for msg in conversation.messages]
@@ -148,7 +152,6 @@ class File(Store):
                 self._atomic_write_json(messages_file, messages_data)
 
             except (PermissionError, OSError) as e:
-                # Log error in production, raise for now
                 raise RuntimeError(
                     f"Failed to save conversation {conversation.id}: {e}"
                 )
@@ -160,6 +163,7 @@ class File(Store):
         with lock:
             try:
                 convo_dir = self._get_conversation_dir(user_id, convo_id)
+                convo_dir.mkdir(exist_ok=True)
                 raw_file = convo_dir / "raw_api_responses.jsonl"
 
                 self._append_jsonl(raw_file, raw_response)
@@ -184,7 +188,7 @@ class File(Store):
                 return sorted(
                     conversations,
                     key=lambda x: (user_dir / x).stat().st_mtime,
-                    reverse=True
+                    reverse=True,
                 )
 
             except (PermissionError, OSError):

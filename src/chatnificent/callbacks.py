@@ -31,11 +31,16 @@ def register_callbacks(app):
             user_id = url_parts.user_id or app.auth.get_current_user_id(
                 pathname=pathname
             )
-            convo_id = url_parts.convo_id or app.store.get_next_conversation_id(user_id)
 
-            conversation = app.store.load_conversation(user_id, convo_id)
+            convo_id_from_url = url_parts.convo_id
+            conversation = None
+
+            if convo_id_from_url:
+                conversation = app.store.load_conversation(user_id, convo_id_from_url)
+
             if not conversation:
-                conversation = Conversation(id=convo_id)
+                new_convo_id = app.store.get_next_conversation_id(user_id)
+                conversation = Conversation(id=new_convo_id)
 
             user_message = ChatMessage(role=USER_ROLE, content=user_input.strip())
             conversation.messages.append(user_message)
@@ -49,7 +54,9 @@ def register_callbacks(app):
                     response_to_save = raw_response.model_dump()
                 except AttributeError:
                     response_to_save = raw_response
-                app.store.save_raw_api_response(user_id, convo_id, response_to_save)
+                app.store.save_raw_api_response(
+                    user_id, conversation.id, response_to_save
+                )
 
             ai_message = ChatMessage(role=ASSISTANT_ROLE, content=ai_content)
             conversation.messages.append(ai_message)
@@ -61,7 +68,7 @@ def register_callbacks(app):
             )
 
             new_pathname = no_update
-            if url_parts.convo_id is None:
+            if url_parts.convo_id != conversation.id:
                 new_pathname = app.url.build_conversation_path(user_id, conversation.id)
             return formatted_messages, "", False, new_pathname
 
@@ -72,7 +79,6 @@ def register_callbacks(app):
             if "conversation" in locals() and "user_id" in locals():
                 conversation.messages.append(error_response)
                 app.store.save_conversation(user_id, conversation)
-
                 formatted_messages = app.layout_builder.build_messages(
                     conversation.messages
                 )

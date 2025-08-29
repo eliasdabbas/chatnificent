@@ -11,6 +11,7 @@ def register_callbacks(app):
             Output("messages_container", "children"),
             Output("input_textarea", "value"),
             Output("submit_button", "disabled"),
+            Output("url_location", "pathname", allow_duplicate=True),
         ],
         [Input("submit_button", "n_clicks")],
         [
@@ -19,10 +20,11 @@ def register_callbacks(app):
             State("url_location", "search"),
         ],
         running=[(Output("status_indicator", "hidden"), False, True)],
+        prevent_initial_call=True,
     )
     def send_message(n_clicks, user_input, pathname, search):
         if not n_clicks or not user_input or not user_input.strip():
-            return no_update, no_update, no_update
+            return no_update, no_update, no_update, no_update
 
         try:
             url_parts = app.url.parse(pathname, search)
@@ -58,28 +60,36 @@ def register_callbacks(app):
                 conversation.messages
             )
 
-            return formatted_messages, "", False
+            new_pathname = no_update
+            if url_parts.convo_id is None:
+                new_pathname = app.url.build_conversation_path(user_id, conversation.id)
+            return formatted_messages, "", False, new_pathname
 
         except Exception as e:
             error_message = f"I encountered an error: {str(e)}. Please try again."
             error_response = ChatMessage(role=ASSISTANT_ROLE, content=error_message)
 
-            if "conversation" in locals():
+            if "conversation" in locals() and "user_id" in locals():
                 conversation.messages.append(error_response)
                 app.store.save_conversation(user_id, conversation)
 
                 formatted_messages = app.layout_builder.build_messages(
                     conversation.messages
                 )
-                return formatted_messages, "", False
+                return formatted_messages, "", False, no_update
 
-            return [{"role": ASSISTANT_ROLE, "content": error_message}], "", False
+            return (
+                [{"role": ASSISTANT_ROLE, "content": error_message}],
+                "",
+                False,
+                no_update,
+            )
 
     @app.callback(
         Output("messages_container", "children", allow_duplicate=True),
         [
             Input("url_location", "pathname"),
-            Input("url_location", "search"),  # Add search for query params
+            Input("url_location", "search"),
         ],
         prevent_initial_call="initial_duplicate",
     )
@@ -167,13 +177,10 @@ def register_callbacks(app):
         from dash import html
 
         try:
-            # === REFACTORED URL LOGIC ===
             url_parts = app.url.parse(pathname, search)
             user_id = url_parts.user_id or app.auth.get_current_user_id(
                 pathname=pathname
             )
-            # ============================
-
             conversation_ids = app.store.list_conversations(user_id)
 
             conversation_items = []

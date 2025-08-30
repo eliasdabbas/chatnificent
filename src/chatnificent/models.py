@@ -28,5 +28,5 @@ class ChatMessage(BaseModel):
 class Conversation(BaseModel):
     """Represents a complete chat conversation session."""
 
-    id: str
+    id: str = Field(..., min_length=1, description="Non-empty conversation identifier")
     messages: List[ChatMessage] = Field(default_factory=list)

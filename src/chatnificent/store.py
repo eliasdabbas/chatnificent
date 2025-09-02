@@ -37,7 +37,19 @@ class Store(ABC):
 
 
 class InMemory(Store):
-    """Saves and loads conversations from an in-memory dictionary."""
+    """Simple in-memory conversation storage for single-user applications.
+
+    WARNING: This implementation does NOT isolate conversations by user_id.
+    All conversations are stored in a shared dictionary using only conversation_id
+    as the key. This means:
+
+    - Multiple users can see each other's conversations
+    - Same conversation_id from different users will overwrite each other
+    - Suitable for single-user demos, prototypes, and development only
+
+    For multi-user applications, use File or SQLite store implementations which
+    provide proper user isolation.
+    """
 
     def __init__(self):
         self._store: Dict[str, Conversation] = {}
@@ -340,13 +352,14 @@ class SQLite(Store):
                 # Ensure user exists
                 self._ensure_user_exists(user_id)
 
-                # Insert or update conversation record
+                # Insert or update conversation record with millisecond precision timestamps
                 cursor.execute(
                     """
-                    INSERT OR REPLACE INTO conversations 
-                    (user_id, conversation_id, updated_at) 
-                    VALUES (?, ?, CURRENT_TIMESTAMP)
-                """,
+                    INSERT INTO conversations (user_id, conversation_id, created_at, updated_at)
+                    VALUES (?, ?, datetime('now', 'subsec'), datetime('now', 'subsec'))
+                    ON CONFLICT(user_id, conversation_id)
+                    DO UPDATE SET updated_at = datetime('now', 'subsec')
+                    """,
                     (user_id, conversation.id),
                 )
 

@@ -37,39 +37,46 @@ class Store(ABC):
 
 
 class InMemory(Store):
-    """Simple in-memory conversation storage for single-user applications.
+    """In-memory conversation storage with proper user isolation.
 
-    WARNING: This implementation does NOT isolate conversations by user_id.
-    All conversations are stored in a shared dictionary using only conversation_id
-    as the key. This means:
+    Stores conversations in memory using user_id/convo_id composite keys to ensure
+    complete isolation between users. Each user's conversations are stored separately.
 
-    - Multiple users can see each other's conversations
-    - Same conversation_id from different users will overwrite each other
-    - Suitable for single-user demos, prototypes, and development only
+    Features:
+    - Full user isolation (users cannot see each other's conversations)
+    - Per-user conversation ID generation
+    - Raises KeyError if user_id doesn't exist when accessing conversations
+    - Suitable for development, testing, and single-process applications
 
-    For multi-user applications, use File or SQLite store implementations which
-    provide proper user isolation.
+    For persistent storage, use File or SQLite store implementations.
     """
 
     def __init__(self):
-        self._store: Dict[str, Conversation] = {}
+        self._store: Dict[str, Dict[str, Conversation]] = {}
 
     def load_conversation(self, user_id: str, convo_id: str) -> Optional[Conversation]:
-        return self._store.get(convo_id)
+        """Load a conversation. Returns None if user or conversation doesn't exist."""
+        return self._store.get(user_id, {}).get(convo_id)
 
     def save_conversation(self, user_id: str, conversation: Conversation):
-        self._store[conversation.id] = conversation.copy(deep=True)
+        self._store[user_id][conversation.id] = conversation.copy(deep=True)
 
     def list_conversations(self, user_id: str) -> List[str]:
-        """Lists all conversation IDs for a given user."""
-        # Sort by conversation ID in descending order (latest first)
+        """Lists all conversation IDs for a given user. Returns empty list if user doesn't exist."""
+        user_conversations = self._store.get(user_id, {})
         return sorted(
-            self._store.keys(), key=lambda x: int(x) if x.isdigit() else 0, reverse=True
+            user_conversations.keys(),
+            key=lambda x: int(x) if x.isdigit() else 0,
+            reverse=True,
         )
 
     def get_next_conversation_id(self, user_id: str) -> str:
         """Generates a new, unique conversation ID for a user."""
-        return str(len(self._store) + 1)
+        # Create user namespace if it doesn't exist (for new users)
+        if user_id not in self._store:
+            self._store[user_id] = {}
+        user_conversations = self._store[user_id]
+        return f"{len(user_conversations) + 1:03d}"
 
 
 class File(Store):
@@ -209,30 +216,23 @@ class File(Store):
     def get_next_conversation_id(self, user_id: str) -> str:
         """Generate next conversation ID by finding highest existing + 1."""
         with self._list_lock:
-            try:
-                user_dir = self.base_dir / user_id
+            user_dir = self._get_user_dir(user_id)  # Creates directory if needed
 
-                if not user_dir.exists():
-                    return "001"
+            conversations = []
+            for item in user_dir.iterdir():
+                if item.is_dir() and (item / "messages.json").exists():
+                    conversations.append(item.name)
 
-                conversations = []
-                for item in user_dir.iterdir():
-                    if item.is_dir() and (item / "messages.json").exists():
-                        conversations.append(item.name)
-
-                if not conversations:
-                    return "001"
-
-                # Find highest numeric ID
-                highest = 0
-                for conv_id in conversations:
-                    if conv_id.isdigit():
-                        highest = max(highest, int(conv_id))
-
-                return f"{highest + 1:03d}"  # Zero-padded 3 digits
-
-            except (PermissionError, OSError):
+            if not conversations:
                 return "001"
+
+            # Find highest numeric ID
+            highest = 0
+            for conv_id in conversations:
+                if conv_id.isdigit():
+                    highest = max(highest, int(conv_id))
+
+            return f"{highest + 1:03d}"  # Zero-padded 3 digits
 
 
 class SQLite(Store):
@@ -432,27 +432,23 @@ class SQLite(Store):
 
     def get_next_conversation_id(self, user_id: str) -> str:
         """Generate next conversation ID from database."""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
 
-                cursor.execute(
-                    """
-                    SELECT conversation_id 
-                    FROM conversations 
-                    WHERE user_id = ? AND conversation_id GLOB '[0-9][0-9][0-9]'
-                    ORDER BY conversation_id DESC 
-                    LIMIT 1
-                """,
-                    (user_id,),
-                )
+            cursor.execute(
+                """
+                SELECT conversation_id 
+                FROM conversations 
+                WHERE user_id = ? AND conversation_id GLOB '[0-9][0-9][0-9]'
+                ORDER BY conversation_id DESC 
+                LIMIT 1
+            """,
+                (user_id,),
+            )
 
-                row = cursor.fetchone()
-                if not row:
-                    return "001"
+            row = cursor.fetchone()
+            if not row:
+                return "001"
 
-                highest = int(row[0])
-                return f"{highest + 1:03d}"
-
-        except (sqlite3.Error, ValueError):
-            return "001"
+            highest = int(row[0])
+            return f"{highest + 1:03d}"

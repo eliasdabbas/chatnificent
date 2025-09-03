@@ -6,11 +6,14 @@ This module contains the primary Chatnificent class and the abstract base classe
 contract that enables the package's hackability.
 """
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional, Type
 
 from dash import Dash
 
-from . import auth, layout, llm, retrieval, store, tools, url
+from . import auth, engine, layout, llm, models, retrieval, store, tools, url
+
+if TYPE_CHECKING:
+    from .engine import Engine
 
 
 class Chatnificent(Dash):
@@ -26,42 +29,30 @@ class Chatnificent(Dash):
     def __init__(
         self,
         layout: Optional["layout.Layout"] = None,
-        llm: Optional[llm.LLM] = None,
-        store: Optional[store.Store] = None,
-        auth: Optional[auth.Auth] = None,
-        tools: Optional[tools.Tool] = None,
-        retrieval: Optional[retrieval.Retrieval] = None,
+        llm: Optional["llm.LLM"] = None,
+        store: Optional["store.Store"] = None,
+        auth: Optional["auth.Auth"] = None,
+        tools: Optional["tools.Tool"] = None,
+        retrieval: Optional["retrieval.Retrieval"] = None,
         url: Optional["url.URL"] = None,
+        engine: Optional["engine.Engine"] = None,
         **kwargs,
     ) -> None:
         """
         Initialize the Chatnificent application with configurable pillars.
 
-        This constructor implements dependency injection for the framework's
-        6 core pillars, each responsible for a specific aspect of the chat application.
-        Default implementations are provided for immediate use, while custom
-        implementations can be injected for specialized behavior.
-
         Parameters
         ----------
         layout : layout.Layout, optional
-            Layout builder for constructing the Dash component tree.
-            Defaults to layout.Default() which provides a standard chat UI.
         llm : llm.LLM, optional
-            LLM provider for generating responses from language models.
-            Defaults to llm.OpenAI() for OpenAI API integration.
         store : store.Store, optional
-            Persistence manager for saving/loading conversations.
-            Defaults to store.InMemory() for session-only storage.
         auth : auth.Auth, optional
-            Authentication manager for user identification.
-            Defaults to auth.SingleUser() for single-user mode.
         tools : tools.Tool, optional
-            Tool handler for LLM function calling capabilities.
-            Defaults to tools.NoTool() (no function calling).
         retrieval : retrieval.Retrieval, optional
-            Knowledge retriever for RAG/context capabilities.
-            Defaults to retrieval.NoRetrieval() (no RAG).
+        url : url.URL, optional
+        engine : engine.Engine, optional
+            The orchestration engine class to use for managing the request lifecycle.
+            Defaults to engine.Synchronous.
         **kwargs
             Additional arguments passed to the Dash constructor.
 
@@ -127,13 +118,6 @@ class Chatnificent(Dash):
 
                 self.llm = Echo()
 
-        llm_module = globals()["llm"]
-        store_module = globals()["store"]
-        auth_module = globals()["auth"]
-        tools_module = globals()["tools"]
-        retrieval_module = globals()["retrieval"]
-        url_module = globals()["url"]
-
         if "external_stylesheets" not in kwargs:
             kwargs["external_stylesheets"] = []
         kwargs["external_stylesheets"].extend(
@@ -146,13 +130,47 @@ class Chatnificent(Dash):
 
         super().__init__(**kwargs)
 
-        self.store = store if store is not None else store_module.InMemory()
-        self.auth = auth if auth is not None else auth_module.SingleUser()
-        self.tools = tools if tools is not None else tools_module.NoTool()
-        self.retrieval = (
-            retrieval if retrieval is not None else retrieval_module.NoRetrieval()
-        )
-        self.url = url if url is not None else url_module.PathBased()
+        if store is not None:
+            self.store = store
+        else:
+            from .store import InMemory
+
+            self.store = InMemory()
+
+        if auth is not None:
+            self.auth = auth
+        else:
+            from .auth import Anonymous
+
+            self.auth = Anonymous()
+
+        if tools is not None:
+            self.tools = tools
+        else:
+            from .tools import NoTool
+
+            self.tools = NoTool()
+        if retrieval is not None:
+            self.retrieval = retrieval
+        else:
+            from .retrieval import NoRetrieval
+
+            self.retrieval = NoRetrieval()
+
+        if url is not None:
+            self.url = url
+        else:
+            from .url import PathBased
+
+            self.url = PathBased()
+
+        if engine:
+            self.engine = engine
+            self.engine.app = self
+        else:
+            from .engine import Synchronous
+
+            self.engine = Synchronous(self)
 
         self.layout = self.layout_builder.build_layout()
         self._register_callbacks()

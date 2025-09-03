@@ -1,0 +1,142 @@
+{
+  "openai_response": {
+    "id": "chatcmpl-test123",
+    "object": "chat.completion",
+    "created": 1677652288,
+    "model": "gpt-4",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "This is a mock OpenAI response for testing purposes."
+        },
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 10,
+      "completion_tokens": 12,
+      "total_tokens": 22
+    }
+  },
+  "anthropic_response": {
+    "id": "msg_test123",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "This is a mock Anthropic Claude response for testing."
+      }
+    ],
+    "model": "claude-3-sonnet-20240229",
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "usage": {
+      "input_tokens": 8,
+      "output_tokens": 11
+    }
+  },
+  "gemini_response": {
+    "text": "This is a mock Google Gemini response for testing.",
+    "safety_ratings": [
+      {
+        "category": "HARM_CATEGORY_HARASSMENT",
+        "probability": "NEGLIGIBLE"
+      }
+    ]
+  },
+  "ollama_response": {
+    "model": "llama3.1",
+    "created_at": "2024-01-01T12:00:00Z",
+    "message": {
+      "role": "assistant",
+      "content": "This is a mock Ollama response for testing local models."
+    },
+    "done": true,
+    "total_duration": 1500000000,
+    "load_duration": 500000000,
+    "prompt_eval_count": 10,
+    "eval_count": 15
+  },
+  "echo_response": {
+    "content": "**Echo LLM - static response for testing**\n\n_Your prompt:_\n\n\n\nTest user input",
+    "raw_response": "Echo LLM - static response for testing"
+  },
+  "error_response": {
+    "error": {
+      "type": "api_error",
+      "message": "The model is currently overloaded. Please try again later.",
+      "code": "overloaded"
+    }
+  },
+  "streaming_response_chunks": [
+    {
+      "id": "chatcmpl-stream1",
+      "object": "chat.completion.chunk",
+      "created": 1677652288,
+      "model": "gpt-4",
+      "choices": [
+        {
+          "index": 0,
+          "delta": {
+            "role": "assistant",
+            "content": "This"
+          },
+          "finish_reason": null
+        }
+      ]
+    },
+    {
+      "id": "chatcmpl-stream2", 
+      "object": "chat.completion.chunk",
+      "created": 1677652289,
+      "model": "gpt-4",
+      "choices": [
+        {
+          "index": 0,
+          "delta": {
+            "content": " is a"
+          },
+          "finish_reason": null
+        }
+      ]
+    },
+    {
+      "id": "chatcmpl-stream3",
+      "object": "chat.completion.chunk", 
+      "created": 1677652290,
+      "model": "gpt-4",
+      "choices": [
+        {
+          "index": 0,
+          "delta": {
+            "content": " streaming response."
+          },
+          "finish_reason": "stop"
+        }
+      ]
+    }
+  ],
+  "unicode_response": {
+    "choices": [
+      {
+        "message": {
+          "role": "assistant",
+          "content": "Unicode test: 你好世界 🌍 مرحبا بالعالم עולם שלום नमस्कार विश्व こんにちは世界"
+        }
+      }
+    ]
+  },
+  "very_long_response": {
+    "choices": [
+      {
+        "message": {
+          "role": "assistant",
+          "content": "This is a very long response that simulates what happens when an LLM generates a lot of text. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt."
+        }
+      }
+    ]
+  }
+}

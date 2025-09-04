@@ -1,7 +1,7 @@
 [project]
 name = "chatnificent"
-version = "0.0.2"
-description = "LLM chat app framework - minimally complete, maximally hackable"
+version = "0.0.3"
+description = "LLM chat app framework - Minimally complete. Maximally hackable"
 readme = "README.md"
 authors = [
     { name = "Elias Dabbas", email = "eliasdabbas@gmail.com" }

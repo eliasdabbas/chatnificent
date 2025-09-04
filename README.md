@@ -13,7 +13,7 @@ Chatnificent is a Python framework built on [Plotly's Dash](https://dash.plotly.
 Stop wrestling with UI components, state management, and backend integrations. Start building magnificent chat apps.
 
 
-[![PyPI version](https://img.shields.io/pypi/v/chatnificent.svg)](https://pypi.python.org/pypi/chatnificent) [![PyPI Downloads](https://static.pepy.tech/badge/chatnificent)](http://pepy.tech/project/chatnificent) [![DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/eliasdabbas/chatnificent)
+[![PyPI version](https://img.shields.io/pypi/v/chatnificent.svg)](https://pypi.python.org/pypi/chatnificent) [![DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/eliasdabbas/chatnificent)
 
 ## The Ethos
 

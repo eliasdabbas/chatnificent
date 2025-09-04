@@ -638,7 +638,7 @@ class TestInMemory:
         next_id = store.get_next_conversation_id("new_user")
         assert next_id == "001"
 
-        # Store should start with empty internal structure, but after get_next_conversation_id 
+        # Store should start with empty internal structure, but after get_next_conversation_id
         # is called, it creates the user namespace
         assert store._store == {"new_user": {}}
 
@@ -760,7 +760,9 @@ class TestInMemory:
         id1 = store.get_next_conversation_id("user1")
         assert id1 == "001"
 
-        conv = Conversation(id="001", messages=[ChatMessage(role="user", content="test")])
+        conv = Conversation(
+            id="001", messages=[ChatMessage(role="user", content="test")]
+        )
         store.save_conversation("user1", conv)
 
         id2 = store.get_next_conversation_id("user1")

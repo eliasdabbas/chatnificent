@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.0.0",
 ]
 
+[project.optional-dependencies]
 default = [
     "dash-bootstrap-components>=2.0.0",
     "openai>=1.0.0",

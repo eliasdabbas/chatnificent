@@ -39,22 +39,24 @@ class LLM(ABC):
         """Extracts human-readable text from the native response."""
         pass
 
-    @abstractmethod
     def parse_tool_calls(self, response: Any) -> Optional[List[ToolCall]]:
         """Translates the native response into the standardized format."""
-        pass
+        return None
 
-    @abstractmethod
     def create_assistant_message(self, response: Any) -> ChatMessage:
         """Converts the native response int a ChatMessage for persistence."""
-        pass
+        content = self.extract_content(response)
+        return ChatMessage(role=ASSISTANT_ROLE, content=content)
 
-    @abstractmethod
     def create_tool_result_messages(
         self, results: List[ToolResult]
     ) -> List[ChatMessage]:
         """Converts tool result objects into ChatMessage instances for persistence."""
-        pass
+        if results:
+            raise NotImplementedError(
+                f"{self.__class__.__name__} This method must be implemented by subclasses."
+            )
+        return []
 
 
 class _OpenAICompatible(LLM):

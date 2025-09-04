@@ -482,7 +482,7 @@ class Ollama(LLM):
 
     def generate_response(self, messages, model=None, tools=None, **kwargs) -> Any:
         api_kwargs = {
-            "model": model or self.default_model,
+            "model": model or self.model,
             "messages": messages,
             **kwargs,
         }

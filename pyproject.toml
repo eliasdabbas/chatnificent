@@ -1,16 +1,55 @@
 [project]
 name = "chatnificent"
-version = "0.0.5"
+version = "0.0.6"
 description = "LLM chat app framework - Minimally complete. Maximally hackable"
 readme = "README.md"
 authors = [
     { name = "Elias Dabbas", email = "eliasdabbas@gmail.com" }
 ]
 requires-python = ">=3.9"
+keywords = [
+    "llm",
+    "chatbot",
+    "chat",
+    "ai",
+    "flask",
+    "dash",
+    "web-framework",
+    "openai",
+    "anthropic",
+    "conversational-ai",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Framework :: Dash",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Communications :: Chat",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Internet :: WWW/HTTP :: WSGI :: Application",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: User Interfaces",
+    "Typing :: Typed"
+]
 dependencies = [
     "dash>=3.0.0",
     "pydantic>=2.0.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/eliasdabbas/chatnificent"
+Repository = "https://github.com/eliasdabbas/chatnificent"
+"Bug Tracker" = "https://github.com/eliasdabbas/chatnificent/issues"
 
 [project.optional-dependencies]
 default = [

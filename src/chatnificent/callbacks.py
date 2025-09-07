@@ -2,7 +2,7 @@
 
 from dash import ALL, Input, Output, State, callback_context, no_update
 
-from .models import USER_ROLE
+from .models import ASSISTANT_ROLE, USER_ROLE
 
 
 def register_callbacks(app):
@@ -88,11 +88,17 @@ def register_callbacks(app):
                 pathname=pathname
             )
             conversation = app.store.load_conversation(user_id, convo_id)
-
             if not conversation or not conversation.messages:
                 return []
 
-            return app.layout_builder.build_messages(conversation.messages)
+            filtered_messages = [
+                msg
+                for msg in conversation.messages
+                if msg.role in [USER_ROLE, ASSISTANT_ROLE]
+            ]
+            if not filtered_messages:
+                return []
+            return app.layout_builder.build_messages(filtered_messages)
 
         except Exception:
             return []

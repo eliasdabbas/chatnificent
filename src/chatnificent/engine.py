@@ -184,7 +184,10 @@ class Synchronous(Engine):
         """[Seam] Executes the synchronous call to the LLM pillar."""
         # Future enhancement: Determine required tool format based on LLM type if Tools pillar supports translation.
         tools = self.app.tools.get_tools()
-        return self.app.llm.generate_response(llm_payload, tools=tools)
+        if tools:
+            return self.app.llm.generate_response(llm_payload, tools=tools)
+        else:
+            return self.app.llm.generate_response(llm_payload)
 
     def _execute_tools(self, tool_calls: List[ToolCall]) -> List[ToolResult]:
         """[Seam] Executes tools using the standardized protocol."""

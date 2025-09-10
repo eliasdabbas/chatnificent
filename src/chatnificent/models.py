@@ -36,6 +36,9 @@ class ChatMessage(BaseModel):
         default=None,
         description="The message content. Can be a string, a list of dicts (blocks), or null.",
     )
+    tool_calls: Optional[List[Dict[str, Any]]] = Field(default=None)
+    tool_call_id: Optional[str] = Field(default=None)
+    name: Optional[str] = Field(default=None)
 
 
 class Conversation(BaseModel):

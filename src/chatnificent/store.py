@@ -1,6 +1,7 @@
 """Concrete implementations for persistence managers."""
 
 import json
+import logging
 import os
 import sqlite3
 import tempfile
@@ -10,6 +11,8 @@ from threading import Lock
 from typing import Dict, List, Optional
 
 from .models import Conversation
+
+logger = logging.getLogger(__name__)
 
 
 class Store(ABC):
@@ -188,7 +191,8 @@ class File(Store):
                 self._append_jsonl(raw_file, raw_response)
 
             except (PermissionError, OSError) as e:
-                pass  # Log error in production
+                # Log the error - raw API response saving is critical for debugging
+                logger.error(f"Failed to save raw API response for conversation {convo_id}: {e}")
 
     def list_conversations(self, user_id: str) -> List[str]:
         """List all conversation IDs for user by scanning directories."""

@@ -21,6 +21,8 @@ except ImportError:
 
 from .models import (
     ASSISTANT_ROLE,
+    MODEL_ROLE,
+    TOOL_ROLE,
     USER_ROLE,
     ChatMessage,
     Conversation,
@@ -109,7 +111,7 @@ class Synchronous(Engine):
                 # Add Tool Results using Adapter
                 # Note: This uses the plural method to allow provider-specific batching (e.g., Anthropic)
                 tool_result_messages = self.app.llm.create_tool_result_messages(
-                    tool_results
+                    tool_results, conversation
                 )
                 conversation.messages.extend(tool_result_messages)
 
@@ -226,10 +228,13 @@ class Synchronous(Engine):
     def _build_output(
         self, conversation: Conversation, convo_id_from_url: Optional[str], user_id: str
     ) -> Dict[str, Any]:
-        formatted_messages = self.app.layout_builder.build_messages(
-            conversation.messages
-        )
-        # Use the imported no_update sentinel value
+        display_messages = [
+            msg
+            for msg in conversation.messages
+            if not self.app.llm.is_tool_message(msg)
+        ]
+        formatted_messages = self.app.layout_builder.build_messages(display_messages)
+
         new_pathname = no_update
         if convo_id_from_url != conversation.id:
             new_pathname = self.app.url.build_conversation_path(
@@ -285,7 +290,6 @@ class Synchronous(Engine):
                 "messages": formatted_error,
                 "input_value": "",
                 "submit_disabled": False,
-                # Use the imported no_update sentinel value
                 "pathname": no_update,
             }
 

@@ -74,7 +74,7 @@ class Layout(ABC):
     # ===== UTILITY METHODS =====
     def _is_rtl(self, text: str) -> bool:
         """Check if text requires right-to-left rendering."""
-        if not text or not text.strip():
+        if not text or isinstance(text, list) or not text.strip():
             return False
         for char in text:
             bidi = unicodedata.bidirectional(char)
@@ -738,6 +738,7 @@ class Mantine(Layout):
         """Build all message components for display."""
         if not messages:
             return []
+
         return [self.build_message(msg, i) for i, msg in enumerate(messages)]
 
     def build_message(self, message: ChatMessage, index: int) -> DashComponent:

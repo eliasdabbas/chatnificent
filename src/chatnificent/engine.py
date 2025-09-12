@@ -234,7 +234,12 @@ class Synchronous(Engine):
         display_messages = [
             msg
             for msg in conversation.messages
-            if not self.app.llm.is_tool_message(msg) and msg.role != SYSTEM_ROLE
+            if (
+                not self.app.llm.is_tool_message(msg)
+                and msg.role != SYSTEM_ROLE
+                and msg.content is not None
+                and str(msg.content).strip() != ""
+            )
         ]
         formatted_messages = self.app.layout_builder.build_messages(display_messages)
 

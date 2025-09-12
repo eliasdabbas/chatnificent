@@ -22,6 +22,7 @@ except ImportError:
 from .models import (
     ASSISTANT_ROLE,
     MODEL_ROLE,
+    SYSTEM_ROLE,
     TOOL_ROLE,
     USER_ROLE,
     ChatMessage,
@@ -81,6 +82,14 @@ class Synchronous(Engine):
                 user_input, user_id, conversation.id
             )
             self._after_retrieval(retrieval_context)
+
+            if retrieval_context and not any(
+                msg.role == SYSTEM_ROLE for msg in conversation.messages
+            ):
+                system_message = ChatMessage(
+                    role=SYSTEM_ROLE, content=f"Context:\n---\n{retrieval_context}\n---"
+                )
+                conversation.messages.insert(0, system_message)
 
             # 3. Agentic Loop
             llm_response = None
@@ -171,15 +180,9 @@ class Synchronous(Engine):
         return None
 
     def _prepare_llm_payload(
-        self, conversation: Conversation, retrieval_context: Optional[str]
+        self, conversation: Conversation, retrieval_context: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        # Relying on High-Fidelity Persistence: exclude_none=True is crucial
         messages = [msg.model_dump(exclude_none=True) for msg in conversation.messages]
-
-        # Simplified RAG injection (can be customized by overriding)
-        if retrieval_context and not any(m.get("role") == "system" for m in messages):
-            system_prompt = f"Context:\n---\n{retrieval_context}\n---"
-            messages.insert(0, {"role": "system", "content": system_prompt})
         return messages
 
     def _generate_response(self, llm_payload: List[Dict[str, Any]]) -> Any:
@@ -231,7 +234,7 @@ class Synchronous(Engine):
         display_messages = [
             msg
             for msg in conversation.messages
-            if not self.app.llm.is_tool_message(msg)
+            if not self.app.llm.is_tool_message(msg) and msg.role != SYSTEM_ROLE
         ]
         formatted_messages = self.app.layout_builder.build_messages(display_messages)
 

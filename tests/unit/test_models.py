@@ -156,7 +156,7 @@ class TestChatMessage:
     def test_message_serialization(self):
         """Test message serialization to dict."""
         msg = ChatMessage(role=USER_ROLE, content="Test message")
-        serialized = msg.model_dump()
+        serialized = msg.model_dump(exclude_none=True)
 
         expected = {"role": "user", "content": "Test message"}
         assert serialized == expected

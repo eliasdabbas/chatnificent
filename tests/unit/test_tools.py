@@ -96,13 +96,38 @@ class TestPythonTool:
         with pytest.raises(ValueError):
             tool.register_function("not_a_function")
 
-    def test_generate_schema_not_implemented(self, tool):
-        """Test that the private _generate_schema method returns None."""
+    def test_generate_schema_basic_function(self, tool):
+        """Test that the private _generate_schema method generates correct schema for functions with and without parameters."""
 
-        def my_func():
+        def no_params_func():
             pass
 
-        assert tool._generate_schema(my_func, format="openai") is None
+        def params_func(a=10, b="hello"):
+            return a, b
+
+        # Test schema for function with no parameters
+        schema_no_params = tool._generate_schema(no_params_func)
+        assert schema_no_params is not None
+        assert schema_no_params["type"] == "function"
+        assert schema_no_params["function"]["name"] == "no_params_func"
+        assert schema_no_params["function"]["description"] == ""
+        # Only check parameters if present
+        if "parameters" in schema_no_params["function"]:
+            assert schema_no_params["function"]["parameters"]["type"] == "object"
+            assert schema_no_params["function"]["parameters"]["properties"] == {}
+            assert schema_no_params["function"]["parameters"]["required"] == []
+
+        # Test schema for function with parameters
+        schema_params = tool._generate_schema(params_func)
+        assert schema_params is not None
+        assert schema_params["type"] == "function"
+        assert schema_params["function"]["name"] == "params_func"
+        assert schema_params["function"]["description"] == ""
+        assert "parameters" in schema_params["function"]
+        params = schema_params["function"]["parameters"]
+        assert params["type"] == "object"
+        assert set(params["properties"].keys()) == {"a", "b"}
+        assert isinstance(params["required"], list)
 
     def test_execute_unknown_tool_returns_error(self, tool, sample_tool_call):
         """Test that executing a non-existent tool returns a ToolResult error."""

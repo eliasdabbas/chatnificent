@@ -5,7 +5,7 @@ import logging
 import os
 import secrets
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from .models import (
     ASSISTANT_ROLE,
@@ -13,6 +13,7 @@ from .models import (
     TOOL_ROLE,
     USER_ROLE,
     ChatMessage,
+    Conversation,
     ToolCall,
     ToolResult,
 )
@@ -49,14 +50,21 @@ class LLM(ABC):
         return ChatMessage(role=ASSISTANT_ROLE, content=content)
 
     def create_tool_result_messages(
-        self, results: List[ToolResult]
+        self, results: List[ToolResult], conversation: Conversation
     ) -> List[ChatMessage]:
-        """Converts tool result objects into ChatMessage instances for persistence."""
+        """Converts ToolResult objects into ChatMessage instances for persistence."""
         if results:
-            raise NotImplementedError(
-                f"{self.__class__.__name__} This method must be implemented by subclasses."
-            )
+            if (
+                type(self).create_tool_result_messages
+                == LLM.create_tool_result_messages
+            ):
+                raise NotImplementedError(
+                    f"{self.__class__.__name__} must implement this method if tools are supported."
+                )
         return []
+
+    def is_tool_message(self, message: "ChatMessage") -> bool:
+        return False
 
 
 class _OpenAICompatible(LLM):
@@ -67,8 +75,27 @@ class _OpenAICompatible(LLM):
         tools: Optional[List[Any]] = None,
         **kwargs: Any,
     ) -> Any:
-        api_kwargs = {"messages": messages, "model": model or self.model, **kwargs}
-
+        cleaned_messages = []
+        for msg in messages:
+            cleaned_msg = dict(msg)
+            if cleaned_msg.get("content") is None:
+                if cleaned_msg.get("role") == ASSISTANT_ROLE and cleaned_msg.get(
+                    "tool_calls"
+                ):
+                    pass
+                elif cleaned_msg.get("role") == TOOL_ROLE:
+                    cleaned_msg["content"] = ""
+                elif cleaned_msg.get("role") in [
+                    USER_ROLE,
+                    ASSISTANT_ROLE,
+                ] and not cleaned_msg.get("tool_calls"):
+                    cleaned_msg["content"] = ""
+            cleaned_messages.append(cleaned_msg)
+        api_kwargs = {
+            "messages": cleaned_messages,
+            "model": model or self.model,
+            **kwargs,
+        }
         if tools:
             api_kwargs["tools"] = tools
         return self.client.chat.completions.create(**api_kwargs)
@@ -88,11 +115,11 @@ class _OpenAICompatible(LLM):
         for tool_call in message.tool_calls:
             if tool_call.type == "function" and tool_call.function:
                 tool_calls.append(
-                    {
-                        "id": tool_call.id,
-                        "function_name": tool_call.function.name,
-                        "function_args": tool_call.function.arguments,
-                    }
+                    ToolCall(
+                        id=tool_call.id,
+                        function_name=tool_call.function.name,
+                        function_args=tool_call.function.arguments,
+                    )
                 )
         return tool_calls if tool_calls else None
 
@@ -111,7 +138,7 @@ class _OpenAICompatible(LLM):
         )
 
     def create_tool_result_messages(
-        self, results: List[ToolResult]
+        self, results: List[ToolResult], conversation: Conversation
     ) -> List[ChatMessage]:
         """Creates an OpenAI-compatible tool result message (role=tool)."""
         messages = []
@@ -124,6 +151,10 @@ class _OpenAICompatible(LLM):
                 )
             )
         return messages
+
+    def is_tool_message(self, message: "ChatMessage") -> bool:
+        """OpenAI tool messages have role='tool'."""
+        return message.role == TOOL_ROLE
 
 
 class OpenAI(_OpenAICompatible):
@@ -165,23 +196,33 @@ class DeepSeek(_OpenAICompatible):
         self.model = default_model
 
 
-class Gemini(LLM):
-    """
-    LLM provider for Google Gemini models.
-    Requires significant adaptation due to different message structures.
-    """
+class Anthropic(LLM):
+    """Concrete implementation for Anthropic Claude models."""
 
-    def __init__(self, default_model: str = "gemini-1.5-flash-latest"):
-        import google.generativeai as genai
-        from google.generativeai.types import content_types
+    def __init__(self, default_model: str = "claude-3-opus-20240229"):
+        from anthropic import Anthropic
 
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if api_key:
-            genai.configure(api_key=api_key)
+        self.client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        self.model = default_model
 
-        self.genai = genai
-        self.content_types = content_types
-        self.model_name = default_model
+    def _translate_tool_schema(
+        self, tools: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Helper to translate OpenAI schema to Anthropic's format."""
+        translated_tools = []
+        for tool in tools:
+            if tool.get("type") == "function" and "function" in tool:
+                func = tool["function"]
+                translated_tools.append(
+                    {
+                        "name": func["name"],
+                        "description": func.get("description", ""),
+                        "input_schema": func.get(
+                            "parameters", {"type": "object", "properties": {}}
+                        ),
+                    }
+                )
+        return translated_tools
 
     def generate_response(
         self,
@@ -190,354 +231,254 @@ class Gemini(LLM):
         tools: Optional[List[Any]] = None,
         **kwargs: Any,
     ) -> Any:
-        system_instruction, gemini_messages = self._process_messages(messages)
+        # Anthropic requires a system prompt to be at the top level
+        system_prompt = None
+        if messages and messages[0].get("role") == "system":
+            system_prompt = messages.pop(0)["content"]
 
-        model_instance = self.genai.GenerativeModel(
-            model_name=model or self.model_name,
-            tools=tools if tools else None,
-            system_instruction=system_instruction,
-        )
-
-        valid_config_args = [
-            "temperature",
-            "top_p",
-            "top_k",
-            "max_output_tokens",
-            "stop_sequences",
-        ]
-        gen_config_kwargs = {k: v for k, v in kwargs.items() if k in valid_config_args}
-
-        generation_config = (
-            self.genai.GenerationConfig(**gen_config_kwargs)
-            if gen_config_kwargs
-            else None
-        )
-
-        try:
-            return model_instance.generate_content(
-                contents=gemini_messages,
-                generation_config=generation_config,
-            )
-        except Exception as e:
-            logger.error(f"Gemini API call failed: {e}")
-            raise
-
-    def _process_messages(self, messages: List[Dict[str, Any]]):
-        """
-        CRITICAL ADAPTER LOGIC: Translates history structure (content -> parts),
-        roles (assistant -> model), and extracts system instructions for Gemini.
-        """
-        system_instruction = None
-        gemini_messages = []
-
-        for msg in messages:
-            role = msg.get("role")
-            content = msg.get("content")
-
-            # 1. Extract System Instructions
-            if role == "system":
-                if isinstance(content, str):
-                    if system_instruction is None:
-                        system_instruction = content
-                    else:
-                        system_instruction += "\n" + content
-                else:
-                    logger.warning(
-                        "Skipping non-string system message content for Gemini."
-                    )
-                continue
-
-            # 2. Translate Roles
-            if role == ASSISTANT_ROLE:
-                gemini_role = MODEL_ROLE  # Gemini uses 'model'
-            elif role == USER_ROLE:
-                gemini_role = USER_ROLE
-            elif role == MODEL_ROLE:
-                # Already in Gemini format (from history)
-                gemini_role = MODEL_ROLE
-            else:
-                # Skip other roles (like OpenAI 'tool' role)
-                continue
-
-            # 3. Restructure Content to Parts (THE FIX)
-            # Gemini strictly requires the 'parts' key instead of 'content'.
-            parts = []
-            if isinstance(content, str):
-                # Simple string content -> wrap in a text part
-                parts = [{"text": content}]
-            elif isinstance(content, list):
-                # Structured content (e.g., from high-fidelity persistence)
-                # Assume it's already a list of valid parts (text, function_call, function_response)
-                parts = content
-            elif content is None:
-                # Handle cases where content might be None (e.g. OpenAI tool call message)
-                pass
-            else:
-                logger.warning(
-                    f"Unexpected content type in history for Gemini: {type(content)}"
-                )
-                parts = [{"text": str(content)}]
-
-            # Gemini requires non-empty parts list if the message is included
-            if parts:
-                # Construct the message in the required format
-                gemini_messages.append({"role": gemini_role, "parts": parts})
-            else:
-                logger.warning(
-                    f"Skipping message with empty content/parts for Gemini: Role={role}"
-                )
-
-        return system_instruction, gemini_messages
-
-    # (extract_content, parse_tool_calls, create_assistant_message,
-    # and create_tool_result_messages remain the same as the previous implementation, as they were correct.)
-
-    def extract_content(self, response: Any) -> Optional[str]:
-        try:
-            # response.text concatenates all text parts.
-            return response.text
-        except ValueError:
-            # Occurs if no text (e.g., only tool calls or safety block)
-            if (
-                hasattr(response, "prompt_feedback")
-                and response.prompt_feedback
-                and response.prompt_feedback.block_reason
-            ):
-                return f"[Response blocked by safety filters. Reason: {response.prompt_feedback.block_reason}]"
-            return None
-
-    def parse_tool_calls(self, response: Any) -> Optional[List[ToolCall]]:
-        if not response.candidates or not response.candidates[0].content.parts:
-            return None
-
-        tool_calls = []
-        for part in response.candidates[0].content.parts:
-            # Check if the part is a function_call
-            if hasattr(part, "function_call") and part.function_call:
-                # CRITICAL: Gemini does not provide a unique ID. We generate one securely.
-                tool_id = f"gemini-tool-call-{secrets.token_hex(8)}"
-
-                # Arguments are in a dictionary-like structure.
-                args_dict = dict(part.function_call.args)
-
-                tool_calls.append(
-                    ToolCall(
-                        id=tool_id,
-                        function_name=part.function_call.name,
-                        function_args=json.dumps(args_dict),
-                    )
-                )
-        return tool_calls if tool_calls else None
-
-    def create_assistant_message(self, response: Any) -> ChatMessage:
-        """Creates a ChatMessage mirroring the Gemini structure (role=model, content=parts)."""
-        if not response.candidates:
-            return ChatMessage(role=MODEL_ROLE, content="[No response generated]")
-
-        # Convert SDK objects (Content/Part) into dicts for storage.
-        try:
-            # Use the SDK's utility function for robust conversion
-            parts = [
-                self.content_types.to_dict(p)
-                for p in response.candidates[0].content.parts
-            ]
-        except Exception as e:
-            logger.warning(
-                f"Could not serialize Gemini response content using to_dict: {e}"
-            )
-            # Fallback to text extraction if serialization fails
-            text_content = self.extract_content(response)
-            parts = [{"text": text_content or "[Error extracting content]"}]
-
-        return ChatMessage(role=MODEL_ROLE, content=parts)
-
-    def create_tool_result_messages(
-        self, results: List[ToolResult]
-    ) -> List[ChatMessage]:
-        """Creates a Gemini-compatible tool result message (role=user, function_response)."""
-        # Gemini best practice: Batch tool results into a single role='user' message.
-
-        parts = []
-        for result in results:
-            # Gemini requires the output to be a dictionary for function_response.
-
-            if result.is_error:
-                # Gemini doesn't have a specific error flag, embed it in the result structure.
-                output_content = {"error": result.content}
-            else:
-                try:
-                    output_content = json.loads(result.content)
-                    # If it loads but isn't a dict (e.g., a list or primitive), wrap it.
-                    if not isinstance(output_content, dict):
-                        output_content = {"result": output_content}
-                except json.JSONDecodeError:
-                    # If it's not valid JSON (e.g., a raw string), wrap it.
-                    output_content = {"result": result.content}
-
-            # Structure required by the Gemini API
-            part = {
-                "function_response": {
-                    # CRITICAL: Gemini correlates results using the function name, not the ID.
-                    "name": result.function_name,
-                    "response": output_content,
-                }
-            }
-            parts.append(part)
-
-        if not parts:
-            return []
-
-        return [ChatMessage(role=USER_ROLE, content=parts)]
-
-
-class Anthropic(LLM):
-    def __init__(self, default_model: str = "claude-3-5-sonnet-20241022"):
-        from anthropic import Anthropic
-
-        self.client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-        self.model = default_model
-
-    def generate_response(self, messages, model=None, tools=None, **kwargs) -> Any:
-        if "max_tokens" not in kwargs:
-            kwargs["max_tokens"] = 4096
-        system_prompt, filtered_messages = self._process_messages(messages)
         api_kwargs = {
+            "messages": messages,
             "model": model or self.model,
-            "messages": filtered_messages,
+            "max_tokens": 4096,  # Recommended default for Anthropic
             **kwargs,
         }
         if system_prompt:
             api_kwargs["system"] = system_prompt
         if tools:
-            api_kwargs["tools"] = tools
+            api_kwargs["tools"] = self._translate_tool_schema(tools)
+
         return self.client.messages.create(**api_kwargs)
 
-    def _process_messages(self, messages: List[Dict[str, Any]]):
-        system_prompt = None
-        filtered_messages = []
-        for msg in messages:
-            role = msg.get("role")
-            if role == "system":
-                content = msg.get("content", "")
-                system_prompt = (
-                    content if system_prompt is None else system_prompt + "\n" + content
-                )
-            elif role in (USER_ROLE, ASSISTANT_ROLE):
-                filtered_messages.append(msg)
-
-        return system_prompt, filtered_messages
-
     def extract_content(self, response: Any) -> Optional[str]:
-        text_content = [
-            block.text for block in response.content if block.type == "text"
-        ]
-        return "\n".join(text_content) if text_content else ""
-
-    def parse_tool_calls(self, response: Any) -> List[Dict[str, Any]]:
-        """Parse tool calls from Anthropic response."""
-        tool_calls = []
-
-        for content_block in response.content:
-            if hasattr(content_block, "type") and content_block.type == "tool_use":
-                tool_calls.append(
-                    {
-                        "id": content_block.id,
-                        "function_name": content_block.name,
-                        "arguments": content_block.input,
-                    }
-                )
-
-        return tool_calls
-
-    def create_assistant_message(self, response: Any) -> ChatMessage:
-        """Creates a ChatMessage mirroring the Anthropic structure (content blocks)."""
-        content_blocks = [block.model_dump() for block in response.content]
-        return ChatMessage(role=ASSISTANT_ROLE, content=content_blocks)
-
-    def create_tool_result_messages(
-        self, results: List[ToolResult]
-    ) -> List[ChatMessage]:
-        """Creates an Anthropic-compatible tool result message (role=user)."""
-        content_blocks = []
-        for result in results:
-            block = {
-                "type": "tool_result",
-                "tool_use_id": result.tool_call_id,
-                "content": result.content,
-            }
-            if result.is_error:
-                block["is_error"] = True
-            content_blocks.append(block)
-
-        if not content_blocks:
-            return []
-
-        return [ChatMessage(role=USER_ROLE, content=content_blocks)]
-
-
-class Ollama(LLM):
-    def __init__(self, default_model: str = "llama3.1"):
-        from ollama import Client
-
-        self.client = Client()
-        self.model = default_model
-
-    def generate_response(self, messages, model=None, tools=None, **kwargs) -> Any:
-        api_kwargs = {
-            "model": model or self.model,
-            "messages": messages,
-            **kwargs,
-        }
-        if tools:
-            api_kwargs["tools"] = tools
-        return self.client.chat(**api_kwargs)
-
-    def extract_content(self, response: Any) -> Optional[str]:
-        return response.get("message", {}).get("content")
+        # Find the first text block in the response content
+        if not response.content:
+            return None
+        for block in response.content:
+            if block.type == "text":
+                return block.text
+        return None
 
     def parse_tool_calls(self, response: Any) -> Optional[List[ToolCall]]:
-        message = response.get("message", {})
-        raw_tool_calls = message.get("tool_calls")
-        if not raw_tool_calls:
+        if response.stop_reason != "tool_use":
             return None
         tool_calls = []
-        for tool_call in raw_tool_calls:
-            function_data = tool_call.get("function")
-            if function_data:
-                import secrets
-
-                tool_id = f"ollama-tool-call-{secrets.token_hex(8)}"
-                args = function_data.get("arguments", {})
+        for block in response.content:
+            if block.type == "tool_use":
                 tool_calls.append(
                     ToolCall(
-                        id=tool_id,
-                        function_name=function_data.get("name", ""),
-                        function_args=args,
+                        id=block.id,
+                        function_name=block.name,
+                        # Anthropic provides args as a dict, convert to JSON string for consistency
+                        function_args=json.dumps(block.input),
                     )
                 )
         return tool_calls if tool_calls else None
 
     def create_assistant_message(self, response: Any) -> ChatMessage:
-        message = response.get("message", {})
+        """For Anthropic, we persist the raw content blocks for later use."""
+        if response.stop_reason == "tool_use":
+            return ChatMessage(
+                role=ASSISTANT_ROLE, content=response.model_dump()["content"]
+            )
         return ChatMessage(
             role=ASSISTANT_ROLE,
-            content=message.get("content", ""),
-            tool_calls=message.get("tool_calls"),
+            # Persist the raw model_dump for high fidelity
+            content=self.extract_content(response),
         )
 
     def create_tool_result_messages(
-        self, results: List[ToolResult]
+        self, results: List[ToolResult], conversation: "Conversation"
     ) -> List[ChatMessage]:
+        """
+        Anthropic requires a specific message structure for tool results:
+        1. The original assistant message containing the tool_use requests.
+        2. A new user message containing the tool_result blocks.
+        The engine will add this user message, and our adapter must prepare it.
+        """
+        tool_result_content = []
+        for result in results:
+            tool_result_content.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": result.tool_call_id,
+                    "content": result.content,
+                    "is_error": result.is_error,
+                }
+            )
+
+        # Anthropic expects a single message with all tool results
+        return [ChatMessage(role=USER_ROLE, content=tool_result_content)]
+
+    def is_tool_message(self, message: "ChatMessage") -> bool:
+        message_dict = message.model_dump()
+        content_data = message_dict.get("content")
+        role = message_dict.get("role")
+
+        # The primary indicator of a special tool message is list-based content.
+        if not isinstance(content_data, list):
+            return False
+
+        # Apply filtering logic based on the reliable data from the dumped model.
+        if role == USER_ROLE:
+            return all(item.get("type") == "tool_result" for item in content_data)
+
+        if role == ASSISTANT_ROLE:
+            return any(item.get("type") == "tool_use" for item in content_data)
+
+        return False
+
+
+class Gemini(LLM):
+    """Concrete implementation for Google Gemini models."""
+
+    def __init__(self, default_model: str = "gemini-1.5-flash"):
+        from google import generativeai as genai
+        from google.generativeai import types as genai_types
+
+        self.genai = genai
+        self.genai_types = genai_types
+        api_key = os.environ.get("GEMINI_API_KEY")
+        genai.configure(api_key=api_key)
+        self.client = genai.GenerativeModel(default_model)
+        self.model = default_model
+        self.system_instruction = None
+
+    def _translate_messages(
+        self, messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Translate roles and structure for Gemini."""
+        translated = []
+        for msg in messages:
+            role = msg.get("role")
+            if role == "system":
+                self.system_instruction = msg.get("content", "")
+                continue
+
+            if role == ASSISTANT_ROLE:
+                role = MODEL_ROLE  # Gemini uses 'model' for assistant
+            elif role == TOOL_ROLE:
+                # Gemini expects tool results in a specific format
+                translated.append(
+                    self.genai_types.Part.from_function_response(
+                        name=msg.get("name"), response={"content": msg.get("content")}
+                    )
+                )
+                continue
+
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                translated.append({"role": role, "parts": [content]})
+
+        return translated
+
+    def generate_response(
+        self,
+        messages: List[Dict[str, Any]],
+        model: Optional[str] = None,
+        tools: Optional[List[Any]] = None,
+        **kwargs: Any,
+    ) -> Any:
+        gemini_tools = None
+        if tools:
+            # Extract the 'function' part of the OpenAI schema
+            function_declarations = [
+                t["function"] for t in tools if t.get("type") == "function"
+            ]
+            if function_declarations:
+                gemini_tools = [
+                    self.genai_types.Tool(function_declarations=function_declarations)
+                ]
+
+        # Select the correct model client with system instruction if needed
+        client = self.client
+        if model and model != self.model:
+            client = self.genai.GenerativeModel(
+                model, system_instruction=self.system_instruction
+            )
+        elif self.system_instruction:
+            client = self.genai.GenerativeModel(
+                self.model, system_instruction=self.system_instruction
+            )
+
+        response = client.generate_content(
+            self._translate_messages(messages),
+            tools=gemini_tools,
+            **kwargs,
+        )
+        return response.to_dict()
+
+    def extract_content(self, response: Any) -> Optional[str]:
+        try:
+            candidates = response.get("candidates", [])
+            if candidates and "content" in candidates[0]:
+                parts = candidates[0]["content"].get("parts", [])
+                for part in parts:
+                    if "text" in part:
+                        return part["text"]
+            return None
+        except Exception:
+            logger.warning(
+                "Could not extract text from Gemini response.", exc_info=True
+            )
+            return None
+
+    def parse_tool_calls(self, response: Any) -> Optional[List[ToolCall]]:
+        # response is now a dict from to_dict()
+        candidates = response.get("candidates", [])
+        if not candidates:
+            return None
+        tool_calls = []
+        if "content" in candidates[0]:
+            parts = candidates[0]["content"].get("parts", [])
+            for part in parts:
+                if "function_call" in part:
+                    fc = part["function_call"]
+                    # Generate tool_call_id for internal tracking
+                    tool_call_id = f"call_{secrets.token_hex(8)}"
+                    tool_calls.append(
+                        ToolCall(
+                            id=tool_call_id,
+                            function_name=fc.get("name", ""),
+                            function_args=json.dumps(fc.get("args", {})),
+                        )
+                    )
+        return tool_calls if tool_calls else None
+
+    def create_assistant_message(self, response: Any) -> ChatMessage:
+        """Create a ChatMessage mirroring Gemini's structure, using MODEL_ROLE."""
+        # response is now a dict from to_dict()
+        candidates = response.get("candidates", [])
+        if not candidates:
+            return ChatMessage(role=MODEL_ROLE, content="[No response generated]")
+
+        # Extract raw parts for high fidelity storage
+        if "content" in candidates[0]:
+            raw_parts = candidates[0]["content"].get("parts", [])
+            return ChatMessage(
+                role=MODEL_ROLE,
+                content=raw_parts,
+            )
+        return ChatMessage(role=MODEL_ROLE, content="[No response generated]")
+
+    def create_tool_result_messages(
+        self, results: List[ToolResult], conversation: "Conversation"
+    ) -> List[ChatMessage]:
+        """Creates Gemini-compatible tool result messages."""
         messages = []
         for result in results:
             messages.append(
                 ChatMessage(
                     role=TOOL_ROLE,
+                    name=result.function_name,
                     content=result.content,
-                    tool_call_id=result.tool_call_id,
+                    # We don't need tool_call_id here as Gemini tracks by function name in context
                 )
             )
         return messages
+
+    def is_tool_message(self, message: "ChatMessage") -> bool:
+        """Gemini tool messages have role='tool'."""
+        return message.role == TOOL_ROLE
 
 
 class Echo(LLM):
@@ -564,7 +505,6 @@ class Echo(LLM):
                 if isinstance(content, str):
                     user_prompt = content
                 elif isinstance(content, list):
-                    # Handle structured content if necessary (e.g., previous tool results)
                     user_prompt = "[Structured Input]"
                 else:
                     user_prompt = str(content) if content else ""
@@ -589,13 +529,13 @@ class Echo(LLM):
             return response.get("content")
         return str(response)
 
-    def parse_tool_calls(self, response: Any) -> Optional[List[ToolCall]]:
-        return None  # Echo does not generate tool calls
+    def parse_tool_calls(self, response: Any) -> Optional[List["ToolCall"]]:
+        return None
 
-    def create_assistant_message(self, response: Any) -> ChatMessage:
+    def create_assistant_message(self, response: Any) -> "ChatMessage":
         return ChatMessage(role=ASSISTANT_ROLE, content=self.extract_content(response))
 
     def create_tool_result_messages(
-        self, results: List[ToolResult]
-    ) -> List[ChatMessage]:
+        self, results: List["ToolResult"]
+    ) -> List["ChatMessage"]:
         return []

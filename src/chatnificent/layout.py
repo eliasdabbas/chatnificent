@@ -474,7 +474,9 @@ class Bootstrap(Layout):
     def build_copy_button(
         self, content: str, msg_type: str, index: int
     ) -> Optional[DashComponent]:
-        """Build copy button with proper Bootstrap positioning."""
+        """Build copy button with proper Bootstrap positioning, only if content is non-empty."""
+        if content is None or str(content).strip() == "":
+            return None
         return html.Div(
             [
                 dcc.Clipboard(
@@ -827,7 +829,9 @@ class Mantine(Layout):
     def build_copy_button(
         self, content: str, msg_type: str, index: int
     ) -> Optional[DashComponent]:
-        """Copy button - exact translation from Bootstrap."""
+        """Copy button - exact translation from Bootstrap, only if content is non-empty."""
+        if content is None or str(content).strip() == "":
+            return None
         return html.Div(
             [
                 dcc.Clipboard(
@@ -1094,7 +1098,9 @@ class Minimal(Layout):
     def build_copy_button(
         self, content: str, msg_type: str, index: int
     ) -> Optional[DashComponent]:
-        """Build copy button with proper Bootstrap positioning."""
+        """Build copy button with proper Bootstrap positioning, only if content is non-empty."""
+        if content is None or str(content).strip() == "":
+            return None
         return html.Div(
             [
                 dcc.Clipboard(

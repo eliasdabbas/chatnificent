@@ -118,11 +118,11 @@ import chatnificent as chat
 
 
 app = Chatnificent(
-    llm=chat.llm.Anthropic(default_model="claude-3-5-sonnet-20240620")
+    llm=chat.llm.Anthropic(model="claude-3-5-sonnet-20240620")
 )
 
 # Or try Gemini: app = Chatnificent(llm=chat.llm.Gemini())
-# Or local Ollama: app = Chatnificent(llm=chat.llm.Ollama(default_model="llama3.1"))
+# Or local Ollama: app = Chatnificent(llm=chat.llm.Ollama(model="llama3.1"))
 ```
 
 Chatnificent handles the translation of message formats and tool-calling protocols automatically.

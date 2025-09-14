@@ -1,4 +1,5 @@
 
+<img src="chatnificent_logo.png" width="350">
 
 # 🗯️ Chatnificent
 

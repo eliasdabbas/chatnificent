@@ -674,69 +674,44 @@ class Mantine(Layout):
         return html.Div(
             style={"marginBottom": "16px", "direction": direction},
             children=[
-                html.Div(  # Row equivalent
+                self.dmc.Grid(
                     [
-                        html.Div(  # Col equivalent width=8, ms-auto
+                        self.dmc.GridCol(
                             [
-                                html.Div(
-                                    [
-                                        dcc.Markdown(
-                                            message.content,
-                                            id=f"user_msg_{index}",
-                                            style={
-                                                "padding": "16px",
-                                                "borderRadius": "8px",
-                                                "backgroundColor": "var(--mantine-color-gray-1)",
-                                                "lineHeight": "1.5",
-                                                "wordWrap": "break-word",
-                                            },
-                                        ),
-                                    ],
+                                dcc.Markdown(
+                                    message.content,
+                                    id=f"user_msg_{index}",
                                     style={
+                                        "padding": "8px",
+                                        "borderRadius": "8px",
+                                        "backgroundColor": "var(--mantine-color-gray-1)",
+                                        "wordWrap": "break-word",
                                         "width": "fit-content",
                                         "marginLeft": "auto",
                                     },
-                                )
+                                ),
                             ],
-                            style={
-                                "width": "66.666667%",  # Bootstrap width=8
-                                "marginLeft": "auto",  # Bootstrap ms-auto
-                            },
+                            span=8,
                         )
-                    ]
+                    ], justify="flex-end"
                 ),
                 self.build_copy_button(message.content, "user", index),
             ],
         )
-
     def build_assistant_message(
         self, message: ChatMessage, index: int, direction: str = "ltr"
     ) -> DashComponent:
         """Assistant message - direct translation from Bootstrap."""
+
         return html.Div(
-            style={"marginBottom": "16px", "direction": direction},
+            style={"marginBottom": "8px", "direction": direction},
             children=[
-                html.Div(  # Row equivalent
-                    [
-                        html.Div(  # Col equivalent width=12
-                            [
-                                html.Div(
-                                    [
-                                        dcc.Markdown(
-                                            message.content,
-                                            id=f"assistant_msg_{index}",
-                                            style={
-                                                "padding": "16px",
-                                                "lineHeight": "1.5",
-                                                "wordWrap": "break-word",
-                                            },
-                                        ),
-                                    ],
-                                )
-                            ],
-                            style={"width": "100%"},
-                        )
-                    ]
+                dcc.Markdown(
+                    message.content,
+                    id=f"assistant_msg_{index}",
+                    style={
+                        "wordWrap": "break-word",
+                    },
                 ),
                 self.build_copy_button(message.content, "assistant", index),
             ],

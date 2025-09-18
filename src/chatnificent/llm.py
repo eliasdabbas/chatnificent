@@ -688,6 +688,71 @@ class Gemini(LLM):
         return message.role == TOOL_ROLE
 
 
+class Ollama(LLM):
+    def __init__(self, model: str = "TinyLlama"):
+        from ollama import Client
+
+        self.client = Client()
+        self.model = model
+
+    def generate_response(self, messages, model=None, tools=None, **kwargs) -> Any:
+        api_kwargs = {
+            "model": model or self.model,
+            "messages": messages,
+            **kwargs,
+        }
+        if tools:
+            api_kwargs["tools"] = tools
+        return self.client.chat(**api_kwargs)
+
+    def extract_content(self, response: Any) -> Optional[str]:
+        return response.get("message", {}).get("content")
+
+    def parse_tool_calls(self, response: Any) -> Optional[List[ToolCall]]:
+        message = response.get("message", {})
+        raw_tool_calls = message.get("tool_calls")
+        if not raw_tool_calls:
+            return None
+        tool_calls = []
+        for tool_call in raw_tool_calls:
+            function_data = tool_call.get("function")
+            if function_data:
+                import secrets
+
+                tool_id = f"ollama-tool-call-{secrets.token_hex(8)}"
+                args = function_data.get("arguments", {})
+                tool_calls.append(
+                    ToolCall(
+                        id=tool_id,
+                        function_name=function_data.get("name", ""),
+                        function_args=args,
+                    )
+                )
+        return tool_calls if tool_calls else None
+
+    def create_assistant_message(self, response: Any) -> ChatMessage:
+        message = response.get("message", {})
+        return ChatMessage(
+            role=ASSISTANT_ROLE,
+            content=message.get("content", ""),
+            tool_calls=message.get("tool_calls"),
+        )
+
+    def create_tool_result_messages(
+        self, results: List[ToolResult]
+    ) -> List[ChatMessage]:
+        messages = []
+        for result in results:
+            messages.append(
+                ChatMessage(
+                    role=TOOL_ROLE,
+                    content=result.content,
+                    tool_call_id=result.tool_call_id,
+                )
+            )
+        return messages
+
+
 class Echo(LLM):
     """Mock LLM for testing purposes and fallback."""
 

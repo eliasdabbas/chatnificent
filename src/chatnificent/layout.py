@@ -510,13 +510,8 @@ class Mantine(Layout):
         super().__init__(theme)
 
     def get_external_stylesheets(self) -> List[Union[str, Dict]]:
-        """Return Mantine stylesheets."""
-        return [
-            {
-                "href": "https://cdn.jsdelivr.net/npm/@mantine/core@7.6.2/styles.css",
-                "rel": "stylesheet",
-            },
-        ]
+        """Mantine stylesheets are bundled as of 1.2.0."""
+        return []
 
     def build_layout(self) -> DashComponent:
         """Complete Mantine layout - wraps MantineProvider around Bootstrap structure."""

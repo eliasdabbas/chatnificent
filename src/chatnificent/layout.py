@@ -545,55 +545,41 @@ class Mantine(Layout):
     def build_sidebar_toggle(self) -> DashComponent:
         """Header with burger menu - uses ActionIcon but keeps same styling."""
         return self.dmc.ActionIcon(
-            children="☰",
+            self.DashIconify(icon="bi-list", width=36),
             id="sidebar_toggle",  # CALLBACK COMPONENT - ActionIcon supports n_clicks
             n_clicks=0,
             size="xl",
             variant="subtle",
+            color="gray",
             style={
-                "border": "none",
-                "background": "rgba(255, 255, 255, 0.9)",
-                "color": "var(--mantine-color-dark-6)",
-                "fontSize": "42px",
                 "position": "fixed",
                 "top": "12px",
                 "left": "12px",
-                "padding": "4px",
-                "borderRadius": "4px",
-                "cursor": "pointer",
                 "zIndex": "9999",
             },
-        )
+    )
 
     def build_sidebar(self) -> DashComponent:
         """Sidebar - wrapped in html.Div for hidden property."""
         return html.Div(  # CALLBACK COMPONENT - needs hidden property
             [
-                html.Br(),
-                html.Br(),
-                html.Br(),
-                html.Span(  # CALLBACK COMPONENT - needs n_clicks property
-                    [
-                        self.dmc.ThemeIcon(
-                            children="✏️",
-                            size="sm",
-                            variant="light",
-                            style={"marginRight": "8px"},
-                        ),
-                        "New Chat",
-                    ],
+
+                self.dmc.Button(
+                    "New Chat",
+                    leftSection=self.DashIconify(icon="tabler:plus"),
                     id="new_conversation_button",
                     n_clicks=0,
-                    style={
-                        "display": "flex",
-                        "alignItems": "center",
-                        "justifyContent": "center",
-                        "cursor": "pointer",
-                    },
+                    variant="subtle",
+                    color="gray",
+                    mt=48,
+                    mb="md"
                 ),
-                html.Ul(  # CALLBACK COMPONENT - conversations list
-                    id="conversations_list",
-                    style={"listStyle": "none", "padding": "0"},
+                self.dmc.ScrollArea(
+                    html.Ul(  # CALLBACK COMPONENT - conversations list
+                        id="conversations_list",
+                        style={"listStyle": "none", "padding": "0"},
+                    ),
+                    type="hover",
                 ),
             ],
             id="sidebar",
@@ -601,14 +587,13 @@ class Mantine(Layout):
             style={
                 "width": "280px",
                 "height": "100vh",
-                "overflowY": "auto",
                 "position": "fixed",
                 "top": "0",
                 "left": "0",
                 "zIndex": "1040",
-                "backgroundColor": "var(--mantine-color-body)",
                 "padding": "16px",
-                "borderRight": "1px solid var(--mantine-color-gray-3)",
+                "borderRight": "1px solid var(--mantine-color-default-border)",
+                "backgroundColor": "var(--mantine-color-body)",
             },
         )
 

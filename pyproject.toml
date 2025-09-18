@@ -1,6 +1,6 @@
  [project]
 name = "chatnificent"
-version = "0.0.8"
+version = "0.0.9"
 description = "LLM chat app framework - Minimally complete. Maximally hackable"
 readme = "README.md"
 authors = [

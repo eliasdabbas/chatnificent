@@ -505,8 +505,10 @@ class Mantine(Layout):
     def __init__(self, theme: Optional[str] = "light"):
         """Initialize with Mantine theme variant (light, dark, etc.)."""
         import dash_mantine_components as dmc
+        from dash_iconify import DashIconify
 
         self.dmc = dmc
+        self.DashIconify = DashIconify
         super().__init__(theme)
 
     def get_external_stylesheets(self) -> List[Union[str, Dict]]:
@@ -516,7 +518,7 @@ class Mantine(Layout):
     def build_layout(self) -> DashComponent:
         """Complete Mantine layout - wraps MantineProvider around Bootstrap structure."""
         return self.dmc.MantineProvider(
-            theme={"colorScheme": self.theme_name or "light"},
+            forceColorScheme= "light",
             children=[
                 dcc.Location(id="url_location", refresh=False),
                 self.build_sidebar_toggle(),

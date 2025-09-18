@@ -523,21 +523,7 @@ class Mantine(Layout):
                 dcc.Location(id="url_location", refresh=False),
                 self.build_sidebar_toggle(),
                 self.build_sidebar(),
-                html.Div(  # Equivalent to dbc.Row
-                    [
-                        html.Div(  # Equivalent to dbc.Col lg=7, md=12, mx-auto
-                            [
-                                self.build_chat_area(),
-                            ],
-                            style={
-                                "width": "58.333333%",  # Bootstrap lg=7
-                                "margin": "0 auto",  # Bootstrap mx-auto
-                                "position": "relative",
-                                "height": "calc(100vh - 160px)",
-                            },
-                        ),
-                    ]
-                ),
+                self.build_chat_area(),
                 self.build_input_area(),
             ],
         )
@@ -598,21 +584,19 @@ class Mantine(Layout):
         )
 
     def build_chat_area(self) -> DashComponent:
-        """Chat area - direct translation from Bootstrap."""
-        return html.Div(
-            [
-                html.Div(
+        """Chat area ."""
+        return self.dmc.Grid(
+            self.dmc.GridCol(
+                self.dmc.ScrollArea(
                     id="messages_container",  # CALLBACK COMPONENT
-                    style={
-                        "height": "calc(100vh - 160px)",
-                        "overflowY": "auto",
-                        "scrollbarWidth": "none",  # Firefox
-                        "msOverflowStyle": "none",  # IE and Edge
-                        "padding": "16px",
-                        "paddingBottom": "24px",
-                    },
-                )
-            ],
+                    type="never",
+                    h="calc(100vh - 160px)",
+                    p="md",
+                    pb="lg",
+                ),
+                span={"lg": 7},
+            ),
+            justify="center",
             id="chat_area",
         )
 

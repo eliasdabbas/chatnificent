@@ -274,25 +274,25 @@ def _register_clientside_callbacks(app):
         prevent_initial_call=True,
     )
 
-    # Focus input after sending
-    app.clientside_callback(
-        """
-        function(input_value) {
-            if (input_value === "") {
-                setTimeout(() => {
-                    const textarea = document.getElementById('input_textarea');
-                    if (textarea) {
-                        textarea.focus();
-                    }
-                }, 100);
-            }
-            return {};
-        }
-        """,
-        Output("input_textarea", "style", allow_duplicate=True),
-        [Input("input_textarea", "value")],
-        prevent_initial_call=True,
-    )
+    # # Focus input after sending
+    # app.clientside_callback(
+    #     """
+    #     function(input_value) {
+    #         if (input_value === "") {
+    #             setTimeout(() => {
+    #                 const textarea = document.getElementById('input_textarea');
+    #                 if (textarea) {
+    #                     textarea.focus();
+    #                 }
+    #             }, 100);
+    #         }
+    #         return {};
+    #     }
+    #     """,
+    #     Output("input_textarea", "style", allow_duplicate=True),
+    #     [Input("input_textarea", "value")],
+    #     prevent_initial_call=True,
+    # )
 
     # Auto-detect RTL text
     app.clientside_callback(

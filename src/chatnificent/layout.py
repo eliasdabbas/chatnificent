@@ -505,98 +505,67 @@ class Mantine(Layout):
     def __init__(self, theme: Optional[str] = "light"):
         """Initialize with Mantine theme variant (light, dark, etc.)."""
         import dash_mantine_components as dmc
+        from dash_iconify import DashIconify
 
         self.dmc = dmc
+        self.DashIconify = DashIconify
         super().__init__(theme)
 
     def get_external_stylesheets(self) -> List[Union[str, Dict]]:
-        """Return Mantine stylesheets."""
-        return [
-            {
-                "href": "https://cdn.jsdelivr.net/npm/@mantine/core@7.6.2/styles.css",
-                "rel": "stylesheet",
-            },
-        ]
+        """Mantine stylesheets are bundled as of 1.2.0."""
+        return []
 
     def build_layout(self) -> DashComponent:
         """Complete Mantine layout - wraps MantineProvider around Bootstrap structure."""
         return self.dmc.MantineProvider(
-            theme={"colorScheme": self.theme_name or "light"},
-            children=[
+            forceColorScheme= "light",
+            children=self.dmc.TypographyStylesProvider([
                 dcc.Location(id="url_location", refresh=False),
                 self.build_sidebar_toggle(),
                 self.build_sidebar(),
-                html.Div(  # Equivalent to dbc.Row
-                    [
-                        html.Div(  # Equivalent to dbc.Col lg=7, md=12, mx-auto
-                            [
-                                self.build_chat_area(),
-                            ],
-                            style={
-                                "width": "58.333333%",  # Bootstrap lg=7
-                                "margin": "0 auto",  # Bootstrap mx-auto
-                                "position": "relative",
-                                "height": "calc(100vh - 160px)",
-                            },
-                        ),
-                    ]
-                ),
+                self.build_chat_area(),
                 self.build_input_area(),
-            ],
+            ]),
         )
 
     def build_sidebar_toggle(self) -> DashComponent:
         """Header with burger menu - uses ActionIcon but keeps same styling."""
         return self.dmc.ActionIcon(
-            children="☰",
+            self.DashIconify(icon="bi-list", width=36),
             id="sidebar_toggle",  # CALLBACK COMPONENT - ActionIcon supports n_clicks
             n_clicks=0,
             size="xl",
             variant="subtle",
+            color="gray",
             style={
-                "border": "none",
-                "background": "rgba(255, 255, 255, 0.9)",
-                "color": "var(--mantine-color-dark-6)",
-                "fontSize": "42px",
                 "position": "fixed",
                 "top": "12px",
                 "left": "12px",
-                "padding": "4px",
-                "borderRadius": "4px",
-                "cursor": "pointer",
                 "zIndex": "9999",
             },
-        )
+    )
 
     def build_sidebar(self) -> DashComponent:
         """Sidebar - wrapped in html.Div for hidden property."""
         return html.Div(  # CALLBACK COMPONENT - needs hidden property
             [
-                html.Br(),
-                html.Br(),
-                html.Br(),
-                html.Span(  # CALLBACK COMPONENT - needs n_clicks property
-                    [
-                        self.dmc.ThemeIcon(
-                            children="✏️",
-                            size="sm",
-                            variant="light",
-                            style={"marginRight": "8px"},
-                        ),
-                        "New Chat",
-                    ],
+
+                self.dmc.Button(
+                    "New Chat",
+                    leftSection=self.DashIconify(icon="tabler:plus"),
                     id="new_conversation_button",
                     n_clicks=0,
-                    style={
-                        "display": "flex",
-                        "alignItems": "center",
-                        "justifyContent": "center",
-                        "cursor": "pointer",
-                    },
+                    variant="subtle",
+                    color="gray",
+                    mt=48,
+                    mb="md"
                 ),
-                html.Ul(  # CALLBACK COMPONENT - conversations list
-                    id="conversations_list",
-                    style={"listStyle": "none", "padding": "0"},
+                self.dmc.ScrollArea(
+                    html.Ul(  # CALLBACK COMPONENT - conversations list
+                        id="conversations_list",
+                        style={"listStyle": "none", "padding": "0"},
+                    ),
+                    type="hover",
                 ),
             ],
             id="sidebar",
@@ -604,136 +573,82 @@ class Mantine(Layout):
             style={
                 "width": "280px",
                 "height": "100vh",
-                "overflowY": "auto",
                 "position": "fixed",
                 "top": "0",
                 "left": "0",
                 "zIndex": "1040",
-                "backgroundColor": "var(--mantine-color-body)",
                 "padding": "16px",
-                "borderRight": "1px solid var(--mantine-color-gray-3)",
+                "borderRight": "1px solid var(--mantine-color-default-border)",
+                "backgroundColor": "var(--mantine-color-body)",
             },
         )
 
     def build_chat_area(self) -> DashComponent:
-        """Chat area - direct translation from Bootstrap."""
-        return html.Div(
-            [
-                html.Div(
+        """Chat area ."""
+        return self.dmc.Grid(
+            self.dmc.GridCol(
+                self.dmc.ScrollArea(
                     id="messages_container",  # CALLBACK COMPONENT
-                    style={
-                        "height": "calc(100vh - 160px)",
-                        "overflowY": "auto",
-                        "scrollbarWidth": "none",  # Firefox
-                        "msOverflowStyle": "none",  # IE and Edge
-                        "padding": "16px",
-                        "paddingBottom": "24px",
-                    },
-                )
-            ],
+                    type="never",
+                    h="calc(100vh - 160px)",
+                    p="md",
+                    pb="lg",
+                ),
+                span={"lg": 7},
+            ),
+            justify="center",
             id="chat_area",
         )
 
     def build_input_area(self) -> DashComponent:
         """Input area - status_indicator wrapped, submit_button wrapped."""
-        return html.Div(
-            [
-                html.Div(  # Container equivalent
-                    [
-                        # Status indicator row
-                        html.Div(
-                            [
-                                html.Div(  # Col equivalent
-                                    [
-                                        html.Div(  # CALLBACK COMPONENT - needs hidden
-                                            [
-                                                html.Span(
-                                                    "Working...",
-                                                    style={"marginRight": "8px"},
-                                                ),
-                                                self.dmc.Loader(size="sm"),
-                                            ],
-                                            id="status_indicator",
-                                            hidden=True,
-                                            style={
-                                                "textAlign": "left",
-                                                "color": "#888",
-                                                "fontSize": "15px",
-                                                "marginBottom": "8px",
-                                                "fontStyle": "italic",
-                                                "fontWeight": "300",
-                                            },
-                                        ),
-                                    ],
-                                    style={
-                                        "width": "58.333333%",  # lg=7
-                                        "margin": "0 auto",  # mx-auto
-                                    },
-                                ),
-                            ]
+        return self.dmc.Box(
+            pos="fixed",
+            bottom=0,
+            left=0,
+            right=0,
+            style={"zIndex": 1000},
+            children=self.dmc.Container(
+                [
+                    html.Div(
+                        self.dmc.Button(
+                            [self.dmc.Text("Working...")],
+                            rightSection=self.dmc.Loader(size="xs", color="gray"),
+                            fs="italic",
+                            c="dimmed",
+                            variant="transparent",
                         ),
-                        # Input row
-                        html.Div(
-                            [
-                                html.Div(  # Col equivalent
-                                    [
-                                        html.Div(  # Input container
-                                            [
-                                                self.dmc.Textarea(
-                                                    id="input_textarea",  # CALLBACK COMPONENT
-                                                    placeholder="Ask...",
-                                                    minRows=7,
-                                                    className="border-0 shadow-none",
-                                                    style={
-                                                        "border": "0",
-                                                        "flex": "1",
-                                                        "border": "0",
-                                                    },
-                                                ),
-                                                self.dmc.ActionIcon(
-                                                    children="↑",
-                                                    id="submit_button",
-                                                    n_clicks=0,
-                                                    variant="light",
-                                                    size="lg",
-                                                    color="blue",
-                                                    style={
-                                                        "marginLeft": "auto",
-                                                        "flexShrink": "0",
-                                                        "fontSize": "28px",
-                                                    },
-                                                ),
-                                            ],
-                                            style={
-                                                "display": "flex",
-                                                "alignItems": "center",
-                                                "border": "1px solid var(--mantine-color-gray-3)",
-                                                "borderRadius": "25px",
-                                                "overflow": "hidden",
-                                                "padding": "8px 16px",
-                                            },
-                                        )
-                                    ],
-                                    style={
-                                        "width": "58.333333%",  # lg=7
-                                        "margin": "0 auto",  # mx-auto
-                                    },
-                                ),
-                            ]
-                        ),
-                    ],
-                    style={"width": "100%"},  # fluid=True
-                )
-            ],
-            style={
-                "position": "fixed",
-                "bottom": "0",
-                "left": "0",
-                "right": "0",
-                "backgroundColor": "var(--mantine-color-body)",
-                "padding": "15px 0",
-                "zIndex": "1000",
-            },
+                        id="status_indicator",
+                        hidden=True,
+                    ),
+                    self.dmc.Flex(
+                        align="center",
+                        style={
+                            "border": "1px solid var(--mantine-color-default-border)",
+                            "borderRadius": "25px",
+                            "padding": "8px 16px",
+                            "marginBottom": "10px",
+                        },
+                        children=[
+                            self.dmc.Textarea(
+                                id="input_textarea",
+                                placeholder="Ask...",
+                                autosize=True,
+                                variant="unstyled",
+                                style={"flex": 1},
+                            ),
+                            self.dmc.ActionIcon(
+                                self.DashIconify(icon="bi-send"),
+                                id="submit_button",
+                                n_clicks=0,
+                                variant="subtle",
+                                radius="lg",
+                                color="gray",
+                            ),
+                        ],
+                    ),
+                ],
+            ),
         )
 
     def build_messages(self, messages: List[ChatMessage]) -> List[DashComponent]:
@@ -758,69 +673,44 @@ class Mantine(Layout):
         return html.Div(
             style={"marginBottom": "16px", "direction": direction},
             children=[
-                html.Div(  # Row equivalent
+                self.dmc.Grid(
                     [
-                        html.Div(  # Col equivalent width=8, ms-auto
+                        self.dmc.GridCol(
                             [
-                                html.Div(
-                                    [
-                                        dcc.Markdown(
-                                            message.content,
-                                            id=f"user_msg_{index}",
-                                            style={
-                                                "padding": "16px",
-                                                "borderRadius": "8px",
-                                                "backgroundColor": "var(--mantine-color-gray-1)",
-                                                "lineHeight": "1.5",
-                                                "wordWrap": "break-word",
-                                            },
-                                        ),
-                                    ],
+                                dcc.Markdown(
+                                    message.content,
+                                    id=f"user_msg_{index}",
                                     style={
+                                        "padding": "8px",
+                                        "borderRadius": "8px",
+                                        "backgroundColor": "var(--mantine-color-default-border)",
+                                        "wordWrap": "break-word",
                                         "width": "fit-content",
                                         "marginLeft": "auto",
                                     },
-                                )
+                                ),
                             ],
-                            style={
-                                "width": "66.666667%",  # Bootstrap width=8
-                                "marginLeft": "auto",  # Bootstrap ms-auto
-                            },
+                            span=8,
                         )
-                    ]
+                    ], justify="flex-end"
                 ),
                 self.build_copy_button(message.content, "user", index),
             ],
         )
-
     def build_assistant_message(
         self, message: ChatMessage, index: int, direction: str = "ltr"
     ) -> DashComponent:
         """Assistant message - direct translation from Bootstrap."""
+
         return html.Div(
-            style={"marginBottom": "16px", "direction": direction},
+            style={"marginBottom": "8px", "direction": direction},
             children=[
-                html.Div(  # Row equivalent
-                    [
-                        html.Div(  # Col equivalent width=12
-                            [
-                                html.Div(
-                                    [
-                                        dcc.Markdown(
-                                            message.content,
-                                            id=f"assistant_msg_{index}",
-                                            style={
-                                                "padding": "16px",
-                                                "lineHeight": "1.5",
-                                                "wordWrap": "break-word",
-                                            },
-                                        ),
-                                    ],
-                                )
-                            ],
-                            style={"width": "100%"},
-                        )
-                    ]
+                dcc.Markdown(
+                    message.content,
+                    id=f"assistant_msg_{index}",
+                    style={
+                        "wordWrap": "break-word",
+                    },
                 ),
                 self.build_copy_button(message.content, "assistant", index),
             ],
@@ -840,10 +730,11 @@ class Mantine(Layout):
                     title="Copy message",
                     style={
                         "display": "inline-block",
-                        "fontSize": "16px",
+                        "fontSize": "12px",
                         "cursor": "pointer",
                         "marginLeft": "8px",
                         "marginRight": "0px",
+                        "color": "var(--mantine-color-dimmed)"
                     },
                 ),
             ],

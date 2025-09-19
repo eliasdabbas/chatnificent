@@ -285,12 +285,10 @@ def _register_clientside_callbacks(app):
                         textarea.focus();
                     }
                 }, 100);
-            }
-            return {};
+            }            
         }
         """,
-        Output("input_textarea", "style", allow_duplicate=True),
-        [Input("input_textarea", "value")],
+        Input("input_textarea", "value"),
         prevent_initial_call=True,
     )
 

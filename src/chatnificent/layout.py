@@ -633,8 +633,6 @@ class Mantine(Layout):
                             self.dmc.Textarea(
                                 id="input_textarea",
                                 placeholder="Ask...",
-                                minRows=1,
-                                maxRows=5,
                                 autosize=True,
                                 variant="unstyled",
                                 style={"flex": 1},
@@ -643,7 +641,8 @@ class Mantine(Layout):
                                 self.DashIconify(icon="bi-send"),
                                 id="submit_button",
                                 n_clicks=0,
-                                variant="transparent",
+                                variant="subtle",
+                                radius="lg",
                                 color="gray",
                             ),
                         ],
@@ -731,10 +730,11 @@ class Mantine(Layout):
                     title="Copy message",
                     style={
                         "display": "inline-block",
-                        "fontSize": "16px",
+                        "fontSize": "12px",
                         "cursor": "pointer",
                         "marginLeft": "8px",
                         "marginRight": "0px",
+                        "color": "var(--mantine-color-dimmed)"
                     },
                 ),
             ],

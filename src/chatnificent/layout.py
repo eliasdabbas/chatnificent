@@ -518,7 +518,7 @@ class Mantine(Layout):
     def build_layout(self) -> DashComponent:
         """Complete Mantine layout - wraps MantineProvider around Bootstrap structure."""
         return self.dmc.MantineProvider(
-            forceColorScheme= "light",
+            forceColorScheme= self.theme_name or "light",
             children=self.dmc.TypographyStylesProvider([
                 dcc.Location(id="url_location", refresh=False),
                 self.build_sidebar_toggle(),

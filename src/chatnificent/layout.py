@@ -590,9 +590,8 @@ class Mantine(Layout):
                 self.dmc.ScrollArea(
                     id="messages_container",  # CALLBACK COMPONENT
                     type="never",
-                    h="calc(100vh - 160px)",
+                    h="calc(100vh - 100px)",
                     p="md",
-                    pb="lg",
                 ),
                 span={"lg": 7},
             ),
@@ -625,6 +624,7 @@ class Mantine(Layout):
                         align="center",
                         style={
                             "border": "1px solid var(--mantine-color-default-border)",
+                            "backgroundColor": "var(--mantine-color-body)",
                             "borderRadius": "25px",
                             "padding": "8px 16px",
                             "marginBottom": "10px",
@@ -634,6 +634,7 @@ class Mantine(Layout):
                                 id="input_textarea",
                                 placeholder="Ask...",
                                 autosize=True,
+                                maxRows=6,
                                 variant="unstyled",
                                 style={"flex": 1},
                             ),

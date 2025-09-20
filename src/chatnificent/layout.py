@@ -674,26 +674,18 @@ class Mantine(Layout):
         return html.Div(
             style={"marginBottom": "16px", "direction": direction},
             children=[
-                self.dmc.Grid(
-                    [
-                        self.dmc.GridCol(
-                            [
-                                dcc.Markdown(
-                                    message.content,
-                                    id=f"user_msg_{index}",
-                                    style={
-                                        "padding": "8px",
-                                        "borderRadius": "8px",
-                                        "backgroundColor": "var(--mantine-color-default-border)",
-                                        "wordWrap": "break-word",
-                                        "width": "fit-content",
-                                        "marginLeft": "auto",
-                                    },
-                                ),
-                            ],
-                            span=8,
-                        )
-                    ], justify="flex-end"
+                dcc.Markdown(
+                    message.content,
+                    id=f"user_msg_{index}",
+                    style={
+                        "padding": "8px",
+                        "borderRadius": "8px",
+                        "backgroundColor": "var(--mantine-color-default-border)",
+                        "wordWrap": "break-word",
+                        "width": "fit-content",
+                        "marginLeft": "auto",
+                        "maxWidth": "66.67%"
+                    },
                 ),
                 self.build_copy_button(message.content, "user", index),
             ],

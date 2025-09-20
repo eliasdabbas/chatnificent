@@ -593,7 +593,7 @@ class Mantine(Layout):
                     h="calc(100vh - 100px)",
                     p="md",
                 ),
-                span={"lg": 7},
+                span={"md": 7},
             ),
             justify="center",
             id="chat_area",
@@ -601,56 +601,64 @@ class Mantine(Layout):
 
     def build_input_area(self) -> DashComponent:
         """Input area - status_indicator wrapped, submit_button wrapped."""
-        return self.dmc.Box(
+        return self.dmc.Grid(
+            children=[
+                self.dmc.GridCol(
+                    span={"md": 7},
+                    children=self.dmc.Container(
+                        [
+                            html.Div(
+                                self.dmc.Button(
+                                    [self.dmc.Text("Working...")],
+                                    rightSection=self.dmc.Loader(size="xs", color="gray"),
+                                    fs="italic",
+                                    c="dimmed",
+                                    variant="transparent",
+                                ),
+                                id="status_indicator",
+                                hidden=True,
+                            ),
+                            self.dmc.Flex(
+                                align="center",
+                                style={
+                                    "border": "1px solid var(--mantine-color-default-border)",
+                                    "backgroundColor": "var(--mantine-color-body)",
+                                    "borderRadius": "25px",
+                                    "padding": "8px 16px",
+                                    "marginBottom": "10px",
+                                },
+                                children=[
+                                    self.dmc.Textarea(
+                                        id="input_textarea",
+                                        placeholder="Ask...",
+                                        autosize=True,
+                                        maxRows=6,
+                                        variant="unstyled",
+                                        style={"flex": 1},
+                                    ),
+                                    self.dmc.ActionIcon(
+                                        self.DashIconify(icon="bi-send"),
+                                        id="submit_button",
+                                        n_clicks=0,
+                                        variant="subtle",
+                                        radius="lg",
+                                        color="gray",
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                )
+            ],
+            justify="center",
             pos="fixed",
             bottom=0,
             left=0,
             right=0,
-            style={"zIndex": 1000},
-            children=self.dmc.Container(
-                [
-                    html.Div(
-                        self.dmc.Button(
-                            [self.dmc.Text("Working...")],
-                            rightSection=self.dmc.Loader(size="xs", color="gray"),
-                            fs="italic",
-                            c="dimmed",
-                            variant="transparent",
-                        ),
-                        id="status_indicator",
-                        hidden=True,
-                    ),
-                    self.dmc.Flex(
-                        align="center",
-                        style={
-                            "border": "1px solid var(--mantine-color-default-border)",
-                            "backgroundColor": "var(--mantine-color-body)",
-                            "borderRadius": "25px",
-                            "padding": "8px 16px",
-                            "marginBottom": "10px",
-                        },
-                        children=[
-                            self.dmc.Textarea(
-                                id="input_textarea",
-                                placeholder="Ask...",
-                                autosize=True,
-                                maxRows=6,
-                                variant="unstyled",
-                                style={"flex": 1},
-                            ),
-                            self.dmc.ActionIcon(
-                                self.DashIconify(icon="bi-send"),
-                                id="submit_button",
-                                n_clicks=0,
-                                variant="subtle",
-                                radius="lg",
-                                color="gray",
-                            ),
-                        ],
-                    ),
-                ],
-            ),
+            style={"zIndex": 1000}
         )
+
+
 
     def build_messages(self, messages: List[ChatMessage]) -> List[DashComponent]:
         """Build all message components for display."""

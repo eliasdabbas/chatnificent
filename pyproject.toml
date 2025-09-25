@@ -1,6 +1,6 @@
  [project]
 name = "chatnificent"
-version = "0.0.9"
+version = "0.0.10"
 description = "LLM chat app framework - Minimally complete. Maximally hackable"
 readme = "README.md"
 authors = [
@@ -55,6 +55,11 @@ Repository = "https://github.com/eliasdabbas/chatnificent"
 default = [
     "dash-bootstrap-components>=2.0.0",
     "openai>=1.0.0",
+]
+
+mantine = [
+    "dash-mantine-components>=1.1.0",
+    "dash-iconify==0.1.2",
 ]
 
 [build-system]

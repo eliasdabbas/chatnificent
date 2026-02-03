@@ -378,7 +378,7 @@ class Anthropic(LLM):
 
     def __init__(
         self,
-        model: str = "claude-3-opus-20240229",
+        model: str = "claude-sonnet-4-5",
         api_key: Optional[str] = None,
         **kwargs,
     ):

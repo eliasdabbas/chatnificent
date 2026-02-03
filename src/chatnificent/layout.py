@@ -456,7 +456,7 @@ class Bootstrap(Layout):
                                             id=f"assistant_msg_{index}",
                                             className="p-3 table",
                                             style={
-                                                "lineHeight": "1.5",
+                                                "lineHeight": "1.72",
                                                 "wordWrap": "break-word",
                                             },
                                         ),
@@ -518,14 +518,16 @@ class Mantine(Layout):
     def build_layout(self) -> DashComponent:
         """Complete Mantine layout - wraps MantineProvider around Bootstrap structure."""
         return self.dmc.MantineProvider(
-            forceColorScheme= self.theme_name or "light",
-            children=self.dmc.TypographyStylesProvider([
-                dcc.Location(id="url_location", refresh=False),
-                self.build_sidebar_toggle(),
-                self.build_sidebar(),
-                self.build_chat_area(),
-                self.build_input_area(),
-            ]),
+            forceColorScheme=self.theme_name or "light",
+            children=self.dmc.TypographyStylesProvider(
+                [
+                    dcc.Location(id="url_location", refresh=False),
+                    self.build_sidebar_toggle(),
+                    self.build_sidebar(),
+                    self.build_chat_area(),
+                    self.build_input_area(),
+                ]
+            ),
         )
 
     def build_sidebar_toggle(self) -> DashComponent:
@@ -543,13 +545,12 @@ class Mantine(Layout):
                 "left": "12px",
                 "zIndex": "9999",
             },
-    )
+        )
 
     def build_sidebar(self) -> DashComponent:
         """Sidebar - wrapped in html.Div for hidden property."""
         return html.Div(  # CALLBACK COMPONENT - needs hidden property
             [
-
                 self.dmc.Button(
                     "New Chat",
                     leftSection=self.DashIconify(icon="tabler:plus"),
@@ -558,7 +559,7 @@ class Mantine(Layout):
                     variant="subtle",
                     color="gray",
                     mt=48,
-                    mb="md"
+                    mb="md",
                 ),
                 self.dmc.ScrollArea(
                     html.Ul(  # CALLBACK COMPONENT - conversations list
@@ -610,7 +611,9 @@ class Mantine(Layout):
                             html.Div(
                                 self.dmc.Button(
                                     [self.dmc.Text("Working...")],
-                                    rightSection=self.dmc.Loader(size="xs", color="gray"),
+                                    rightSection=self.dmc.Loader(
+                                        size="xs", color="gray"
+                                    ),
                                     fs="italic",
                                     c="dimmed",
                                     variant="transparent",
@@ -655,10 +658,8 @@ class Mantine(Layout):
             bottom=0,
             left=0,
             right=0,
-            style={"zIndex": 1000}
+            style={"zIndex": 1000},
         )
-
-
 
     def build_messages(self, messages: List[ChatMessage]) -> List[DashComponent]:
         """Build all message components for display."""
@@ -692,12 +693,13 @@ class Mantine(Layout):
                         "wordWrap": "break-word",
                         "width": "fit-content",
                         "marginLeft": "auto",
-                        "maxWidth": "66.67%"
+                        "maxWidth": "66.67%",
                     },
                 ),
                 self.build_copy_button(message.content, "user", index),
             ],
         )
+
     def build_assistant_message(
         self, message: ChatMessage, index: int, direction: str = "ltr"
     ) -> DashComponent:
@@ -735,7 +737,7 @@ class Mantine(Layout):
                         "cursor": "pointer",
                         "marginLeft": "8px",
                         "marginRight": "0px",
-                        "color": "var(--mantine-color-dimmed)"
+                        "color": "var(--mantine-color-dimmed)",
                     },
                 ),
             ],

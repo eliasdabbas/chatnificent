@@ -521,11 +521,22 @@ class Anthropic(LLM):
 
 
 class Gemini(LLM):
-    """Concrete implementation for Google Gemini models."""
+    """Concrete implementation for Google Gemini models.
 
-    def __init__(
-        self, model: str = "gemini-1.5-flash", api_key: Optional[str] = None, **kwargs
-    ):
+    Examples
+    --------
+    >>> import chatnificent as chat
+    >>> from chatnificent import Chatnificent
+    >>> llm = chat.llm.Gemini(model="gemini-1.5-flash", temperature=0.7)
+    >>> llm = chat.llm.Gemini(vertexai=True, project="my-project", location="us-central1")
+    >>> app = Chatnificent(llm=llm)
+    """
+
+    _CLIENT_KEYS = frozenset(
+        {"api_key", "vertexai", "project", "location", "http_options", "client_options"}
+    )
+
+    def __init__(self, model: str = "gemini-1.5-flash", **kwargs):
         """
         Initializes the Gemini client.
 
@@ -533,60 +544,153 @@ class Gemini(LLM):
         ----------
         model : str, optional
             The default model to use, by default "gemini-1.5-flash".
-        api_key : Optional[str], optional
-            Your Gemini API key. If not provided, the `GEMINI_API_KEY`
-            environment variable will be used. By default None.
         **kwargs : Any
-            Default parameters for the `generate_content` API (e.g., `temperature`).
+            Client keys (``api_key``, ``vertexai``, ``project``, ``location``,
+            ``http_options``, ``client_options``) are forwarded to
+            ``genai.Client``; everything else becomes default generation
+            parameters.
 
         Raises
         ------
         ValueError
-            If the API key is not provided via argument or environment variable.
+            If no API key is discoverable and Vertex AI mode is not enabled.
         """
-        from google import generativeai as genai
-        from google.generativeai import types as genai_types
+        from google import genai
+        from google.genai import types as genai_types
 
-        self.genai = genai
-        self.genai_types = genai_types
-        resolved_api_key = api_key or os.environ.get("GEMINI_API_KEY")
-        if not resolved_api_key:
-            raise ValueError(
-                "Gemini API key not found. Please pass the `api_key` argument "
-                "or set the 'GEMINI_API_KEY' environment variable."
-            )
+        self._genai_types = genai_types
 
-        genai.configure(api_key=resolved_api_key)
+        client_kwargs = {k: v for k, v in kwargs.items() if k in self._CLIENT_KEYS}
+        generation_kwargs = {
+            k: v for k, v in kwargs.items() if k not in self._CLIENT_KEYS
+        }
+
+        if not client_kwargs.get("vertexai"):
+            if "api_key" not in client_kwargs:
+                resolved_key = os.environ.get("GEMINI_API_KEY") or os.environ.get(
+                    "GOOGLE_API_KEY"
+                )
+                if not resolved_key:
+                    raise ValueError(
+                        "Gemini API key not found. Please pass the `api_key` argument "
+                        "or set the 'GEMINI_API_KEY' or 'GOOGLE_API_KEY' environment variable."
+                    )
+                client_kwargs["api_key"] = resolved_key
+
+        try:
+            from importlib.metadata import version as _get_pkg_version
+
+            pkg_version = _get_pkg_version("chatnificent")
+        except Exception:
+            pkg_version = "unknown"
+
+        http_options = client_kwargs.get("http_options", {})
+        if isinstance(http_options, dict):
+            headers = http_options.setdefault("headers", {})
+            headers.setdefault("x-goog-api-client", f"chatnificent/{pkg_version}")
+            client_kwargs["http_options"] = http_options
+
+        self.client = genai.Client(**client_kwargs)
         self.model = model
-        self.default_params = kwargs
-        self.system_instruction = None
+        self.default_params = generation_kwargs
 
-    def _translate_messages(
+    def _translate_request(
         self, messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        """Translate roles and structure for Gemini."""
-        translated = []
+    ) -> tuple:
+        """Translate OpenAI-format messages to google-genai Content objects.
+
+        Returns
+        -------
+        tuple[list, Optional[str]]
+            A ``(contents, system_instruction)`` pair.
+        """
+        types = self._genai_types
+        contents: list = []
+        system_instruction: Optional[str] = None
+        pending_tool_parts: list = []
+
         for msg in messages:
             role = msg.get("role")
+            content = msg.get("content")
+
             if role == "system":
-                self.system_instruction = msg.get("content", "")
+                system_instruction = content
                 continue
 
-            if role == ASSISTANT_ROLE:
-                role = MODEL_ROLE
-            elif role == TOOL_ROLE:
-                translated.append(
-                    self.genai_types.Part.from_function_response(
-                        name=msg.get("name"), response={"content": msg.get("content")}
+            if role != TOOL_ROLE and pending_tool_parts:
+                contents.append(types.Content(role="user", parts=pending_tool_parts))
+                pending_tool_parts = []
+
+            if role == TOOL_ROLE:
+                pending_tool_parts.append(
+                    types.Part.from_function_response(
+                        name=msg.get("name", "unknown"),
+                        response={"content": content or ""},
                     )
                 )
                 continue
 
-            content = msg.get("content", "")
-            if isinstance(content, str):
-                translated.append({"role": role, "parts": [content]})
+            google_role = "model" if role in (ASSISTANT_ROLE, MODEL_ROLE) else "user"
 
-        return translated
+            parts = self._build_parts(content)
+            if parts:
+                contents.append(types.Content(role=google_role, parts=parts))
+
+        if pending_tool_parts:
+            contents.append(types.Content(role="user", parts=pending_tool_parts))
+
+        return contents, system_instruction
+
+    def _build_parts(self, content: Any) -> list:
+        """Convert a message's content field into a list of Part objects."""
+        types = self._genai_types
+        parts: list = []
+
+        if isinstance(content, str):
+            parts.append(types.Part.from_text(text=content))
+        elif isinstance(content, list):
+            for item in content:
+                if isinstance(item, str):
+                    parts.append(types.Part.from_text(text=item))
+                elif isinstance(item, dict):
+                    if item.get("function_call"):
+                        fc = item["function_call"]
+                        parts.append(
+                            types.Part.from_function_call(
+                                name=fc.get("name", ""),
+                                args=fc.get("args", {}),
+                            )
+                        )
+                    elif item.get("function_response"):
+                        fr = item["function_response"]
+                        parts.append(
+                            types.Part.from_function_response(
+                                name=fr.get("name", ""),
+                                response=fr.get("response", {}),
+                            )
+                        )
+                    elif item.get("text") is not None:
+                        parts.append(types.Part.from_text(text=item["text"]))
+
+        return parts
+
+    def _translate_tool_schema(self, tools: List[Dict[str, Any]]) -> List[Any]:
+        """Translate OpenAI tool schema to Gemini FunctionDeclaration format."""
+        types = self._genai_types
+        declarations = []
+        for tool in tools:
+            if tool.get("type") == "function" and "function" in tool:
+                func = tool["function"]
+                decl_kwargs: Dict[str, Any] = {
+                    "name": func["name"],
+                    "description": func.get("description", ""),
+                }
+                if func.get("parameters"):
+                    decl_kwargs["parameters_json_schema"] = func["parameters"]
+                declarations.append(types.FunctionDeclaration(**decl_kwargs))
+        if declarations:
+            return [types.Tool(function_declarations=declarations)]
+        return []
 
     def generate_response(
         self,
@@ -595,42 +699,36 @@ class Gemini(LLM):
         tools: Optional[List[Any]] = None,
         **kwargs: Any,
     ) -> Any:
-        gemini_tools = None
+        types = self._genai_types
+        config_dict: Dict[str, Any] = {**self.default_params, **kwargs}
+
+        contents, system_instruction = self._translate_request(messages)
+
+        if system_instruction is not None:
+            config_dict["system_instruction"] = system_instruction
+
         if tools:
-            function_declarations = [
-                t["function"] for t in tools if t.get("type") == "function"
-            ]
-            if function_declarations:
-                gemini_tools = [
-                    self.genai_types.Tool(function_declarations=function_declarations)
-                ]
+            translated = self._translate_tool_schema(tools)
+            if translated:
+                config_dict["tools"] = translated
 
-        final_model = model or self.model
-        client = self.genai.GenerativeModel(
-            final_model, system_instruction=self.system_instruction
+        config = types.GenerateContentConfig(**config_dict) if config_dict else None
+
+        response = self.client.models.generate_content(
+            model=model or self.model,
+            contents=contents,
+            config=config,
         )
-
-        api_kwargs = {
-            **self.default_params,
-            **kwargs,
-        }
-
-        response = client.generate_content(
-            self._translate_messages(messages),
-            tools=gemini_tools,
-            **api_kwargs,
-        )
-        return response.to_dict()
+        return response.model_dump(mode="json")
 
     def extract_content(self, response: Any) -> Optional[str]:
         try:
             candidates = response.get("candidates", [])
-            if candidates and "content" in candidates[0]:
-                parts = candidates[0]["content"].get("parts", [])
-                for part in parts:
-                    if "text" in part:
-                        return part["text"]
-            return None
+            if not candidates:
+                return None
+            parts = candidates[0].get("content", {}).get("parts", [])
+            text_pieces = [p["text"] for p in parts if p.get("text") is not None]
+            return "".join(text_pieces) if text_pieces else None
         except Exception:
             logger.warning(
                 "Could not extract text from Gemini response.", exc_info=True
@@ -641,20 +739,21 @@ class Gemini(LLM):
         candidates = response.get("candidates", [])
         if not candidates:
             return None
+
+        parts = candidates[0].get("content", {}).get("parts", [])
+        function_calls = [p["function_call"] for p in parts if p.get("function_call")]
+        if not function_calls:
+            return None
+
         tool_calls = []
-        if "content" in candidates[0]:
-            parts = candidates[0]["content"].get("parts", [])
-            for part in parts:
-                if "function_call" in part:
-                    fc = part["function_call"]
-                    tool_call_id = f"call_{secrets.token_hex(8)}"
-                    tool_calls.append(
-                        ToolCall(
-                            id=tool_call_id,
-                            function_name=fc.get("name", ""),
-                            function_args=json.dumps(fc.get("args", {})),
-                        )
-                    )
+        for fc in function_calls:
+            tool_calls.append(
+                ToolCall(
+                    id=f"call_{secrets.token_hex(8)}",
+                    function_name=fc.get("name", ""),
+                    function_args=json.dumps(fc.get("args", {})),
+                )
+            )
         return tool_calls if tool_calls else None
 
     def create_assistant_message(self, response: Any) -> ChatMessage:
@@ -662,13 +761,15 @@ class Gemini(LLM):
         if not candidates:
             return ChatMessage(role=MODEL_ROLE, content="[No response generated]")
 
-        if "content" in candidates[0]:
-            raw_parts = candidates[0]["content"].get("parts", [])
-            return ChatMessage(
-                role=MODEL_ROLE,
-                content=raw_parts,
-            )
-        return ChatMessage(role=MODEL_ROLE, content="[No response generated]")
+        parts = candidates[0].get("content", {}).get("parts", [])
+        if not parts:
+            return ChatMessage(role=MODEL_ROLE, content="[No response generated]")
+
+        cleaned_parts = [
+            {k: v for k, v in part.items() if v is not None}
+            for part in parts
+        ]
+        return ChatMessage(role=MODEL_ROLE, content=cleaned_parts)
 
     def create_tool_result_messages(
         self, results: List[ToolResult], conversation: "Conversation"
@@ -685,7 +786,14 @@ class Gemini(LLM):
         return messages
 
     def is_tool_message(self, message: "ChatMessage") -> bool:
-        return message.role == TOOL_ROLE
+        if message.role == TOOL_ROLE:
+            return True
+        if message.role == MODEL_ROLE and isinstance(message.content, list):
+            return any(
+                isinstance(item, dict) and item.get("function_call") is not None
+                for item in message.content
+            )
+        return False
 
 
 class Ollama(LLM):
@@ -811,3 +919,4 @@ class Echo(LLM):
         if isinstance(response, dict) and response.get("type") == "echo_response":
             return response.get("content")
         return str(response)
+

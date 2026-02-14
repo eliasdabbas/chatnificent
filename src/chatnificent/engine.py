@@ -220,9 +220,8 @@ class Synchronous(Engine):
             try:
                 response_to_save = llm_response.model_dump()
             except (AttributeError, TypeError):
-                response_to_save = llm_response  # Fallback for non-Pydantic objects
+                response_to_save = llm_response
 
-            # Basic check for serializability
             if isinstance(response_to_save, (dict, list)):
                 self.app.store.save_raw_api_response(
                     user_id, conversation.id, response_to_save

@@ -249,14 +249,14 @@ class _OpenAICompatible(LLM):
 class OpenAI(_OpenAICompatible):
     """Concrete implementation for OpenAI models."""
 
-    def __init__(self, model: str = "gpt-4o", api_key: Optional[str] = None, **kwargs):
+    def __init__(self, model: str = "gpt-4.1", api_key: Optional[str] = None, **kwargs):
         """
         Initializes the OpenAI client.
 
         Parameters
         ----------
         model : str, optional
-            The default model to use for chat completions, by default "gpt-4o".
+            The default model to use for chat completions, by default "gpt-4.1".
         api_key : Optional[str], optional
             Your OpenAI API key. If not provided, the `OPENAI_API_KEY`
             environment variable will be used. By default None.
@@ -286,7 +286,7 @@ class OpenRouter(_OpenAICompatible):
     """Concrete implementation for OpenRouter models."""
 
     def __init__(
-        self, model: str = "openai/gpt-4o", api_key: Optional[str] = None, **kwargs
+        self, model: str = "openai/gpt-4.1", api_key: Optional[str] = None, **kwargs
     ):
         """
         Initializes the OpenRouter client.
@@ -294,8 +294,8 @@ class OpenRouter(_OpenAICompatible):
         Parameters
         ----------
         model : str, optional
-            The default model to use (e.g., 'openai/gpt-4o'),
-            by default "openai/gpt-4o".
+            The default model to use (e.g., 'openai/gpt-4.1'),
+            by default "openai/gpt-4.1".
         api_key : Optional[str], optional
             Your OpenRouter API key. If not provided, the `OPENROUTER_API_KEY`
             environment variable will be used. By default None.
@@ -527,8 +527,10 @@ class Gemini(LLM):
     --------
     >>> import chatnificent as chat
     >>> from chatnificent import Chatnificent
-    >>> llm = chat.llm.Gemini(model="gemini-1.5-flash", temperature=0.7)
-    >>> llm = chat.llm.Gemini(vertexai=True, project="my-project", location="us-central1")
+    >>> llm = chat.llm.Gemini(model="gemini-3-flash", temperature=0.7)
+    >>> llm = chat.llm.Gemini(
+    ...     vertexai=True, project="my-project", location="us-central1"
+    ... )
     >>> app = Chatnificent(llm=llm)
     """
 
@@ -536,14 +538,14 @@ class Gemini(LLM):
         {"api_key", "vertexai", "project", "location", "http_options", "client_options"}
     )
 
-    def __init__(self, model: str = "gemini-1.5-flash", **kwargs):
+    def __init__(self, model: str = "gemini-2.5-flash", **kwargs):
         """
         Initializes the Gemini client.
 
         Parameters
         ----------
         model : str, optional
-            The default model to use, by default "gemini-1.5-flash".
+            The default model to use, by default "gemini-2.5-flash".
         **kwargs : Any
             Client keys (``api_key``, ``vertexai``, ``project``, ``location``,
             ``http_options``, ``client_options``) are forwarded to
@@ -594,9 +596,7 @@ class Gemini(LLM):
         self.model = model
         self.default_params = generation_kwargs
 
-    def _translate_request(
-        self, messages: List[Dict[str, Any]]
-    ) -> tuple:
+    def _translate_request(self, messages: List[Dict[str, Any]]) -> tuple:
         """Translate OpenAI-format messages to google-genai Content objects.
 
         Returns
@@ -766,8 +766,7 @@ class Gemini(LLM):
             return ChatMessage(role=MODEL_ROLE, content="[No response generated]")
 
         cleaned_parts = [
-            {k: v for k, v in part.items() if v is not None}
-            for part in parts
+            {k: v for k, v in part.items() if v is not None} for part in parts
         ]
         return ChatMessage(role=MODEL_ROLE, content=cleaned_parts)
 
@@ -797,7 +796,7 @@ class Gemini(LLM):
 
 
 class Ollama(LLM):
-    def __init__(self, model: str = "TinyLlama"):
+    def __init__(self, model: str = "llama3.2"):
         from ollama import Client
 
         self.client = Client()
@@ -919,4 +918,3 @@ class Echo(LLM):
         if isinstance(response, dict) and response.get("type") == "echo_response":
             return response.get("content")
         return str(response)
-

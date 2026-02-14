@@ -195,7 +195,11 @@ class _OpenAICompatible(LLM):
     def extract_content(self, response: Any) -> Optional[str]:
         if not response.choices:
             return None
-        return response.choices[0].message.content
+        choice = response.choices[0]
+        if choice.message.content:
+            return choice.message.content
+        finish_reason = getattr(choice, "finish_reason", "UNKNOWN")
+        return f"Empty response from {self.model} — finish_reason: {finish_reason}"
 
     def parse_tool_calls(self, response: Any) -> Optional[List[ToolCall]]:
         if not response.choices:
@@ -460,7 +464,8 @@ class Anthropic(LLM):
 
     def extract_content(self, response: Any) -> Optional[str]:
         if not response.content:
-            return None
+            stop_reason = getattr(response, "stop_reason", "UNKNOWN")
+            return f"Empty response from {self.model} — stop_reason: {stop_reason}"
         for block in response.content:
             if block.type == "text":
                 return block.text
@@ -817,7 +822,11 @@ class Ollama(LLM):
         return self.client.chat(**api_kwargs)
 
     def extract_content(self, response: Any) -> Optional[str]:
-        return response.get("message", {}).get("content")
+        content = response.get("message", {}).get("content")
+        if content:
+            return content
+        done_reason = response.get("done_reason", "UNKNOWN")
+        return f"Empty response from {self.model} — done_reason: {done_reason}"
 
     def parse_tool_calls(self, response: Any) -> Optional[List[ToolCall]]:
         message = response.get("message", {})
@@ -836,7 +845,7 @@ class Ollama(LLM):
                     ToolCall(
                         id=tool_id,
                         function_name=function_data.get("name", ""),
-                        function_args=args,
+                        function_args=json.dumps(args),
                     )
                 )
         return tool_calls if tool_calls else None

@@ -723,12 +723,16 @@ class Gemini(LLM):
 
     def extract_content(self, response: Any) -> Optional[str]:
         try:
-            candidates = response.get("candidates", [])
+            candidates = response.get("candidates") or []
             if not candidates:
                 return None
-            parts = candidates[0].get("content", {}).get("parts", [])
+            candidate = candidates[0]
+            parts = (candidate.get("content") or {}).get("parts") or []
             text_pieces = [p["text"] for p in parts if p.get("text") is not None]
-            return "".join(text_pieces) if text_pieces else None
+            if text_pieces:
+                return "".join(text_pieces)
+            finish_reason = candidate.get("finish_reason", "UNKNOWN")
+            return f"Empty response from Gemini — finish_reason: {finish_reason}"
         except Exception:
             logger.warning(
                 "Could not extract text from Gemini response.", exc_info=True
@@ -736,11 +740,11 @@ class Gemini(LLM):
             return None
 
     def parse_tool_calls(self, response: Any) -> Optional[List[ToolCall]]:
-        candidates = response.get("candidates", [])
+        candidates = response.get("candidates") or []
         if not candidates:
             return None
 
-        parts = candidates[0].get("content", {}).get("parts", [])
+        parts = (candidates[0].get("content") or {}).get("parts") or []
         function_calls = [p["function_call"] for p in parts if p.get("function_call")]
         if not function_calls:
             return None
@@ -757,11 +761,11 @@ class Gemini(LLM):
         return tool_calls if tool_calls else None
 
     def create_assistant_message(self, response: Any) -> ChatMessage:
-        candidates = response.get("candidates", [])
+        candidates = response.get("candidates") or []
         if not candidates:
             return ChatMessage(role=MODEL_ROLE, content="[No response generated]")
 
-        parts = candidates[0].get("content", {}).get("parts", [])
+        parts = (candidates[0].get("content") or {}).get("parts") or []
         if not parts:
             return ChatMessage(role=MODEL_ROLE, content="[No response generated]")
 

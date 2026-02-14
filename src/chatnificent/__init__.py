@@ -6,7 +6,9 @@ This module contains the primary Chatnificent class and the abstract base classe
 contract that enables the package's hackability.
 """
 
-__version__ = "0.0.10"
+from importlib.metadata import version as _get_version
+
+__version__ = _get_version("chatnificent")
 
 from typing import TYPE_CHECKING, Optional, Type
 

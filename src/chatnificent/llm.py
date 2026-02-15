@@ -658,6 +658,8 @@ class Gemini(LLM):
                 if isinstance(item, str):
                     parts.append(types.Part.from_text(text=item))
                 elif isinstance(item, dict):
+                    if item.get("thought"):
+                        continue
                     if item.get("function_call"):
                         fc = item["function_call"]
                         parts.append(
@@ -733,7 +735,11 @@ class Gemini(LLM):
                 return None
             candidate = candidates[0]
             parts = (candidate.get("content") or {}).get("parts") or []
-            text_pieces = [p["text"] for p in parts if p.get("text") is not None]
+            text_pieces = [
+                p["text"]
+                for p in parts
+                if p.get("text") is not None and not p.get("thought")
+            ]
             if text_pieces:
                 return "".join(text_pieces)
             finish_reason = candidate.get("finish_reason", "UNKNOWN")

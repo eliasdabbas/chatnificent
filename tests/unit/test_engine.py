@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from chatnificent.engine import Engine, Synchronous
-from chatnificent.models import ASSISTANT_ROLE, USER_ROLE, ChatMessage, Conversation
+from chatnificent.models import ASSISTANT_ROLE, USER_ROLE, Conversation
 
 
 class TestEngineBase:
@@ -58,7 +58,7 @@ class TestSynchronousEngine:
         app.llm.extract_content = Mock(return_value="Test response")
         app.llm.parse_tool_calls = Mock(return_value=[])
         app.llm.create_assistant_message = Mock(
-            return_value=ChatMessage(role=ASSISTANT_ROLE, content="Test response")
+            return_value={"role": ASSISTANT_ROLE, "content": "Test response"}
         )
 
         # Mock Store
@@ -121,7 +121,7 @@ class TestSynchronousEngine:
         mock_app.store.save_conversation.assert_called_once()
         saved_conversation = mock_app.store.save_conversation.call_args[0][1]
         assert len(saved_conversation.messages) == 2  # User + Assistant
-        assert saved_conversation.messages[1].content == "Assistant response"
+        assert saved_conversation.messages[1]["content"] == "Assistant response"
 
     def test_none_tool_calls_triggers_finalization(self, engine, mock_app):
         """Test that None tool_calls also triggers finalization."""
@@ -135,12 +135,12 @@ class TestSynchronousEngine:
 
     def test_with_tool_calls(self, engine, mock_app):
         """Test handling when tool calls are present."""
-        from chatnificent.models import ToolCall, ToolResult
-
         # First call has tool calls
-        tool_call = ToolCall(
-            id="tool-1", function_name="test_function", function_args='{"arg": "value"}'
-        )
+        tool_call = {
+            "id": "tool-1",
+            "function_name": "test_function",
+            "function_args": '{"arg": "value"}',
+        }
         mock_app.llm.parse_tool_calls.side_effect = [
             [tool_call],  # First call has tools
             [],  # Second call has no tools
@@ -148,15 +148,15 @@ class TestSynchronousEngine:
 
         # Mock tool execution
         mock_app.tools.execute_tool_call = Mock(
-            return_value=ToolResult(
-                tool_call_id="tool-1",
-                content="Tool result",
-                function_name="test_function",
-            )
+            return_value={
+                "tool_call_id": "tool-1",
+                "content": "Tool result",
+                "function_name": "test_function",
+            }
         )
 
         mock_app.llm.create_tool_result_messages = Mock(
-            return_value=[ChatMessage(role=USER_ROLE, content="Tool result")]
+            return_value=[{"role": "tool", "content": "Tool result", "tool_call_id": "tool-1"}]
         )
 
         result = engine.handle_message("Use a tool", "user123", None)
@@ -203,8 +203,8 @@ class TestSynchronousEngine:
         existing_convo = Conversation(
             id="existing-1",
             messages=[
-                ChatMessage(role=USER_ROLE, content="Previous message"),
-                ChatMessage(role=ASSISTANT_ROLE, content="Previous response"),
+                {"role": USER_ROLE, "content": "Previous message"},
+                {"role": ASSISTANT_ROLE, "content": "Previous response"},
             ],
         )
         mock_app.store.load_conversation.return_value = existing_convo
@@ -303,7 +303,7 @@ class TestEngineHooks:
             def _before_llm_call(self, conversation):
                 # Add a system message
                 conversation.messages.insert(
-                    0, ChatMessage(role="system", content="Always be helpful")
+                    0, {"role": "system", "content": "Always be helpful"}
                 )
 
         # Test that the modification affects the LLM call

@@ -12,7 +12,6 @@ libraries (dash_bootstrap_components, dash_mantine_components).
 
 import pytest
 from chatnificent.layout import Layout
-from chatnificent.models import ChatMessage
 
 
 class TestLayoutInterface:
@@ -80,7 +79,7 @@ class TestLayoutInterface:
                 )
 
             def build_messages(self, messages):
-                return [html.Div(msg.content) for msg in messages]
+                return [html.Div(msg["content"]) for msg in messages]
 
             def get_external_stylesheets(self):
                 return []
@@ -90,7 +89,7 @@ class TestLayoutInterface:
         assert isinstance(layout, Layout)
 
         # Test basic functionality
-        messages = [ChatMessage(role="user", content="Hello")]
+        messages = [{"role": "user", "content": "Hello"}]
         rendered = layout.build_messages(messages)
         assert len(rendered) == 1
 
@@ -161,7 +160,7 @@ class TestLayoutUtilities:
                 )
 
             def build_messages(self, messages):
-                return [html.Div(msg.content) for msg in messages]
+                return [html.Div(msg["content"]) for msg in messages]
 
             def get_external_stylesheets(self):
                 return [
@@ -285,8 +284,8 @@ class TestLayoutMessageRendering:
                     result.append(
                         html.Div(
                             [
-                                html.Strong(f"{msg.role}: "),
-                                html.Span(msg.content),
+                                html.Strong(f"{msg['role']}: "),
+                                html.Span(msg["content"]),
                             ],
                             id=f"message_{i}",
                         )
@@ -304,7 +303,7 @@ class TestLayoutMessageRendering:
         assert len(result) == 0
 
         # Single message should return one component
-        messages = [ChatMessage(role="user", content="Hello")]
+        messages = [{"role": "user", "content": "Hello"}]
         result = layout.build_messages(messages)
         assert isinstance(result, list)
         assert len(result) == 1
@@ -312,9 +311,9 @@ class TestLayoutMessageRendering:
 
         # Multiple messages should return multiple components
         messages = [
-            ChatMessage(role="user", content="Hello"),
-            ChatMessage(role="assistant", content="Hi there!"),
-            ChatMessage(role="user", content="How are you?"),
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi there!"},
+            {"role": "user", "content": "How are you?"},
         ]
         result = layout.build_messages(messages)
         assert isinstance(result, list)
@@ -343,7 +342,7 @@ class TestLayoutMessageRendering:
                 )
 
             def build_messages(self, messages):
-                return [html.Div(msg.content) for msg in messages]
+                return [html.Div(msg["content"]) for msg in messages]
 
             def get_external_stylesheets(self):
                 return []
@@ -352,15 +351,13 @@ class TestLayoutMessageRendering:
 
         # Messages with edge case content
         edge_case_messages = [
-            ChatMessage(role="user", content=""),  # Empty content
-            ChatMessage(role="assistant", content="   "),  # Whitespace only
-            ChatMessage(role="user", content="A" * 10000),  # Very long content
-            ChatMessage(
-                role="assistant", content="Line 1\nLine 2\nLine 3"
-            ),  # Multiline
-            ChatMessage(role="user", content="Special chars: @#$%^&*()"),
-            ChatMessage(role="assistant", content="Unicode: 你好世界 🌍"),
-            ChatMessage(role="user", content="مرحبا بك"),  # RTL text
+            {"role": "user", "content": ""},
+            {"role": "assistant", "content": "   "},
+            {"role": "user", "content": "A" * 10000},
+            {"role": "assistant", "content": "Line 1\nLine 2\nLine 3"},
+            {"role": "user", "content": "Special chars: @#$%^&*()"},
+            {"role": "assistant", "content": "Unicode: 你好世界 🌍"},
+            {"role": "user", "content": "مرحبا بك"},
         ]
 
         rendered = layout.build_messages(edge_case_messages)
@@ -591,7 +588,8 @@ class TestLayoutIntegration:
                 # This is what callbacks will call to render messages
                 return [
                     html.Div(
-                        f"{msg.role}: {msg.content}", className=f"{msg.role}-message"
+                        f"{msg['role']}: {msg['content']}",
+                        className=f"{msg['role']}-message",
                     )
                     for msg in messages
                 ]
@@ -606,8 +604,8 @@ class TestLayoutIntegration:
 
         # Verify message building works as callbacks expect
         messages = [
-            ChatMessage(role="user", content="Hello"),
-            ChatMessage(role="assistant", content="Hi there!"),
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi there!"},
         ]
         rendered_messages = layout.build_messages(messages)
         assert len(rendered_messages) == 2

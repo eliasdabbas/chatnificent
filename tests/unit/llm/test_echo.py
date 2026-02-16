@@ -1,7 +1,7 @@
 """Tests for the Echo LLM provider."""
 
 import pytest
-from chatnificent.models import ASSISTANT_ROLE, USER_ROLE, ChatMessage
+from chatnificent.models import ASSISTANT_ROLE, USER_ROLE
 
 # ===== Fixtures =====
 
@@ -116,5 +116,5 @@ class TestDefaultMethods:
     def test_create_assistant_message(self, echo_llm):
         response = {"content": "echoed", "model": "echo-v1", "type": "echo_response"}
         msg = echo_llm.create_assistant_message(response)
-        assert msg.role == ASSISTANT_ROLE
-        assert msg.content == "echoed"
+        assert msg["role"] == ASSISTANT_ROLE
+        assert msg["content"] == "echoed"

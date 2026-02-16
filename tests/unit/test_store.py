@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 import pytest
-from chatnificent.models import ChatMessage, Conversation
+from chatnificent.models import Conversation
 from chatnificent.store import File, InMemory, SQLite, Store
 
 
@@ -129,7 +129,7 @@ class TestStoreInterface:
         assert isinstance(store, Store)
 
         conversation = Conversation(
-            id="test_conv", messages=[ChatMessage(role="user", content="Hello")]
+            id="test_conv", messages=[{"role": "user", "content": "Hello"}]
         )
 
         store.save_conversation("user1", conversation)
@@ -137,7 +137,7 @@ class TestStoreInterface:
         assert loaded is not None
         assert loaded.id == "test_conv"
         assert len(loaded.messages) == 1
-        assert loaded.messages[0].content == "Hello"
+        assert loaded.messages[0]["content"] == "Hello"
 
         conversations = store.list_conversations("user1")
         assert "test_conv" in conversations
@@ -191,8 +191,8 @@ class TestFile:
 
             # Create test conversation
             messages = [
-                ChatMessage(role="user", content="Hello"),
-                ChatMessage(role="assistant", content="Hi there!"),
+                {"role": "user", "content": "Hello"},
+                {"role": "assistant", "content": "Hi there!"},
             ]
             conversation = Conversation(id="conv_001", messages=messages)
 
@@ -213,10 +213,10 @@ class TestFile:
             assert loaded is not None
             assert loaded.id == "conv_001"
             assert len(loaded.messages) == 2
-            assert loaded.messages[0].role == "user"
-            assert loaded.messages[0].content == "Hello"
-            assert loaded.messages[1].role == "assistant"
-            assert loaded.messages[1].content == "Hi there!"
+            assert loaded.messages[0]["role"] == "user"
+            assert loaded.messages[0]["content"] == "Hello"
+            assert loaded.messages[1]["role"] == "assistant"
+            assert loaded.messages[1]["content"] == "Hi there!"
 
     def test_file_user_isolation(self):
         """Test that different users' conversations are properly isolated."""
@@ -226,11 +226,11 @@ class TestFile:
             # Create conversations for different users with same conversation ID
             conv1 = Conversation(
                 id="conv_001",
-                messages=[ChatMessage(role="user", content="User1 message")],
+                messages=[{"role": "user", "content": "User1 message"}],
             )
             conv2 = Conversation(
                 id="conv_001",
-                messages=[ChatMessage(role="user", content="User2 message")],
+                messages=[{"role": "user", "content": "User2 message"}],
             )
 
             store.save_conversation("user1", conv1)
@@ -242,8 +242,8 @@ class TestFile:
 
             assert loaded1 is not None
             assert loaded2 is not None
-            assert loaded1.messages[0].content == "User1 message"
-            assert loaded2.messages[0].content == "User2 message"
+            assert loaded1.messages[0]["content"] == "User1 message"
+            assert loaded2.messages[0]["content"] == "User2 message"
 
             # Each user should only see their own conversations
             convs1 = store.list_conversations("user1")
@@ -271,7 +271,7 @@ class TestFile:
 
             # Add a conversation
             conv = Conversation(
-                id="001", messages=[ChatMessage(role="user", content="test")]
+                id="001", messages=[{"role": "user", "content": "test"}]
             )
             store.save_conversation("user1", conv)
 
@@ -281,7 +281,7 @@ class TestFile:
 
             # Add non-sequential conversation
             conv3 = Conversation(
-                id="005", messages=[ChatMessage(role="user", content="test")]
+                id="005", messages=[{"role": "user", "content": "test"}]
             )
             store.save_conversation("user1", conv3)
 
@@ -296,15 +296,11 @@ class TestFile:
 
             # Create conversations with different timestamps
             convs = [
+                Conversation(id="001", messages=[{"role": "user", "content": "First"}]),
                 Conversation(
-                    id="001", messages=[ChatMessage(role="user", content="First")]
+                    id="002", messages=[{"role": "user", "content": "Second"}]
                 ),
-                Conversation(
-                    id="002", messages=[ChatMessage(role="user", content="Second")]
-                ),
-                Conversation(
-                    id="003", messages=[ChatMessage(role="user", content="Third")]
-                ),
+                Conversation(id="003", messages=[{"role": "user", "content": "Third"}]),
             ]
 
             for conv in convs:
@@ -402,8 +398,8 @@ class TestSQLite:
 
             # Create test conversation
             messages = [
-                ChatMessage(role="user", content="Hello"),
-                ChatMessage(role="assistant", content="Hi there!"),
+                {"role": "user", "content": "Hello"},
+                {"role": "assistant", "content": "Hi there!"},
             ]
             conversation = Conversation(id="conv_001", messages=messages)
 
@@ -415,10 +411,10 @@ class TestSQLite:
             assert loaded is not None
             assert loaded.id == "conv_001"
             assert len(loaded.messages) == 2
-            assert loaded.messages[0].role == "user"
-            assert loaded.messages[0].content == "Hello"
-            assert loaded.messages[1].role == "assistant"
-            assert loaded.messages[1].content == "Hi there!"
+            assert loaded.messages[0]["role"] == "user"
+            assert loaded.messages[0]["content"] == "Hello"
+            assert loaded.messages[1]["role"] == "assistant"
+            assert loaded.messages[1]["content"] == "Hi there!"
         finally:
             Path(temp_db_path).unlink(missing_ok=True)
 
@@ -433,11 +429,11 @@ class TestSQLite:
             # Create conversations for different users with same conversation ID
             conv1 = Conversation(
                 id="conv_001",
-                messages=[ChatMessage(role="user", content="User1 message")],
+                messages=[{"role": "user", "content": "User1 message"}],
             )
             conv2 = Conversation(
                 id="conv_001",
-                messages=[ChatMessage(role="user", content="User2 message")],
+                messages=[{"role": "user", "content": "User2 message"}],
             )
 
             store.save_conversation("user1", conv1)
@@ -449,8 +445,8 @@ class TestSQLite:
 
             assert loaded1 is not None
             assert loaded2 is not None
-            assert loaded1.messages[0].content == "User1 message"
-            assert loaded2.messages[0].content == "User2 message"
+            assert loaded1.messages[0]["content"] == "User1 message"
+            assert loaded2.messages[0]["content"] == "User2 message"
 
             # Each user should only see their own conversations
             convs1 = store.list_conversations("user1")
@@ -475,7 +471,7 @@ class TestSQLite:
 
             # Add a conversation
             conv = Conversation(
-                id="001", messages=[ChatMessage(role="user", content="test")]
+                id="001", messages=[{"role": "user", "content": "test"}]
             )
             store.save_conversation("user1", conv)
 
@@ -485,7 +481,7 @@ class TestSQLite:
 
             # Add non-sequential conversation
             conv3 = Conversation(
-                id="005", messages=[ChatMessage(role="user", content="test")]
+                id="005", messages=[{"role": "user", "content": "test"}]
             )
             store.save_conversation("user1", conv3)
 
@@ -505,15 +501,11 @@ class TestSQLite:
 
             # Create conversations with different content
             convs = [
+                Conversation(id="001", messages=[{"role": "user", "content": "First"}]),
                 Conversation(
-                    id="001", messages=[ChatMessage(role="user", content="First")]
+                    id="002", messages=[{"role": "user", "content": "Second"}]
                 ),
-                Conversation(
-                    id="002", messages=[ChatMessage(role="user", content="Second")]
-                ),
-                Conversation(
-                    id="003", messages=[ChatMessage(role="user", content="Third")]
-                ),
+                Conversation(id="003", messages=[{"role": "user", "content": "Third"}]),
             ]
 
             for conv in convs:
@@ -535,15 +527,11 @@ class TestSQLite:
             store = SQLite(temp_db_path)
 
             convs = [
+                Conversation(id="001", messages=[{"role": "user", "content": "First"}]),
                 Conversation(
-                    id="001", messages=[ChatMessage(role="user", content="First")]
+                    id="002", messages=[{"role": "user", "content": "Second"}]
                 ),
-                Conversation(
-                    id="002", messages=[ChatMessage(role="user", content="Second")]
-                ),
-                Conversation(
-                    id="003", messages=[ChatMessage(role="user", content="Third")]
-                ),
+                Conversation(id="003", messages=[{"role": "user", "content": "Third"}]),
             ]
 
             for conv in convs:
@@ -582,7 +570,7 @@ class TestSQLite:
             # Create initial conversation
             original = Conversation(
                 id="conv_001",
-                messages=[ChatMessage(role="user", content="Original message")],
+                messages=[{"role": "user", "content": "Original message"}],
             )
             store.save_conversation("user1", original)
 
@@ -590,9 +578,9 @@ class TestSQLite:
             updated = Conversation(
                 id="conv_001",
                 messages=[
-                    ChatMessage(role="user", content="Original message"),
-                    ChatMessage(role="assistant", content="Assistant response"),
-                    ChatMessage(role="user", content="Follow-up message"),
+                    {"role": "user", "content": "Original message"},
+                    {"role": "assistant", "content": "Assistant response"},
+                    {"role": "user", "content": "Follow-up message"},
                 ],
             )
             store.save_conversation("user1", updated)
@@ -601,7 +589,7 @@ class TestSQLite:
             loaded = store.load_conversation("user1", "conv_001")
             assert loaded is not None
             assert len(loaded.messages) == 3
-            assert loaded.messages[-1].content == "Follow-up message"
+            assert loaded.messages[-1]["content"] == "Follow-up message"
 
             # Should still be only one conversation in list
             conversations = store.list_conversations("user1")
@@ -649,8 +637,8 @@ class TestInMemory:
 
         # Create test conversation
         messages = [
-            ChatMessage(role="user", content="Hello"),
-            ChatMessage(role="assistant", content="Hi there!"),
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi there!"},
         ]
         conversation = Conversation(id="conv_001", messages=messages)
 
@@ -660,30 +648,28 @@ class TestInMemory:
         assert loaded is not None
         assert loaded.id == "conv_001"
         assert len(loaded.messages) == 2
-        assert loaded.messages[0].role == "user"
-        assert loaded.messages[0].content == "Hello"
-        assert loaded.messages[1].role == "assistant"
-        assert loaded.messages[1].content == "Hi there!"
+        assert loaded.messages[0]["role"] == "user"
+        assert loaded.messages[0]["content"] == "Hello"
+        assert loaded.messages[1]["role"] == "assistant"
+        assert loaded.messages[1]["content"] == "Hi there!"
 
     def test_inmemory_save_creates_deep_copy(self):
         """Test that save_conversation creates a deep copy to prevent mutations."""
         store = InMemory()
         store._store["user1"] = {}  # Create user namespace
 
-        messages = [ChatMessage(role="user", content="Original content")]
+        messages = [{"role": "user", "content": "Original content"}]
         conversation = Conversation(id="conv_001", messages=messages)
 
         store.save_conversation("user1", conversation)
 
-        conversation.messages[0].content = "Modified content"
-        conversation.messages.append(
-            ChatMessage(role="assistant", content="New message")
-        )
+        conversation.messages[0]["content"] = "Modified content"
+        conversation.messages.append({"role": "assistant", "content": "New message"})
 
         loaded = store.load_conversation("user1", "conv_001")
         assert loaded is not None
         assert len(loaded.messages) == 1  # Still only original message
-        assert loaded.messages[0].content == "Original content"
+        assert loaded.messages[0]["content"] == "Original content"
 
     def test_inmemory_multiple_conversations_same_user(self):
         """Test storing multiple conversations for the same user."""
@@ -692,11 +678,11 @@ class TestInMemory:
 
         conv1 = Conversation(
             id="conv_001",
-            messages=[ChatMessage(role="user", content="First conversation")],
+            messages=[{"role": "user", "content": "First conversation"}],
         )
         conv2 = Conversation(
             id="conv_002",
-            messages=[ChatMessage(role="user", content="Second conversation")],
+            messages=[{"role": "user", "content": "Second conversation"}],
         )
 
         store.save_conversation("user1", conv1)
@@ -707,8 +693,8 @@ class TestInMemory:
 
         assert loaded1 is not None
         assert loaded2 is not None
-        assert loaded1.messages[0].content == "First conversation"
-        assert loaded2.messages[0].content == "Second conversation"
+        assert loaded1.messages[0]["content"] == "First conversation"
+        assert loaded2.messages[0]["content"] == "Second conversation"
 
         conversations = store.list_conversations("user1")
         assert len(conversations) == 2
@@ -720,11 +706,11 @@ class TestInMemory:
         store = InMemory()
 
         conv1 = Conversation(
-            id="conv_001", messages=[ChatMessage(role="user", content="User1 message")]
+            id="conv_001", messages=[{"role": "user", "content": "User1 message"}]
         )
         conv2 = Conversation(
             id="conv_001",
-            messages=[ChatMessage(role="user", content="User2 message")],
+            messages=[{"role": "user", "content": "User2 message"}],
         )
 
         # Create user namespaces by saving conversations
@@ -740,8 +726,8 @@ class TestInMemory:
         # Users should get their own conversations
         assert loaded1 is not None
         assert loaded2 is not None
-        assert loaded1.messages[0].content == "User1 message"
-        assert loaded2.messages[0].content == "User2 message"
+        assert loaded1.messages[0]["content"] == "User1 message"
+        assert loaded2.messages[0]["content"] == "User2 message"
 
         # List conversations should be per-user
         convs1 = store.list_conversations("user1")
@@ -760,17 +746,13 @@ class TestInMemory:
         id1 = store.get_next_conversation_id("user1")
         assert id1 == "001"
 
-        conv = Conversation(
-            id="001", messages=[ChatMessage(role="user", content="test")]
-        )
+        conv = Conversation(id="001", messages=[{"role": "user", "content": "test"}])
         store.save_conversation("user1", conv)
 
         id2 = store.get_next_conversation_id("user1")
         assert id2 == "002"
 
-        conv2 = Conversation(
-            id="002", messages=[ChatMessage(role="user", content="test2")]
-        )
+        conv2 = Conversation(id="002", messages=[{"role": "user", "content": "test2"}])
         store.save_conversation("user1", conv2)
 
         id3 = store.get_next_conversation_id("user1")
@@ -782,10 +764,10 @@ class TestInMemory:
         store._store["user1"] = {}  # Create user namespace
 
         convs = [
-            Conversation(id="5", messages=[ChatMessage(role="user", content="Fifth")]),
-            Conversation(id="1", messages=[ChatMessage(role="user", content="First")]),
-            Conversation(id="10", messages=[ChatMessage(role="user", content="Tenth")]),
-            Conversation(id="2", messages=[ChatMessage(role="user", content="Second")]),
+            Conversation(id="5", messages=[{"role": "user", "content": "Fifth"}]),
+            Conversation(id="1", messages=[{"role": "user", "content": "First"}]),
+            Conversation(id="10", messages=[{"role": "user", "content": "Tenth"}]),
+            Conversation(id="2", messages=[{"role": "user", "content": "Second"}]),
         ]
 
         for conv in convs:
@@ -805,16 +787,16 @@ class TestInMemory:
 
         original = Conversation(
             id="conv_001",
-            messages=[ChatMessage(role="user", content="Original message")],
+            messages=[{"role": "user", "content": "Original message"}],
         )
         store.save_conversation("user1", original)
 
         updated = Conversation(
             id="conv_001",
             messages=[
-                ChatMessage(role="user", content="Original message"),
-                ChatMessage(role="assistant", content="Assistant response"),
-                ChatMessage(role="user", content="Follow-up message"),
+                {"role": "user", "content": "Original message"},
+                {"role": "assistant", "content": "Assistant response"},
+                {"role": "user", "content": "Follow-up message"},
             ],
         )
         store.save_conversation("user1", updated)
@@ -822,7 +804,7 @@ class TestInMemory:
         loaded = store.load_conversation("user1", "conv_001")
         assert loaded is not None
         assert len(loaded.messages) == 3
-        assert loaded.messages[-1].content == "Follow-up message"
+        assert loaded.messages[-1]["content"] == "Follow-up message"
 
         conversations = store.list_conversations("user1")
         assert len(conversations) == 1

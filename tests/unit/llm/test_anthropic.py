@@ -8,10 +8,7 @@ import pytest
 from chatnificent.models import (
     ASSISTANT_ROLE,
     USER_ROLE,
-    ChatMessage,
     Conversation,
-    ToolCall,
-    ToolResult,
 )
 
 from .conftest import (
@@ -120,9 +117,9 @@ class TestParseToolCalls:
         )
         tool_calls = anthropic_llm.parse_tool_calls(response)
         assert len(tool_calls) == 1
-        assert tool_calls[0].function_name == "get_weather"
-        assert tool_calls[0].id == "tu_abc"
-        assert json.loads(tool_calls[0].function_args) == {"location": "Boston"}
+        assert tool_calls[0]["function_name"] == "get_weather"
+        assert tool_calls[0]["id"] == "tu_abc"
+        assert json.loads(tool_calls[0]["function_args"]) == {"location": "Boston"}
 
     def test_multiple_tool_calls(self, anthropic_llm):
         response = make_anthropic_tool_response(
@@ -133,16 +130,16 @@ class TestParseToolCalls:
         )
         tool_calls = anthropic_llm.parse_tool_calls(response)
         assert len(tool_calls) == 2
-        assert tool_calls[0].function_name == "fn_a"
-        assert tool_calls[1].function_name == "fn_b"
+        assert tool_calls[0]["function_name"] == "fn_a"
+        assert tool_calls[1]["function_name"] == "fn_b"
 
     def test_returns_standardized_objects(self, anthropic_llm):
         response = make_anthropic_tool_response(
             [{"id": "tu_1", "name": "fn", "input": {"k": "v"}}]
         )
         tc = anthropic_llm.parse_tool_calls(response)[0]
-        assert isinstance(tc, ToolCall)
-        assert tc.get_args_dict() == {"k": "v"}
+        assert isinstance(tc, dict)
+        assert json.loads(tc["function_args"]) == {"k": "v"}
 
 
 # ===== create_assistant_message tests =====
@@ -152,8 +149,8 @@ class TestCreateAssistantMessage:
     def test_text_response(self, anthropic_llm):
         response = make_anthropic_response("Hello!")
         msg = anthropic_llm.create_assistant_message(response)
-        assert msg.role == ASSISTANT_ROLE
-        assert msg.content == "Hello!"
+        assert msg["role"] == ASSISTANT_ROLE
+        assert msg["content"] == "Hello!"
 
     def test_tool_use_response_stores_raw_content(self, anthropic_llm):
         """When stop_reason is tool_use, raw content blocks are stored."""
@@ -177,9 +174,9 @@ class TestCreateAssistantMessage:
             },
         )
         msg = anthropic_llm.create_assistant_message(response)
-        assert msg.role == ASSISTANT_ROLE
-        assert isinstance(msg.content, list)
-        assert msg.content[0]["type"] == "tool_use"
+        assert msg["role"] == ASSISTANT_ROLE
+        assert isinstance(msg["content"], list)
+        assert msg["content"][0]["type"] == "tool_use"
 
 
 # ===== create_tool_result_messages tests =====
@@ -188,27 +185,27 @@ class TestCreateAssistantMessage:
 class TestCreateToolResultMessages:
     def test_single_result(self, anthropic_llm):
         results = [
-            ToolResult(tool_call_id="tu_1", function_name="fn", content="result")
+            {"tool_call_id": "tu_1", "function_name": "fn", "content": "result"}
         ]
         convo = Conversation(id="test")
         msgs = anthropic_llm.create_tool_result_messages(results, convo)
         assert len(msgs) == 1
-        assert msgs[0].role == USER_ROLE  # Anthropic uses user role for tool results
-        assert isinstance(msgs[0].content, list)
-        assert msgs[0].content[0]["type"] == "tool_result"
-        assert msgs[0].content[0]["tool_use_id"] == "tu_1"
-        assert msgs[0].content[0]["content"] == "result"
+        assert msgs[0]["role"] == USER_ROLE  # Anthropic uses user role for tool results
+        assert isinstance(msgs[0]["content"], list)
+        assert msgs[0]["content"][0]["type"] == "tool_result"
+        assert msgs[0]["content"][0]["tool_use_id"] == "tu_1"
+        assert msgs[0]["content"][0]["content"] == "result"
 
     def test_multiple_results_grouped(self, anthropic_llm):
         """Multiple tool results are grouped into a single user message."""
         results = [
-            ToolResult(tool_call_id="tu_1", function_name="a", content="r1"),
-            ToolResult(tool_call_id="tu_2", function_name="b", content="r2"),
+            {"tool_call_id": "tu_1", "function_name": "a", "content": "r1"},
+            {"tool_call_id": "tu_2", "function_name": "b", "content": "r2"},
         ]
         convo = Conversation(id="test")
         msgs = anthropic_llm.create_tool_result_messages(results, convo)
         assert len(msgs) == 1
-        assert len(msgs[0].content) == 2
+        assert len(msgs[0]["content"]) == 2
 
 
 # ===== is_tool_message tests =====
@@ -217,25 +214,25 @@ class TestCreateToolResultMessages:
 class TestIsToolMessage:
     def test_user_tool_result(self, anthropic_llm):
         """Anthropic sends tool results as user messages with tool_result content."""
-        msg = ChatMessage(
-            role=USER_ROLE,
-            content=[{"type": "tool_result", "tool_use_id": "tu_1", "content": "r"}],
-        )
+        msg = {
+            "role": USER_ROLE,
+            "content": [{"type": "tool_result", "tool_use_id": "tu_1", "content": "r"}],
+        }
         assert anthropic_llm.is_tool_message(msg) is True
 
     def test_assistant_tool_use(self, anthropic_llm):
-        msg = ChatMessage(
-            role=ASSISTANT_ROLE,
-            content=[{"type": "tool_use", "id": "tu_1", "name": "fn", "input": {}}],
-        )
+        msg = {
+            "role": ASSISTANT_ROLE,
+            "content": [{"type": "tool_use", "id": "tu_1", "name": "fn", "input": {}}],
+        }
         assert anthropic_llm.is_tool_message(msg) is True
 
     def test_plain_user_message(self, anthropic_llm):
-        msg = ChatMessage(role=USER_ROLE, content="Hello")
+        msg = {"role": USER_ROLE, "content": "Hello"}
         assert anthropic_llm.is_tool_message(msg) is False
 
     def test_plain_assistant_message(self, anthropic_llm):
-        msg = ChatMessage(role=ASSISTANT_ROLE, content="Response")
+        msg = {"role": ASSISTANT_ROLE, "content": "Response"}
         assert anthropic_llm.is_tool_message(msg) is False
 
 

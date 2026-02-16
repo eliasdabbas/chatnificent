@@ -9,10 +9,7 @@ from chatnificent.models import (
     ASSISTANT_ROLE,
     TOOL_ROLE,
     USER_ROLE,
-    ChatMessage,
     Conversation,
-    ToolCall,
-    ToolResult,
 )
 
 from .conftest import (
@@ -230,9 +227,9 @@ class TestParseToolCalls:
         )
         tool_calls = openai_llm.parse_tool_calls(response)
         assert len(tool_calls) == 1
-        assert tool_calls[0].function_name == "get_weather"
-        assert tool_calls[0].id == "call_abc"
-        assert json.loads(tool_calls[0].function_args) == {"location": "Boston"}
+        assert tool_calls[0]["function_name"] == "get_weather"
+        assert tool_calls[0]["id"] == "call_abc"
+        assert json.loads(tool_calls[0]["function_args"]) == {"location": "Boston"}
 
     def test_multiple_tool_calls(self, openai_llm):
         response = make_openai_tool_response(
@@ -243,16 +240,16 @@ class TestParseToolCalls:
         )
         tool_calls = openai_llm.parse_tool_calls(response)
         assert len(tool_calls) == 2
-        assert tool_calls[0].function_name == "fn_a"
-        assert tool_calls[1].function_name == "fn_b"
+        assert tool_calls[0]["function_name"] == "fn_a"
+        assert tool_calls[1]["function_name"] == "fn_b"
 
     def test_returns_standardized_objects(self, openai_llm):
         response = make_openai_tool_response(
             [{"id": "call_1", "name": "fn", "arguments": '{"k": "v"}'}]
         )
         tc = openai_llm.parse_tool_calls(response)[0]
-        assert isinstance(tc, ToolCall)
-        assert tc.get_args_dict() == {"k": "v"}
+        assert isinstance(tc, dict)
+        assert json.loads(tc["function_args"]) == {"k": "v"}
 
 
 # ===== create_assistant_message tests =====
@@ -262,25 +259,25 @@ class TestCreateAssistantMessage:
     def test_text_response(self, openai_llm):
         response = make_openai_response("Hello!")
         msg = openai_llm.create_assistant_message(response)
-        assert msg.role == ASSISTANT_ROLE
-        assert msg.content == "Hello!"
+        assert msg["role"] == ASSISTANT_ROLE
+        assert msg["content"] == "Hello!"
 
     def test_empty_response(self, openai_llm):
         response = make_openai_empty_response()
         msg = openai_llm.create_assistant_message(response)
-        assert msg.role == ASSISTANT_ROLE
-        assert msg.content == "[No response generated]"
+        assert msg["role"] == ASSISTANT_ROLE
+        assert msg["content"] == "[No response generated]"
 
     def test_tool_call_response_preserves_raw(self, openai_llm):
         response = make_openai_tool_response(
             [{"id": "call_1", "name": "get_weather", "arguments": '{"loc": "NYC"}'}]
         )
         msg = openai_llm.create_assistant_message(response)
-        assert msg.role == ASSISTANT_ROLE
-        assert msg.content is None
-        assert msg.tool_calls is not None
-        assert len(msg.tool_calls) == 1
-        assert msg.tool_calls[0]["function"]["name"] == "get_weather"
+        assert msg["role"] == ASSISTANT_ROLE
+        assert msg["content"] is None
+        assert msg["tool_calls"] is not None
+        assert len(msg["tool_calls"]) == 1
+        assert msg["tool_calls"][0]["function"]["name"] == "get_weather"
 
 
 # ===== create_tool_result_messages tests =====
@@ -289,19 +286,19 @@ class TestCreateAssistantMessage:
 class TestCreateToolResultMessages:
     def test_single_result(self, openai_llm):
         results = [
-            ToolResult(tool_call_id="call_1", function_name="fn", content="result")
+            {"tool_call_id": "call_1", "function_name": "fn", "content": "result"}
         ]
         convo = Conversation(id="test")
         msgs = openai_llm.create_tool_result_messages(results, convo)
         assert len(msgs) == 1
-        assert msgs[0].role == TOOL_ROLE
-        assert msgs[0].content == "result"
-        assert msgs[0].tool_call_id == "call_1"
+        assert msgs[0]["role"] == TOOL_ROLE
+        assert msgs[0]["content"] == "result"
+        assert msgs[0]["tool_call_id"] == "call_1"
 
     def test_multiple_results(self, openai_llm):
         results = [
-            ToolResult(tool_call_id="call_1", function_name="a", content="r1"),
-            ToolResult(tool_call_id="call_2", function_name="b", content="r2"),
+            {"tool_call_id": "call_1", "function_name": "a", "content": "r1"},
+            {"tool_call_id": "call_2", "function_name": "b", "content": "r2"},
         ]
         convo = Conversation(id="test")
         msgs = openai_llm.create_tool_result_messages(results, convo)
@@ -313,15 +310,15 @@ class TestCreateToolResultMessages:
 
 class TestIsToolMessage:
     def test_tool_role(self, openai_llm):
-        msg = ChatMessage(role=TOOL_ROLE, content="result", tool_call_id="call_1")
+        msg = {"role": TOOL_ROLE, "content": "result", "tool_call_id": "call_1"}
         assert openai_llm.is_tool_message(msg) is True
 
     def test_user_message(self, openai_llm):
-        msg = ChatMessage(role=USER_ROLE, content="Hello")
+        msg = {"role": USER_ROLE, "content": "Hello"}
         assert openai_llm.is_tool_message(msg) is False
 
     def test_assistant_message(self, openai_llm):
-        msg = ChatMessage(role=ASSISTANT_ROLE, content="Response")
+        msg = {"role": ASSISTANT_ROLE, "content": "Response"}
         assert openai_llm.is_tool_message(msg) is False
 
 

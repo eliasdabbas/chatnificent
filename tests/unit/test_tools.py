@@ -9,18 +9,17 @@ import json
 from typing import Any, Dict, List
 
 import pytest
-from chatnificent.models import ToolCall, ToolResult
 from chatnificent.tools import NoTool, PythonTool, Tool
 
 
 @pytest.fixture
-def sample_tool_call() -> ToolCall:
-    """Fixture for a sample valid ToolCall."""
-    return ToolCall(
-        id="call_123",
-        function_name="test_function",
-        function_args='{"arg1": "value1"}',
-    )
+def sample_tool_call() -> dict:
+    """Fixture for a sample valid tool call dict."""
+    return {
+        "id": "call_123",
+        "function_name": "test_function",
+        "function_args": '{"arg1": "value1"}',
+    }
 
 
 class TestToolContract:
@@ -44,9 +43,9 @@ class TestToolContract:
         assert all(isinstance(tool, dict) for tool in tools)
 
     def test_execute_tool_call_signature(self, tool_implementation, sample_tool_call):
-        """Test that execute_tool_call accepts a ToolCall and returns a ToolResult."""
+        """Test that execute_tool_call accepts a dict and returns a dict."""
         result = tool_implementation.execute_tool_call(sample_tool_call)
-        assert isinstance(result, ToolResult)
+        assert isinstance(result, dict)
 
 
 class TestNoTool:
@@ -63,10 +62,10 @@ class TestNoTool:
     def test_execute_tool_call_returns_error(self, tool, sample_tool_call):
         """Test that execute_tool_call consistently returns an error message."""
         result = tool.execute_tool_call(sample_tool_call)
-        assert isinstance(result, ToolResult)
-        assert result.tool_call_id == sample_tool_call.id
-        assert result.is_error is True
-        assert "NoTool handler is active" in result.content
+        assert isinstance(result, dict)
+        assert result["tool_call_id"] == sample_tool_call["id"]
+        assert result["is_error"] is True
+        assert "NoTool handler is active" in result["content"]
 
 
 class TestPythonTool:
@@ -130,11 +129,11 @@ class TestPythonTool:
         assert isinstance(params["required"], list)
 
     def test_execute_unknown_tool_returns_error(self, tool, sample_tool_call):
-        """Test that executing a non-existent tool returns a ToolResult error."""
+        """Test that executing a non-existent tool returns an error dict."""
         result = tool.execute_tool_call(sample_tool_call)
-        assert result.is_error is True
-        assert "not found" in result.content
-        assert result.tool_call_id == sample_tool_call.id
+        assert result["is_error"] is True
+        assert "not found" in result["content"]
+        assert result["tool_call_id"] == sample_tool_call["id"]
 
     def test_execute_tool_with_valid_args(self, tool):
         """Test executing a registered function with valid arguments."""
@@ -143,14 +142,16 @@ class TestPythonTool:
             return a + b
 
         tool.register_function(add)
-        tool_call = ToolCall(
-            id="add_1", function_name="add", function_args='{"a": 5, "b": 10}'
-        )
+        tool_call = {
+            "id": "add_1",
+            "function_name": "add",
+            "function_args": '{"a": 5, "b": 10}',
+        }
         result = tool.execute_tool_call(tool_call)
 
-        assert result.is_error is False
-        assert result.tool_call_id == "add_1"
-        assert result.content == "15"
+        assert result["is_error"] is False
+        assert result["tool_call_id"] == "add_1"
+        assert result["content"] == "15"
 
     def test_execute_tool_with_no_args(self, tool):
         """Test executing a registered function that takes no arguments."""
@@ -159,11 +160,11 @@ class TestPythonTool:
             return 3.14159
 
         tool.register_function(get_pi)
-        tool_call = ToolCall(id="pi_1", function_name="get_pi", function_args="{}")
+        tool_call = {"id": "pi_1", "function_name": "get_pi", "function_args": "{}"}
         result = tool.execute_tool_call(tool_call)
 
-        assert result.is_error is False
-        assert result.content == "3.14159"
+        assert result["is_error"] is False
+        assert result["content"] == "3.14159"
 
     def test_execute_tool_with_invalid_args_returns_error(self, tool):
         """Test that providing incorrect arguments returns a TypeError error."""
@@ -172,15 +173,16 @@ class TestPythonTool:
             return f"Hello, {name}"
 
         tool.register_function(greet)
-        # Calling with a missing 'name' argument
-        tool_call = ToolCall(
-            id="greet_1", function_name="greet", function_args='{"wrong_arg": "World"}'
-        )
+        tool_call = {
+            "id": "greet_1",
+            "function_name": "greet",
+            "function_args": '{"wrong_arg": "World"}',
+        }
         result = tool.execute_tool_call(tool_call)
 
-        assert result.is_error is True
-        assert "Invalid arguments" in result.content
-        assert isinstance(result.content, str)
+        assert result["is_error"] is True
+        assert "Invalid arguments" in result["content"]
+        assert isinstance(result["content"], str)
 
     def test_execute_tool_with_malformed_json_args(self, tool):
         """Test that malformed JSON in function_args returns an error."""
@@ -189,13 +191,15 @@ class TestPythonTool:
             pass
 
         tool.register_function(my_func)
-        tool_call = ToolCall(
-            id="json_err", function_name="my_func", function_args='{"a": 1,'
-        )  # Malformed
+        tool_call = {
+            "id": "json_err",
+            "function_name": "my_func",
+            "function_args": '{"a": 1,',
+        }
         result = tool.execute_tool_call(tool_call)
 
-        assert result.is_error is True
-        assert "Failed to parse arguments" in result.content
+        assert result["is_error"] is True
+        assert "Failed to parse arguments" in result["content"]
 
     def test_tool_result_serialization(self, tool):
         """Test that non-string results are properly serialized."""
@@ -204,13 +208,12 @@ class TestPythonTool:
             return {"key": "value", "numbers": [1, 2, 3]}
 
         tool.register_function(get_data)
-        tool_call = ToolCall(id="data_1", function_name="get_data", function_args="{}")
+        tool_call = {"id": "data_1", "function_name": "get_data", "function_args": "{}"}
         result = tool.execute_tool_call(tool_call)
 
-        assert result.is_error is False
-        # The dict result should be converted to a JSON string
-        assert result.content == '{"key": "value", "numbers": [1, 2, 3]}'
-        assert isinstance(json.loads(result.content), dict)
+        assert result["is_error"] is False
+        assert result["content"] == '{"key": "value", "numbers": [1, 2, 3]}'
+        assert isinstance(json.loads(result["content"]), dict)
 
     def test_tool_result_non_json_serializable(self, tool):
         """Test that non-JSON-serializable results are converted to strings."""
@@ -223,13 +226,15 @@ class TestPythonTool:
             return NonSerializable()
 
         tool.register_function(get_non_serializable)
-        tool_call = ToolCall(
-            id="non_serial_1", function_name="get_non_serializable", function_args="{}"
-        )
+        tool_call = {
+            "id": "non_serial_1",
+            "function_name": "get_non_serializable",
+            "function_args": "{}",
+        }
         result = tool.execute_tool_call(tool_call)
 
-        assert result.is_error is False
-        assert result.content == "NonSerializableObject"
+        assert result["is_error"] is False
+        assert result["content"] == "NonSerializableObject"
 
 
 class TestToolInterface:
@@ -245,10 +250,12 @@ class TestToolInterface:
         with pytest.raises(TypeError, match="get_tools"):
 
             class IncompleteTool(Tool):
-                def execute_tool_call(self, tool_call: ToolCall) -> ToolResult:
+                def execute_tool_call(
+                    self, tool_call: Dict[str, Any]
+                ) -> Dict[str, Any]:
                     pass
 
-            IncompleteTool()  # Attempt to instantiate
+            IncompleteTool()
 
     def test_subclass_must_implement_execute_tool_call(self):
         """Test that a subclass must implement the `execute_tool_call` method."""
@@ -258,7 +265,7 @@ class TestToolInterface:
                 def get_tools(self) -> List[Dict[str, Any]]:
                     return []
 
-            IncompleteTool2()  # Attempt to instantiate
+            IncompleteTool2()
 
     def test_complete_subclass_works(self):
         """Test that a complete subclass can be instantiated."""
@@ -267,12 +274,12 @@ class TestToolInterface:
             def get_tools(self) -> List[Dict[str, Any]]:
                 return []
 
-            def execute_tool_call(self, tool_call: ToolCall) -> ToolResult:
-                return ToolResult(
-                    tool_call_id=tool_call.id,
-                    function_name=tool_call.function_name,
-                    content="Success",
-                )
+            def execute_tool_call(self, tool_call: Dict[str, Any]) -> Dict[str, Any]:
+                return {
+                    "tool_call_id": tool_call["id"],
+                    "function_name": tool_call["function_name"],
+                    "content": "Success",
+                }
 
         tool = CompleteTool()
         assert isinstance(tool, Tool)

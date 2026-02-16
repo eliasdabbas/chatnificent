@@ -8,9 +8,6 @@ from chatnificent.models import (
     ASSISTANT_ROLE,
     TOOL_ROLE,
     USER_ROLE,
-    ChatMessage,
-    ToolCall,
-    ToolResult,
 )
 
 from .conftest import (
@@ -93,8 +90,8 @@ class TestParseToolCalls:
         )
         tool_calls = ollama_llm.parse_tool_calls(response)
         assert len(tool_calls) == 1
-        assert tool_calls[0].function_name == "get_weather"
-        assert tool_calls[0].id.startswith("ollama-tool-call-")
+        assert tool_calls[0]["function_name"] == "get_weather"
+        assert tool_calls[0]["id"].startswith("ollama-tool-call-")
 
     def test_multiple_tool_calls(self, ollama_llm):
         response = make_ollama_tool_response(
@@ -109,7 +106,7 @@ class TestParseToolCalls:
     def test_returns_standardized_objects(self, ollama_llm):
         response = make_ollama_tool_response([{"name": "fn", "arguments": {"k": "v"}}])
         tc = ollama_llm.parse_tool_calls(response)[0]
-        assert isinstance(tc, ToolCall)
+        assert isinstance(tc, dict)
 
 
 # ===== create_assistant_message tests =====
@@ -119,21 +116,21 @@ class TestCreateAssistantMessage:
     def test_text_response(self, ollama_llm):
         response = make_ollama_response("Hello!")
         msg = ollama_llm.create_assistant_message(response)
-        assert msg.role == ASSISTANT_ROLE
-        assert msg.content == "Hello!"
+        assert msg["role"] == ASSISTANT_ROLE
+        assert msg["content"] == "Hello!"
 
     def test_tool_call_response(self, ollama_llm):
         response = make_ollama_tool_response([{"name": "fn", "arguments": {"x": 1}}])
         msg = ollama_llm.create_assistant_message(response)
-        assert msg.role == ASSISTANT_ROLE
-        assert msg.tool_calls is not None
+        assert msg["role"] == ASSISTANT_ROLE
+        assert msg["tool_calls"] is not None
 
     def test_missing_message(self, ollama_llm):
         """Graceful handling when response has no message key."""
         response = {}
         msg = ollama_llm.create_assistant_message(response)
-        assert msg.role == ASSISTANT_ROLE
-        assert msg.content == ""
+        assert msg["role"] == ASSISTANT_ROLE
+        assert msg["content"] == ""
 
 
 # ===== create_tool_result_messages tests =====
@@ -142,19 +139,25 @@ class TestCreateAssistantMessage:
 class TestCreateToolResultMessages:
     def test_single_result(self, ollama_llm):
         results = [
-            ToolResult(tool_call_id="call_1", function_name="fn", content="result")
+            {"tool_call_id": "call_1", "function_name": "fn", "content": "result"}
         ]
-        msgs = ollama_llm.create_tool_result_messages(results)
+        from chatnificent.models import Conversation
+
+        convo = Conversation(id="test", messages=[])
+        msgs = ollama_llm.create_tool_result_messages(results, convo)
         assert len(msgs) == 1
-        assert msgs[0].role == TOOL_ROLE
-        assert msgs[0].content == "result"
+        assert msgs[0]["role"] == TOOL_ROLE
+        assert msgs[0]["content"] == "result"
 
     def test_multiple_results(self, ollama_llm):
         results = [
-            ToolResult(tool_call_id="call_1", function_name="a", content="r1"),
-            ToolResult(tool_call_id="call_2", function_name="b", content="r2"),
+            {"tool_call_id": "call_1", "function_name": "a", "content": "r1"},
+            {"tool_call_id": "call_2", "function_name": "b", "content": "r2"},
         ]
-        msgs = ollama_llm.create_tool_result_messages(results)
+        from chatnificent.models import Conversation
+
+        convo = Conversation(id="test", messages=[])
+        msgs = ollama_llm.create_tool_result_messages(results, convo)
         assert len(msgs) == 2
 
 

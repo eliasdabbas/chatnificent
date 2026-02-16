@@ -12,25 +12,25 @@ from typing import Dict, List, Optional
 from unittest.mock import MagicMock
 
 import pytest
-from chatnificent.models import ASSISTANT_ROLE, USER_ROLE, ChatMessage, Conversation
+from chatnificent.models import ASSISTANT_ROLE, USER_ROLE, Conversation
 
 # ===== TEST DATA FIXTURES =====
 
 
 @pytest.fixture
-def sample_messages() -> List[ChatMessage]:
+def sample_messages() -> List[Dict]:
     """Sample chat messages for testing."""
     return [
-        ChatMessage(role=USER_ROLE, content="Hello, how are you?"),
-        ChatMessage(
-            role=ASSISTANT_ROLE,
-            content="I'm doing well, thank you! How can I help you today?",
-        ),
-        ChatMessage(role=USER_ROLE, content="Can you explain quantum computing?"),
-        ChatMessage(
-            role=ASSISTANT_ROLE,
-            content="Quantum computing uses quantum mechanics principles...",
-        ),
+        {"role": USER_ROLE, "content": "Hello, how are you?"},
+        {
+            "role": ASSISTANT_ROLE,
+            "content": "I'm doing well, thank you! How can I help you today?",
+        },
+        {"role": USER_ROLE, "content": "Can you explain quantum computing?"},
+        {
+            "role": ASSISTANT_ROLE,
+            "content": "Quantum computing uses quantum mechanics principles...",
+        },
     ]
 
 
@@ -49,7 +49,7 @@ def empty_conversation() -> Conversation:
 @pytest.fixture
 def conversation_dict(sample_messages) -> List[Dict]:
     """Sample conversation as dict format (for LLM providers)."""
-    return [msg.model_dump() for msg in sample_messages]
+    return list(sample_messages)
 
 
 @pytest.fixture
@@ -168,7 +168,7 @@ def all_url_implementations():
 
 
 def create_test_conversation_file(
-    directory: Path, user_id: str, convo_id: str, messages: List[ChatMessage]
+    directory: Path, user_id: str, convo_id: str, messages: List[Dict]
 ) -> None:
     """Helper to create test conversation files."""
     user_dir = directory / user_id
@@ -177,10 +177,9 @@ def create_test_conversation_file(
     convo_dir.mkdir(exist_ok=True)
 
     messages_file = convo_dir / "messages.json"
-    messages_data = [msg.model_dump() for msg in messages]
 
     with open(messages_file, "w") as f:
-        json.dump(messages_data, f, indent=2)
+        json.dump(messages, f, indent=2)
 
 
 @pytest.fixture

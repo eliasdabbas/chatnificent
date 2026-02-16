@@ -6,7 +6,7 @@ from unittest.mock import Mock
 import pytest
 from chatnificent import Chatnificent
 from chatnificent.llm import Echo
-from chatnificent.models import ASSISTANT_ROLE, USER_ROLE, ChatMessage, Conversation
+from chatnificent.models import ASSISTANT_ROLE, USER_ROLE, Conversation
 from chatnificent.store import File, InMemory, SQLite
 
 
@@ -43,7 +43,7 @@ class TestEngineStoreIntegration:
             loaded = store.load_conversation("test_user", convo_id)
             assert loaded is not None, f"Failed to load conversation for {store_name}"
             assert len(loaded.messages) == 2
-            assert loaded.messages[0].content == f"Test message for {store_name}"
+            assert loaded.messages[0]["content"] == f"Test message for {store_name}"
 
     def test_multiple_users_isolated(self, store_implementations):
         """Test that conversations are isolated between users."""
@@ -75,8 +75,8 @@ class TestEngineStoreIntegration:
             user1_conv = store.load_conversation("user1", user1_convos[0])
             user2_conv = store.load_conversation("user2", user2_convos[0])
 
-            assert user1_conv.messages[0].content == "User 1 message"
-            assert user2_conv.messages[0].content == "User 2 message"
+            assert user1_conv.messages[0]["content"] == "User 1 message"
+            assert user2_conv.messages[0]["content"] == "User 2 message"
 
     def test_conversation_id_generation(self, store_implementations):
         """Test that stores generate unique conversation IDs correctly."""
@@ -124,8 +124,8 @@ class TestEngineStoreIntegration:
             # Verify both messages are there
             loaded = store.load_conversation("test_user", convo_id)
             assert len(loaded.messages) == 4  # 2 user + 2 assistant
-            assert loaded.messages[0].content == "First message"
-            assert loaded.messages[2].content == "Second message"
+            assert loaded.messages[0]["content"] == "First message"
+            assert loaded.messages[2]["content"] == "Second message"
 
     def test_store_save_raw_api_response(self, tmp_path):
         """Test that raw API responses are saved when supported."""
@@ -140,6 +140,10 @@ class TestEngineStoreIntegration:
             mock_llm.generate_response.return_value = {"raw": "response"}
             mock_llm.extract_content.return_value = "Test response"
             mock_llm.parse_tool_calls.return_value = []
+            mock_llm.get_last_request_payload.return_value = {
+                "model": "test",
+                "messages": [],
+            }
 
             app = Chatnificent(llm=mock_llm, store=store)
 
@@ -174,7 +178,7 @@ class TestEngineStoreIntegration:
 
             # The new conversation should contain the message
             loaded = store.load_conversation("test_user", conversations[0])
-            assert loaded.messages[0].content == "Test message"
+            assert loaded.messages[0]["content"] == "Test message"
 
     def test_empty_conversation_handling(self, store_implementations):
         """Test handling when trying to continue non-existent conversations."""
@@ -196,7 +200,9 @@ class TestEngineStoreIntegration:
             newest_convo = store.load_conversation("test_user", conversations[0])
             assert newest_convo is not None
             assert len(newest_convo.messages) == 2
-            assert newest_convo.messages[0].content == "Message for nonexistent convo"
+            assert (
+                newest_convo.messages[0]["content"] == "Message for nonexistent convo"
+            )
 
 
 class TestStoreEdgeCases:
@@ -220,8 +226,8 @@ class TestStoreEdgeCases:
         conv2 = store.load_conversation("test_user", convo_id)
 
         # Both add messages
-        conv1.messages.append(ChatMessage(role=USER_ROLE, content="From conv1"))
-        conv2.messages.append(ChatMessage(role=USER_ROLE, content="From conv2"))
+        conv1.messages.append({"role": USER_ROLE, "content": "From conv1"})
+        conv2.messages.append({"role": USER_ROLE, "content": "From conv2"})
 
         # Save both (second should overwrite first)
         store.save_conversation("test_user", conv1)
@@ -229,7 +235,7 @@ class TestStoreEdgeCases:
 
         # Load and check - should have conv2's version
         final = store.load_conversation("test_user", convo_id)
-        assert final.messages[-1].content == "From conv2"
+        assert final.messages[-1]["content"] == "From conv2"
 
     def test_special_characters_in_ids(self, tmp_path):
         """Test stores handle special characters in user/conversation IDs."""
@@ -262,7 +268,7 @@ class TestStoreEdgeCases:
                 assert len(conversations) > 0
 
                 loaded = store.load_conversation(user_id, conversations[0])
-                assert loaded.messages[0].content == f"Test from {user_id}"
+                assert loaded.messages[0]["content"] == f"Test from {user_id}"
 
     def test_large_conversation_handling(self, tmp_path):
         """Test stores handle large conversations efficiently."""
@@ -277,10 +283,10 @@ class TestStoreEdgeCases:
             conv = Conversation(id="large", messages=[])
             for i in range(100):
                 conv.messages.append(
-                    ChatMessage(
-                        role=USER_ROLE if i % 2 == 0 else ASSISTANT_ROLE,
-                        content=f"Message {i}",
-                    )
+                    {
+                        "role": USER_ROLE if i % 2 == 0 else ASSISTANT_ROLE,
+                        "content": f"Message {i}",
+                    }
                 )
 
             # Establish user namespace first (mimicking realistic engine flow)
@@ -291,8 +297,8 @@ class TestStoreEdgeCases:
             loaded = store.load_conversation("test_user", "large")
 
             assert len(loaded.messages) == 100
-            assert loaded.messages[0].content == "Message 0"
-            assert loaded.messages[99].content == "Message 99"
+            assert loaded.messages[0]["content"] == "Message 0"
+            assert loaded.messages[99]["content"] == "Message 99"
 
 
 class TestStoreListingBehavior:
@@ -328,7 +334,9 @@ class TestStoreListingBehavior:
                 # Newest conversation should be first in list
                 expected_msg_num = 2 - i  # 2, 1, 0
                 if expected_msg_num >= 0:  # Safety check
-                    assert f"Message {expected_msg_num}" in loaded.messages[0].content
+                    assert (
+                        f"Message {expected_msg_num}" in loaded.messages[0]["content"]
+                    )
 
     def test_empty_user_listing(self, tmp_path):
         """Test listing conversations for user with no conversations."""

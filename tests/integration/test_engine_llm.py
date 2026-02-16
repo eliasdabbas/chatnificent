@@ -6,7 +6,7 @@ import pytest
 from chatnificent import Chatnificent
 from chatnificent.engine import Synchronous
 from chatnificent.llm import Anthropic, Echo, Gemini
-from chatnificent.models import ASSISTANT_ROLE, USER_ROLE, ChatMessage
+from chatnificent.models import ASSISTANT_ROLE, USER_ROLE
 
 
 class TestEngineLLMIntegration:
@@ -34,8 +34,8 @@ class TestEngineLLMIntegration:
         conversation = test_app.store.load_conversation("test_user", convo_id)
         assert conversation is not None
         assert len(conversation.messages) == 2  # User + Assistant
-        assert conversation.messages[0].content == "Hello, Echo!"
-        assert "Echo LLM" in conversation.messages[1].content
+        assert conversation.messages[0]["content"] == "Hello, Echo!"
+        assert "Echo LLM" in conversation.messages[1]["content"]
 
     def test_multi_turn_conversation(self, test_app):
         """Test multiple back-and-forth messages."""
@@ -56,8 +56,8 @@ class TestEngineLLMIntegration:
         # Verify conversation has all messages
         conversation = test_app.store.load_conversation("test_user", convo_id)
         assert len(conversation.messages) == 4  # 2 user + 2 assistant
-        assert conversation.messages[0].content == "First message"
-        assert conversation.messages[2].content == "Second message"
+        assert conversation.messages[0]["content"] == "First message"
+        assert conversation.messages[2]["content"] == "Second message"
 
     def test_empty_tool_calls_list_finalization(self):
         """Test our critical bug fix: empty tool_calls list triggers finalization."""
@@ -80,7 +80,7 @@ class TestEngineLLMIntegration:
         conversations = app.store.list_conversations("test_user")
         conversation = app.store.load_conversation("test_user", conversations[0])
         assert len(conversation.messages) == 2
-        assert conversation.messages[1].content == "Assistant response"
+        assert conversation.messages[1]["content"] == "Assistant response"
 
     def test_none_tool_calls_finalization(self):
         """Test that None tool_calls also triggers finalization."""
@@ -99,7 +99,7 @@ class TestEngineLLMIntegration:
         mock_llm.extract_content.assert_called_once()
         conversations = app.store.list_conversations("test_user")
         conversation = app.store.load_conversation("test_user", conversations[0])
-        assert conversation.messages[1].content == "Assistant response"
+        assert conversation.messages[1]["content"] == "Assistant response"
 
     def test_anthropic_list_content_handling(self):
         """Test that Anthropic's list content format is handled correctly."""
@@ -124,8 +124,8 @@ class TestEngineLLMIntegration:
         # Verify message content is a string, not a list
         conversations = app.store.list_conversations("test_user")
         conversation = app.store.load_conversation("test_user", conversations[0])
-        assert isinstance(conversation.messages[1].content, str)
-        assert conversation.messages[1].content == "Hello from Anthropic"
+        assert isinstance(conversation.messages[1]["content"], str)
+        assert conversation.messages[1]["content"] == "Hello from Anthropic"
 
     def test_gemini_parts_content_handling(self):
         """Test that Gemini's parts content format is handled correctly."""
@@ -150,8 +150,8 @@ class TestEngineLLMIntegration:
         # Verify message content is a string
         conversations = app.store.list_conversations("test_user")
         conversation = app.store.load_conversation("test_user", conversations[0])
-        assert isinstance(conversation.messages[1].content, str)
-        assert conversation.messages[1].content == "Hello from Gemini"
+        assert isinstance(conversation.messages[1]["content"], str)
+        assert conversation.messages[1]["content"] == "Hello from Gemini"
 
     def test_error_handling_in_llm_call(self, test_app):
         """Test error handling when LLM call fails."""
@@ -173,7 +173,7 @@ class TestEngineLLMIntegration:
                 "test_user", conversations[0]
             )
             assert len(conversation.messages) == 2
-            assert "error" in conversation.messages[1].content.lower()
+            assert "error" in conversation.messages[1]["content"].lower()
 
     def test_llm_response_saved_to_store(self):
         """Test that raw LLM responses are saved if store supports it."""
@@ -242,7 +242,7 @@ class TestEngineHooksIntegration:
             def _before_llm_call(self, conversation):
                 # Add a system message
                 conversation.messages.insert(
-                    0, ChatMessage(role="system", content="Always be helpful")
+                    0, {"role": "system", "content": "Always be helpful"}
                 )
 
         engine = ModifyingEngine()
@@ -256,8 +256,8 @@ class TestEngineHooksIntegration:
         conversations = app.store.list_conversations("test_user")
         conversation = app.store.load_conversation("test_user", conversations[0])
         assert len(conversation.messages) == 3  # System + User + Assistant
-        assert conversation.messages[0].role == "system"
-        assert conversation.messages[0].content == "Always be helpful"
+        assert conversation.messages[0]["role"] == "system"
+        assert conversation.messages[0]["content"] == "Always be helpful"
 
 
 class TestEngineWithRealProviders:
@@ -282,4 +282,4 @@ class TestEngineWithRealProviders:
         conversations = app.store.list_conversations("test_user")
         conversation = app.store.load_conversation("test_user", conversations[0])
         assert len(conversation.messages) == 2
-        assert expected_content in conversation.messages[1].content
+        assert expected_content in conversation.messages[1]["content"]

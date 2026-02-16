@@ -19,10 +19,7 @@ from chatnificent.models import (
     SYSTEM_ROLE,
     TOOL_ROLE,
     USER_ROLE,
-    ChatMessage,
     Conversation,
-    ToolCall,
-    ToolResult,
 )
 
 # ===== Mock helpers =====
@@ -606,9 +603,9 @@ class TestParseToolCalls:
 
         assert tool_calls is not None
         assert len(tool_calls) == 1
-        assert tool_calls[0].function_name == "get_weather"
-        assert json.loads(tool_calls[0].function_args) == {"location": "Boston"}
-        assert tool_calls[0].id.startswith("call_")
+        assert tool_calls[0]["function_name"] == "get_weather"
+        assert json.loads(tool_calls[0]["function_args"]) == {"location": "Boston"}
+        assert tool_calls[0]["id"].startswith("call_")
 
     def test_multiple_function_calls(self, gemini):
         response = _make_function_call_response(
@@ -620,8 +617,8 @@ class TestParseToolCalls:
         tool_calls = gemini.parse_tool_calls(response)
 
         assert len(tool_calls) == 2
-        assert tool_calls[0].function_name == "get_weather"
-        assert tool_calls[1].function_name == "get_time"
+        assert tool_calls[0]["function_name"] == "get_weather"
+        assert tool_calls[1]["function_name"] == "get_time"
 
     def test_returns_standardized_tool_call_objects(self, gemini):
         response = _make_function_call_response(
@@ -630,11 +627,11 @@ class TestParseToolCalls:
         tool_calls = gemini.parse_tool_calls(response)
         tc = tool_calls[0]
 
-        assert isinstance(tc, ToolCall)
-        assert isinstance(tc.id, str)
-        assert isinstance(tc.function_name, str)
-        assert isinstance(tc.function_args, str)
-        assert tc.get_args_dict() == {"key": "val"}
+        assert isinstance(tc, dict)
+        assert isinstance(tc["id"], str)
+        assert isinstance(tc["function_name"], str)
+        assert isinstance(tc["function_args"], str)
+        assert json.loads(tc["function_args"]) == {"key": "val"}
 
 
 # ===== create_assistant_message tests =====
@@ -645,8 +642,8 @@ class TestCreateAssistantMessage:
         response = _make_empty_response()
         msg = gemini.create_assistant_message(response)
 
-        assert msg.role == MODEL_ROLE
-        assert msg.content == "[No response generated]"
+        assert msg["role"] == MODEL_ROLE
+        assert msg["content"] == "[No response generated]"
 
     def test_function_call_response(self, gemini):
         response = _make_function_call_response(
@@ -654,24 +651,24 @@ class TestCreateAssistantMessage:
         )
         msg = gemini.create_assistant_message(response)
 
-        assert msg.role == MODEL_ROLE
-        assert isinstance(msg.content, list)
-        assert len(msg.content) == 1
-        assert "function_call" in msg.content[0]
-        assert msg.content[0]["function_call"]["name"] == "get_weather"
+        assert msg["role"] == MODEL_ROLE
+        assert isinstance(msg["content"], list)
+        assert len(msg["content"]) == 1
+        assert "function_call" in msg["content"][0]
+        assert msg["content"][0]["function_call"]["name"] == "get_weather"
 
     def test_text_response(self, gemini):
         response = _make_text_response("Hello!")
         msg = gemini.create_assistant_message(response)
 
-        assert msg.role == MODEL_ROLE
-        assert isinstance(msg.content, list)
-        assert msg.content == [{"text": "Hello!"}]
+        assert msg["role"] == MODEL_ROLE
+        assert isinstance(msg["content"], list)
+        assert msg["content"] == [{"text": "Hello!"}]
 
     def test_no_parts(self, gemini):
         response = {"candidates": [{"content": {"parts": [], "role": "model"}}]}
         msg = gemini.create_assistant_message(response)
-        assert msg.content == "[No response generated]"
+        assert msg["content"] == "[No response generated]"
 
 
 # ===== create_tool_result_messages tests =====
@@ -680,39 +677,39 @@ class TestCreateAssistantMessage:
 class TestCreateToolResultMessages:
     def test_single_result(self, gemini):
         results = [
-            ToolResult(
-                tool_call_id="call_123",
-                function_name="get_weather",
-                content="sunny",
-            )
+            {
+                "tool_call_id": "call_123",
+                "function_name": "get_weather",
+                "content": "sunny",
+            }
         ]
         conversation = Conversation(id="test")
         msgs = gemini.create_tool_result_messages(results, conversation)
 
         assert len(msgs) == 1
-        assert msgs[0].role == TOOL_ROLE
-        assert msgs[0].name == "get_weather"
-        assert msgs[0].content == "sunny"
+        assert msgs[0]["role"] == TOOL_ROLE
+        assert msgs[0]["name"] == "get_weather"
+        assert msgs[0]["content"] == "sunny"
 
     def test_multiple_results(self, gemini):
         results = [
-            ToolResult(
-                tool_call_id="call_1",
-                function_name="fn_a",
-                content="result_a",
-            ),
-            ToolResult(
-                tool_call_id="call_2",
-                function_name="fn_b",
-                content="result_b",
-            ),
+            {
+                "tool_call_id": "call_1",
+                "function_name": "fn_a",
+                "content": "result_a",
+            },
+            {
+                "tool_call_id": "call_2",
+                "function_name": "fn_b",
+                "content": "result_b",
+            },
         ]
         conversation = Conversation(id="test")
         msgs = gemini.create_tool_result_messages(results, conversation)
 
         assert len(msgs) == 2
-        assert msgs[0].name == "fn_a"
-        assert msgs[1].name == "fn_b"
+        assert msgs[0]["name"] == "fn_a"
+        assert msgs[1]["name"] == "fn_b"
 
 
 # ===== is_tool_message tests =====
@@ -720,30 +717,30 @@ class TestCreateToolResultMessages:
 
 class TestIsToolMessage:
     def test_tool_role(self, gemini):
-        msg = ChatMessage(role=TOOL_ROLE, name="fn", content="result")
+        msg = {"role": TOOL_ROLE, "name": "fn", "content": "result"}
         assert gemini.is_tool_message(msg) is True
 
     def test_model_with_function_call_parts(self, gemini):
-        msg = ChatMessage(
-            role=MODEL_ROLE,
-            content=[{"function_call": {"name": "get_weather", "args": {}}}],
-        )
+        msg = {
+            "role": MODEL_ROLE,
+            "content": [{"function_call": {"name": "get_weather", "args": {}}}],
+        }
         assert gemini.is_tool_message(msg) is True
 
     def test_model_with_text_parts(self, gemini):
-        msg = ChatMessage(role=MODEL_ROLE, content=[{"text": "Hello"}])
+        msg = {"role": MODEL_ROLE, "content": [{"text": "Hello"}]}
         assert gemini.is_tool_message(msg) is False
 
     def test_model_with_string_content(self, gemini):
-        msg = ChatMessage(role=MODEL_ROLE, content="Just text")
+        msg = {"role": MODEL_ROLE, "content": "Just text"}
         assert gemini.is_tool_message(msg) is False
 
     def test_user_message(self, gemini):
-        msg = ChatMessage(role=USER_ROLE, content="Hello")
+        msg = {"role": USER_ROLE, "content": "Hello"}
         assert gemini.is_tool_message(msg) is False
 
     def test_assistant_message(self, gemini):
-        msg = ChatMessage(role=ASSISTANT_ROLE, content="Response text")
+        msg = {"role": ASSISTANT_ROLE, "content": "Response text"}
         assert gemini.is_tool_message(msg) is False
 
 
@@ -845,27 +842,27 @@ class TestAgenticRoundTrip:
 
         # Step 2: Engine persists the assistant message
         assistant_msg = gemini.create_assistant_message(fc_response)
-        assert assistant_msg.role == MODEL_ROLE
-        assert isinstance(assistant_msg.content, list)
+        assert assistant_msg["role"] == MODEL_ROLE
+        assert isinstance(assistant_msg["content"], list)
 
         # Step 3: Engine executes tool and creates result messages
         results = [
-            ToolResult(
-                tool_call_id=tool_calls[0].id,
-                function_name="get_weather",
-                content="sunny, 72°F",
-            )
+            {
+                "tool_call_id": tool_calls[0]["id"],
+                "function_name": "get_weather",
+                "content": "sunny, 72°F",
+            }
         ]
         conversation = Conversation(id="test", messages=[])
         tool_msgs = gemini.create_tool_result_messages(results, conversation)
         assert len(tool_msgs) == 1
-        assert tool_msgs[0].role == TOOL_ROLE
+        assert tool_msgs[0]["role"] == TOOL_ROLE
 
         # Step 4: Verify these messages serialize correctly for the next _translate_request
         all_messages = [
             {"role": "user", "content": "Weather in Boston?"},
-            assistant_msg.model_dump(exclude_none=True),
-            tool_msgs[0].model_dump(exclude_none=True),
+            {k: v for k, v in assistant_msg.items() if v is not None},
+            {k: v for k, v in tool_msgs[0].items() if v is not None},
         ]
 
         contents, sys = gemini._translate_request(all_messages)
@@ -890,17 +887,17 @@ class TestAgenticRoundTrip:
     def test_is_tool_message_filters_correctly(self, gemini):
         """Verify is_tool_message correctly identifies tool-related messages
         so the engine's _build_output filters them from display."""
-        user_msg = ChatMessage(role=USER_ROLE, content="Weather?")
-        assistant_fc_msg = ChatMessage(
-            role=MODEL_ROLE,
-            content=[
+        user_msg = {"role": USER_ROLE, "content": "Weather?"}
+        assistant_fc_msg = {
+            "role": MODEL_ROLE,
+            "content": [
                 {"function_call": {"name": "get_weather", "args": {"loc": "NYC"}}}
             ],
-        )
-        tool_result_msg = ChatMessage(
-            role=TOOL_ROLE, name="get_weather", content="sunny"
-        )
-        final_msg = ChatMessage(role=ASSISTANT_ROLE, content="It's sunny in NYC!")
+        }
+        tool_result_msg = {
+            "role": TOOL_ROLE, "name": "get_weather", "content": "sunny"
+        }
+        final_msg = {"role": ASSISTANT_ROLE, "content": "It's sunny in NYC!"}
 
         assert gemini.is_tool_message(user_msg) is False
         assert gemini.is_tool_message(assistant_fc_msg) is True

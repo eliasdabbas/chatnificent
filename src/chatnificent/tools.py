@@ -7,8 +7,6 @@ import typing
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List, Optional
 
-from .models import ToolCall, ToolResult
-
 logger = logging.getLogger(__name__)
 
 
@@ -103,13 +101,13 @@ class NoTool(Tool):
     def get_tools(self) -> List[Dict[str, Any]]:
         return []
 
-    def execute_tool_call(self, tool_call: Dict[str, Any]) -> ToolResult:
-        return ToolResult(
-            tool_call_id=tool_call.id,
-            function_name=tool_call.function_name,
-            content="Error: Tool execution attempted, but NoTool handler is active",
-            is_error=True,
-        )
+    def execute_tool_call(self, tool_call: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "tool_call_id": tool_call.get("id", ""),
+            "function_name": tool_call.get("function_name", ""),
+            "content": "Error: Tool execution attempted, but NoTool handler is active",
+            "is_error": True,
+        }
 
 
 class PythonTool(Tool):
@@ -185,7 +183,7 @@ class PythonTool(Tool):
             if param.default == inspect.Parameter.empty:
                 parameters["required"].append(name)
 
-        # Construct the OpenAI format (Canonical)
+        # Construct the standard tool definition
         function_def = {
             "name": func.__name__,
             "description": description,
@@ -234,36 +232,35 @@ class PythonTool(Tool):
                 "description": f"Type: {getattr(py_type, '__name__', 'Any')} (Treated as string)",
             }
 
-    def execute_tool_call(self, tool_call: ToolCall) -> ToolResult:
+    def execute_tool_call(self, tool_call: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the requested function"""
-        func_name = tool_call.function_name
-        tool_call_id = tool_call.id
+        func_name = tool_call["function_name"]
+        tool_call_id = tool_call["id"]
 
         if func_name not in self._registry:
-            return ToolResult(
-                tool_call_id=tool_call_id,
-                function_name=func_name,
-                content=f"Error: Tool '{func_name}' not found.",
-                is_error=True,
-            )
+            return {
+                "tool_call_id": tool_call_id,
+                "function_name": func_name,
+                "content": f"Error: Tool '{func_name}' not found.",
+                "is_error": True,
+            }
 
         func = self._registry[func_name]
-        args = tool_call.get_args_dict()
+        raw_args = tool_call.get("function_args", "{}")
+        try:
+            args = json.loads(raw_args) if raw_args else {}
+        except (json.JSONDecodeError, TypeError):
+            args = {}
 
-        # if not args and tool_call.function_args.strip() not in ["{}", "null"]:
-        if (
-            not args
-            and tool_call.function_args
-            and tool_call.function_args.strip() not in ["{}", "null", ""]
-        ):
-            args = self._attempt_argument_recovery(func, tool_call.function_args)
+        if not args and raw_args and raw_args.strip() not in ["{}", "null", ""]:
+            args = self._attempt_argument_recovery(func, raw_args)
             if args is None:
-                return ToolResult(
-                    tool_call_id=tool_call_id,
-                    function_name=func_name,
-                    content=f"Error: Failed to parse arguments for tool '{func_name}'.",
-                    is_error=True,
-                )
+                return {
+                    "tool_call_id": tool_call_id,
+                    "function_name": func_name,
+                    "content": f"Error: Failed to parse arguments for tool '{func_name}'.",
+                    "is_error": True,
+                }
         if args is None:
             args = {}
         try:
@@ -275,28 +272,28 @@ class PythonTool(Tool):
                     result_str = str(result)
             else:
                 result_str = result
-            return ToolResult(
-                tool_call_id=tool_call_id,
-                function_name=func_name,
-                content=result_str,
-                is_error=False,
-            )
+            return {
+                "tool_call_id": tool_call_id,
+                "function_name": func_name,
+                "content": result_str,
+                "is_error": False,
+            }
         except TypeError as e:
             logger.exception(f"Error during execution of tool '{func_name}'")
-            return ToolResult(
-                tool_call_id=tool_call_id,
-                function_name=func_name,
-                content=f"Error: Invalid arguments provided for tool '{func_name}': {e}",
-                is_error=True,
-            )
+            return {
+                "tool_call_id": tool_call_id,
+                "function_name": func_name,
+                "content": f"Error: Invalid arguments provided for tool '{func_name}': {e}",
+                "is_error": True,
+            }
         except Exception as e:
             logger.exception(f"Error during execution of tool '{func_name}'")
-            return ToolResult(
-                tool_call_id=tool_call_id,
-                function_name=func_name,
-                content=f"Error during execution of tool '{func_name}': {type(e).__name__}: {e}",
-                is_error=True,
-            )
+            return {
+                "tool_call_id": tool_call_id,
+                "function_name": func_name,
+                "content": f"Error during execution of tool '{func_name}': {type(e).__name__}: {e}",
+                "is_error": True,
+            }
 
     def _attempt_argument_recovery(
         self, func: Callable, raw_args: str

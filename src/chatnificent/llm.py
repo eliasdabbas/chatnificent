@@ -12,10 +12,7 @@ from .models import (
     MODEL_ROLE,
     TOOL_ROLE,
     USER_ROLE,
-    ChatMessage,
     Conversation,
-    ToolCall,
-    ToolResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -23,6 +20,12 @@ logger = logging.getLogger(__name__)
 
 class LLM(ABC):
     """Abstract Base Class for all LLM providers."""
+
+    _last_request_payload: Optional[Dict[str, Any]] = None
+
+    def get_last_request_payload(self) -> Optional[Dict[str, Any]]:
+        """Return the exact payload sent in the most recent generate_response() call."""
+        return self._last_request_payload
 
     @abstractmethod
     def generate_response(
@@ -71,8 +74,8 @@ class LLM(ABC):
         """
         pass
 
-    def parse_tool_calls(self, response: Any) -> Optional[List[ToolCall]]:
-        """Translate the native response into the standardized ToolCall format.
+    def parse_tool_calls(self, response: Any) -> Optional[List[Dict[str, Any]]]:
+        """Translate the native response into standardized tool call dicts.
 
         Parameters
         ----------
@@ -81,14 +84,15 @@ class LLM(ABC):
 
         Returns
         -------
-        Optional[List[ToolCall]]
-            A list of standardized ToolCall objects, or None if no tools were called.
+        Optional[List[Dict[str, Any]]]
+            A list of dicts with keys ``id``, ``function_name``, ``function_args``,
+            or None if no tools were called.
 
         """
         return None
 
-    def create_assistant_message(self, response: Any) -> ChatMessage:
-        """Convert the native response into a ChatMessage for persistence.
+    def create_assistant_message(self, response: Any) -> Dict[str, Any]:
+        """Convert the native response into a message dict for persistence.
 
         Parameters
         ----------
@@ -97,34 +101,29 @@ class LLM(ABC):
 
         Returns
         -------
-        ChatMessage
-            A standardized ChatMessage object representing the assistant's response.
+        Dict[str, Any]
+            A message dict representing the assistant's response.
 
         """
         content = self.extract_content(response)
-        return ChatMessage(role=ASSISTANT_ROLE, content=content)
+        return {"role": ASSISTANT_ROLE, "content": content}
 
     def create_tool_result_messages(
-        self, results: List[ToolResult], conversation: Conversation
-    ) -> List[ChatMessage]:
-        """Convert ToolResult objects into ChatMessage instances for persistence.
+        self, results: List[Dict[str, Any]], conversation: Conversation
+    ) -> List[Dict[str, Any]]:
+        """Convert tool result dicts into message dicts for persistence.
 
         Parameters
         ----------
-        results : List[ToolResult]
-            A list of ToolResult objects from executed tools.
+        results : List[Dict[str, Any]]
+            A list of tool result dicts from executed tools.
         conversation : Conversation
             The conversation context, which may be needed by some providers.
 
         Returns
         -------
-        List[ChatMessage]
-            A list of ChatMessage objects to be sent back to the LLM.
-
-        Raises
-        ------
-        NotImplementedError
-            If the provider supports tools but this method is not implemented.
+        List[Dict[str, Any]]
+            A list of message dicts to be sent back to the LLM.
 
         """
         if results:
@@ -137,13 +136,13 @@ class LLM(ABC):
                 )
         return []
 
-    def is_tool_message(self, message: "ChatMessage") -> bool:
-        """Check if a message is a special tool-related message for a provider.
+    def is_tool_message(self, message: Dict[str, Any]) -> bool:
+        """Check if a message dict is a special tool-related message for a provider.
 
         Parameters
         ----------
-        message : ChatMessage
-            The ChatMessage object to check.
+        message : Dict[str, Any]
+            The message dict to check.
 
         Returns
         -------
@@ -190,6 +189,7 @@ class _OpenAICompatible(LLM):
 
         if tools:
             api_kwargs["tools"] = tools
+        self._last_request_payload = api_kwargs
         return self.client.chat.completions.create(**api_kwargs)
 
     def extract_content(self, response: Any) -> Optional[str]:
@@ -201,7 +201,7 @@ class _OpenAICompatible(LLM):
         finish_reason = getattr(choice, "finish_reason", "UNKNOWN")
         return f"Empty response from {self.model} — finish_reason: {finish_reason}"
 
-    def parse_tool_calls(self, response: Any) -> Optional[List[ToolCall]]:
+    def parse_tool_calls(self, response: Any) -> Optional[List[Dict[str, Any]]]:
         if not response.choices:
             return None
         message = response.choices[0].message
@@ -211,43 +211,42 @@ class _OpenAICompatible(LLM):
         for tool_call in message.tool_calls:
             if tool_call.type == "function" and tool_call.function:
                 tool_calls.append(
-                    ToolCall(
-                        id=tool_call.id,
-                        function_name=tool_call.function.name,
-                        function_args=tool_call.function.arguments,
-                    )
+                    {
+                        "id": tool_call.id,
+                        "function_name": tool_call.function.name,
+                        "function_args": tool_call.function.arguments,
+                    }
                 )
         return tool_calls if tool_calls else None
 
-    def create_assistant_message(self, response: Any) -> ChatMessage:
+    def create_assistant_message(self, response: Any) -> Dict[str, Any]:
         if not response.choices:
-            return ChatMessage(role=ASSISTANT_ROLE, content="[No response generated]")
+            return {"role": ASSISTANT_ROLE, "content": "[No response generated]"}
         message = response.choices[0].message
         raw_tool_calls = None
         if hasattr(message, "tool_calls") and message.tool_calls:
             raw_tool_calls = [tc.model_dump() for tc in message.tool_calls]
-        return ChatMessage(
-            role=ASSISTANT_ROLE,
-            content=message.content,
-            tool_calls=raw_tool_calls,
-        )
+        msg = {"role": ASSISTANT_ROLE, "content": message.content}
+        if raw_tool_calls:
+            msg["tool_calls"] = raw_tool_calls
+        return msg
 
     def create_tool_result_messages(
-        self, results: List[ToolResult], conversation: Conversation
-    ) -> List[ChatMessage]:
+        self, results: List[Dict[str, Any]], conversation: Conversation
+    ) -> List[Dict[str, Any]]:
         messages = []
         for result in results:
             messages.append(
-                ChatMessage(
-                    role=TOOL_ROLE,
-                    content=result.content,
-                    tool_call_id=result.tool_call_id,
-                )
+                {
+                    "role": TOOL_ROLE,
+                    "content": result["content"],
+                    "tool_call_id": result["tool_call_id"],
+                }
             )
         return messages
 
-    def is_tool_message(self, message: "ChatMessage") -> bool:
-        return message.role == TOOL_ROLE
+    def is_tool_message(self, message: Dict[str, Any]) -> bool:
+        return message.get("role") == TOOL_ROLE
 
 
 class OpenAI(_OpenAICompatible):
@@ -421,7 +420,7 @@ class Anthropic(LLM):
     def _translate_tool_schema(
         self, tools: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Translate OpenAI tool schema to Anthropic's format."""
+        """Translate standard tool definitions to Anthropic's native format."""
         translated_tools = []
         for tool in tools:
             if tool.get("type") == "function" and "function" in tool:
@@ -460,6 +459,7 @@ class Anthropic(LLM):
         if tools:
             api_kwargs["tools"] = self._translate_tool_schema(tools)
 
+        self._last_request_payload = api_kwargs
         return self.client.messages.create(**api_kwargs)
 
     def extract_content(self, response: Any) -> Optional[str]:
@@ -471,50 +471,50 @@ class Anthropic(LLM):
                 return block.text
         return None
 
-    def parse_tool_calls(self, response: Any) -> Optional[List[ToolCall]]:
+    def parse_tool_calls(self, response: Any) -> Optional[List[Dict[str, Any]]]:
         if response.stop_reason != "tool_use":
             return None
         tool_calls = []
         for block in response.content:
             if block.type == "tool_use":
                 tool_calls.append(
-                    ToolCall(
-                        id=block.id,
-                        function_name=block.name,
-                        function_args=json.dumps(block.input),
-                    )
+                    {
+                        "id": block.id,
+                        "function_name": block.name,
+                        "function_args": json.dumps(block.input),
+                    }
                 )
         return tool_calls if tool_calls else None
 
-    def create_assistant_message(self, response: Any) -> ChatMessage:
+    def create_assistant_message(self, response: Any) -> Dict[str, Any]:
         if response.stop_reason == "tool_use":
-            return ChatMessage(
-                role=ASSISTANT_ROLE, content=response.model_dump()["content"]
-            )
-        return ChatMessage(
-            role=ASSISTANT_ROLE,
-            content=self.extract_content(response),
-        )
+            return {
+                "role": ASSISTANT_ROLE,
+                "content": response.model_dump()["content"],
+            }
+        return {
+            "role": ASSISTANT_ROLE,
+            "content": self.extract_content(response),
+        }
 
     def create_tool_result_messages(
-        self, results: List[ToolResult], conversation: "Conversation"
-    ) -> List[ChatMessage]:
+        self, results: List[Dict[str, Any]], conversation: Conversation
+    ) -> List[Dict[str, Any]]:
         tool_result_content = []
         for result in results:
             tool_result_content.append(
                 {
                     "type": "tool_result",
-                    "tool_use_id": result.tool_call_id,
-                    "content": result.content,
-                    "is_error": result.is_error,
+                    "tool_use_id": result["tool_call_id"],
+                    "content": result["content"],
+                    "is_error": result.get("is_error", False),
                 }
             )
-        return [ChatMessage(role=USER_ROLE, content=tool_result_content)]
+        return [{"role": USER_ROLE, "content": tool_result_content}]
 
-    def is_tool_message(self, message: "ChatMessage") -> bool:
-        message_dict = message.model_dump()
-        content_data = message_dict.get("content")
-        role = message_dict.get("role")
+    def is_tool_message(self, message: Dict[str, Any]) -> bool:
+        content_data = message.get("content")
+        role = message.get("role")
 
         if not isinstance(content_data, list):
             return False
@@ -602,7 +602,7 @@ class Gemini(LLM):
         self.default_params = generation_kwargs
 
     def _translate_request(self, messages: List[Dict[str, Any]]) -> tuple:
-        """Translate OpenAI-format messages to google-genai Content objects.
+        """Translate stored message dicts to google-genai Content objects.
 
         Returns
         -------
@@ -682,7 +682,7 @@ class Gemini(LLM):
         return parts
 
     def _translate_tool_schema(self, tools: List[Dict[str, Any]]) -> List[Any]:
-        """Translate OpenAI tool schema to Gemini FunctionDeclaration format."""
+        """Translate standard tool definitions to Gemini FunctionDeclaration format."""
         types = self._genai_types
         declarations = []
         for tool in tools:
@@ -721,6 +721,12 @@ class Gemini(LLM):
 
         config = types.GenerateContentConfig(**config_dict) if config_dict else None
 
+        self._last_request_payload = {
+            "model": model or self.model,
+            "messages": messages,
+            "config": config_dict,
+        }
+
         response = self.client.models.generate_content(
             model=model or self.model,
             contents=contents,
@@ -750,7 +756,7 @@ class Gemini(LLM):
             )
             return None
 
-    def parse_tool_calls(self, response: Any) -> Optional[List[ToolCall]]:
+    def parse_tool_calls(self, response: Any) -> Optional[List[Dict[str, Any]]]:
         candidates = response.get("candidates") or []
         if not candidates:
             return None
@@ -763,49 +769,51 @@ class Gemini(LLM):
         tool_calls = []
         for fc in function_calls:
             tool_calls.append(
-                ToolCall(
-                    id=f"call_{secrets.token_hex(8)}",
-                    function_name=fc.get("name", ""),
-                    function_args=json.dumps(fc.get("args", {})),
-                )
+                {
+                    "id": f"call_{secrets.token_hex(8)}",
+                    "function_name": fc.get("name", ""),
+                    "function_args": json.dumps(fc.get("args", {})),
+                }
             )
         return tool_calls if tool_calls else None
 
-    def create_assistant_message(self, response: Any) -> ChatMessage:
+    def create_assistant_message(self, response: Any) -> Dict[str, Any]:
         candidates = response.get("candidates") or []
         if not candidates:
-            return ChatMessage(role=MODEL_ROLE, content="[No response generated]")
+            return {"role": MODEL_ROLE, "content": "[No response generated]"}
 
         parts = (candidates[0].get("content") or {}).get("parts") or []
         if not parts:
-            return ChatMessage(role=MODEL_ROLE, content="[No response generated]")
+            return {"role": MODEL_ROLE, "content": "[No response generated]"}
 
         cleaned_parts = [
             {k: v for k, v in part.items() if v is not None} for part in parts
         ]
-        return ChatMessage(role=MODEL_ROLE, content=cleaned_parts)
+        return {"role": MODEL_ROLE, "content": cleaned_parts}
 
     def create_tool_result_messages(
-        self, results: List[ToolResult], conversation: "Conversation"
-    ) -> List[ChatMessage]:
+        self, results: List[Dict[str, Any]], conversation: Conversation
+    ) -> List[Dict[str, Any]]:
         messages = []
         for result in results:
             messages.append(
-                ChatMessage(
-                    role=TOOL_ROLE,
-                    name=result.function_name,
-                    content=result.content,
-                )
+                {
+                    "role": TOOL_ROLE,
+                    "name": result["function_name"],
+                    "content": result["content"],
+                }
             )
         return messages
 
-    def is_tool_message(self, message: "ChatMessage") -> bool:
-        if message.role == TOOL_ROLE:
+    def is_tool_message(self, message: Dict[str, Any]) -> bool:
+        if message.get("role") == TOOL_ROLE:
             return True
-        if message.role == MODEL_ROLE and isinstance(message.content, list):
+        if message.get("role") == MODEL_ROLE and isinstance(
+            message.get("content"), list
+        ):
             return any(
                 isinstance(item, dict) and item.get("function_call") is not None
-                for item in message.content
+                for item in message["content"]
             )
         return False
 
@@ -825,6 +833,7 @@ class Ollama(LLM):
         }
         if tools:
             api_kwargs["tools"] = tools
+        self._last_request_payload = api_kwargs
         return self.client.chat(**api_kwargs)
 
     def extract_content(self, response: Any) -> Optional[str]:
@@ -834,7 +843,7 @@ class Ollama(LLM):
         done_reason = response.get("done_reason", "UNKNOWN")
         return f"Empty response from {self.model} — done_reason: {done_reason}"
 
-    def parse_tool_calls(self, response: Any) -> Optional[List[ToolCall]]:
+    def parse_tool_calls(self, response: Any) -> Optional[List[Dict[str, Any]]]:
         message = response.get("message", {})
         raw_tool_calls = message.get("tool_calls")
         if not raw_tool_calls:
@@ -848,33 +857,35 @@ class Ollama(LLM):
                 tool_id = f"ollama-tool-call-{secrets.token_hex(8)}"
                 args = function_data.get("arguments", {})
                 tool_calls.append(
-                    ToolCall(
-                        id=tool_id,
-                        function_name=function_data.get("name", ""),
-                        function_args=json.dumps(args),
-                    )
+                    {
+                        "id": tool_id,
+                        "function_name": function_data.get("name", ""),
+                        "function_args": json.dumps(args),
+                    }
                 )
         return tool_calls if tool_calls else None
 
-    def create_assistant_message(self, response: Any) -> ChatMessage:
+    def create_assistant_message(self, response: Any) -> Dict[str, Any]:
         message = response.get("message", {})
-        return ChatMessage(
-            role=ASSISTANT_ROLE,
-            content=message.get("content", ""),
-            tool_calls=message.get("tool_calls"),
-        )
+        msg = {
+            "role": ASSISTANT_ROLE,
+            "content": message.get("content", ""),
+        }
+        if message.get("tool_calls"):
+            msg["tool_calls"] = message["tool_calls"]
+        return msg
 
     def create_tool_result_messages(
-        self, results: List[ToolResult]
-    ) -> List[ChatMessage]:
+        self, results: List[Dict[str, Any]], conversation: Conversation
+    ) -> List[Dict[str, Any]]:
         messages = []
         for result in results:
             messages.append(
-                ChatMessage(
-                    role=TOOL_ROLE,
-                    content=result.content,
-                    tool_call_id=result.tool_call_id,
-                )
+                {
+                    "role": TOOL_ROLE,
+                    "content": result["content"],
+                    "tool_call_id": result["tool_call_id"],
+                }
             )
         return messages
 
@@ -921,6 +932,11 @@ class Echo(LLM):
 
         if not user_prompt:
             user_prompt = "No user message found."
+
+        self._last_request_payload = {
+            "model": model or self.model,
+            "messages": messages,
+        }
 
         content = f"**Echo LLM - static response**\n\n_Your prompt:_\n\n{user_prompt}"
 

@@ -169,9 +169,7 @@ class File(Store):
                 convo_dir.mkdir(exist_ok=True)
                 messages_file = convo_dir / "messages.json"
 
-                messages_data = [msg.model_dump() for msg in conversation.messages]
-
-                self._atomic_write_json(messages_file, messages_data)
+                self._atomic_write_json(messages_file, conversation.messages)
 
             except (PermissionError, OSError) as e:
                 raise RuntimeError(
@@ -192,7 +190,26 @@ class File(Store):
 
             except (PermissionError, OSError) as e:
                 # Log the error - raw API response saving is critical for debugging
-                logger.error(f"Failed to save raw API response for conversation {convo_id}: {e}")
+                logger.error(
+                    f"Failed to save raw API response for conversation {convo_id}: {e}"
+                )
+
+    def save_raw_api_request(self, user_id: str, convo_id: str, raw_request: dict):
+        """Append raw API request to JSONL file."""
+        lock = self._get_write_lock(user_id, convo_id)
+
+        with lock:
+            try:
+                convo_dir = self._get_conversation_dir(user_id, convo_id)
+                convo_dir.mkdir(exist_ok=True)
+                raw_file = convo_dir / "raw_api_requests.jsonl"
+
+                self._append_jsonl(raw_file, raw_request)
+
+            except (PermissionError, OSError) as e:
+                logger.error(
+                    f"Failed to save raw API request for conversation {convo_id}: {e}"
+                )
 
     def list_conversations(self, user_id: str) -> List[str]:
         """List all conversation IDs for user by scanning directories."""
@@ -305,6 +322,17 @@ class SQLite(Store):
                 )
             """)
 
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS raw_api_requests (
+                    user_id TEXT,
+                    conversation_id TEXT,
+                    request_data TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id, conversation_id) 
+                        REFERENCES conversations(user_id, conversation_id)
+                )
+            """)
+
             conn.commit()
 
     def _ensure_user_exists(self, user_id: str):
@@ -337,10 +365,7 @@ class SQLite(Store):
                 if not rows:
                     return None
 
-                # Convert to ChatMessage objects
-                from .models import ChatMessage
-
-                messages = [ChatMessage(role=row[0], content=row[1]) for row in rows]
+                messages = [{"role": row[0], "content": row[1]} for row in rows]
 
                 return Conversation(id=convo_id, messages=messages)
 
@@ -378,13 +403,16 @@ class SQLite(Store):
 
                 # Insert all messages
                 for i, message in enumerate(conversation.messages):
+                    content = message.get("content", "")
+                    if not isinstance(content, str):
+                        content = json.dumps(content)
                     cursor.execute(
                         """
                         INSERT INTO messages 
                         (user_id, conversation_id, message_index, role, content)
                         VALUES (?, ?, ?, ?, ?)
                     """,
-                        (user_id, conversation.id, i, message.role, message.content),
+                        (user_id, conversation.id, i, message.get("role", ""), content),
                     )
 
                 conn.commit()
@@ -411,6 +439,26 @@ class SQLite(Store):
 
         except sqlite3.Error:
             # Non-critical - don't fail the main operation
+            pass
+
+    def save_raw_api_request(self, user_id: str, convo_id: str, raw_request: dict):
+        """Save raw API request to database."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+
+                cursor.execute(
+                    """
+                    INSERT INTO raw_api_requests 
+                    (user_id, conversation_id, request_data)
+                    VALUES (?, ?, ?)
+                """,
+                    (user_id, convo_id, json.dumps(raw_request)),
+                )
+
+                conn.commit()
+
+        except sqlite3.Error:
             pass
 
     def list_conversations(self, user_id: str) -> List[str]:

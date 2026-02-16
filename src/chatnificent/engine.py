@@ -21,14 +21,10 @@ except ImportError:
 
 from .models import (
     ASSISTANT_ROLE,
-    MODEL_ROLE,
     SYSTEM_ROLE,
     TOOL_ROLE,
     USER_ROLE,
-    ChatMessage,
     Conversation,
-    ToolCall,
-    ToolResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,11 +80,12 @@ class Synchronous(Engine):
             self._after_retrieval(retrieval_context)
 
             if retrieval_context and not any(
-                msg.role == SYSTEM_ROLE for msg in conversation.messages
+                msg.get("role") == SYSTEM_ROLE for msg in conversation.messages
             ):
-                system_message = ChatMessage(
-                    role=SYSTEM_ROLE, content=f"Context:\n---\n{retrieval_context}\n---"
-                )
+                system_message = {
+                    "role": SYSTEM_ROLE,
+                    "content": f"Context:\n---\n{retrieval_context}\n---",
+                }
                 conversation.messages.insert(0, system_message)
 
             # 3. Agentic Loop
@@ -102,6 +99,9 @@ class Synchronous(Engine):
                 # Generation
                 llm_response = self._generate_response(llm_payload)
                 self._after_llm_call(llm_response)
+
+                # Persist raw request/response pair for this turn
+                self._save_raw_exchange(user_id, conversation.id, llm_response)
 
                 # Parsing (Adapter)
                 tool_calls = self.app.llm.parse_tool_calls(llm_response)
@@ -133,16 +133,13 @@ class Synchronous(Engine):
             # 4. Finalization
             # Add the final assistant message if the loop broke normally and a response exists
             if not tool_calls and llm_response is not None:
-                # Use the LLM adapter to create the final message with text content
                 text_content = self.app.llm.extract_content(llm_response)
-                assistant_message = ChatMessage(
-                    role=ASSISTANT_ROLE, content=text_content
-                )
+                assistant_message = {"role": ASSISTANT_ROLE, "content": text_content}
                 conversation.messages.append(assistant_message)
 
             # 5. Persistence
             self._before_save(conversation)
-            self._save_conversation(conversation, user_id, llm_response)
+            self._save_conversation(conversation, user_id)
 
             # 6. Output
             return self._build_output(conversation, convo_id_from_url, user_id)
@@ -168,7 +165,7 @@ class Synchronous(Engine):
     def _add_user_message(
         self, conversation: Conversation, user_input: str
     ) -> Conversation:
-        user_message = ChatMessage(role=USER_ROLE, content=user_input.strip())
+        user_message = {"role": USER_ROLE, "content": user_input.strip()}
         conversation.messages.append(user_message)
         return conversation
 
@@ -182,8 +179,7 @@ class Synchronous(Engine):
     def _prepare_llm_payload(
         self, conversation: Conversation, retrieval_context: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        messages = [msg.model_dump(exclude_none=True) for msg in conversation.messages]
-        return messages
+        return list(conversation.messages)
 
     def _generate_response(self, llm_payload: List[Dict[str, Any]]) -> Any:
         """[Seam] Executes the synchronous call to the LLM pillar."""
@@ -194,11 +190,10 @@ class Synchronous(Engine):
         else:
             return self.app.llm.generate_response(llm_payload)
 
-    def _execute_tools(self, tool_calls: List[ToolCall]) -> List[ToolResult]:
+    def _execute_tools(self, tool_calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """[Seam] Executes tools using the standardized protocol."""
         results = []
         for tool_call in tool_calls:
-            # The Tool pillar handles execution and internal error management.
             result = self.app.tools.execute_tool_call(tool_call)
             results.append(result)
         return results
@@ -206,16 +201,23 @@ class Synchronous(Engine):
     def _handle_max_turns(self, conversation: Conversation):
         """[Seam] Handles the scenario where the agent loop reaches the limit."""
         logger.warning(f"Max agentic turns reached for conversation {conversation.id}")
-        limit_message = ChatMessage(
-            role=ASSISTANT_ROLE,
-            content="I reached the maximum number of steps allowed. Please try rephrasing or simplifying your request.",
-        )
+        limit_message = {
+            "role": ASSISTANT_ROLE,
+            "content": "I reached the maximum number of steps allowed. Please try rephrasing or simplifying your request.",
+        }
         conversation.messages.append(limit_message)
 
-    def _save_conversation(
-        self, conversation: Conversation, user_id: str, llm_response: Any
-    ) -> None:
+    def _save_conversation(self, conversation: Conversation, user_id: str) -> None:
         self.app.store.save_conversation(user_id, conversation)
+
+    def _save_raw_exchange(
+        self, user_id: str, convo_id: str, llm_response: Any
+    ) -> None:
+        """[Seam] Persist the raw API request/response pair for one LLM call."""
+        request_payload = self.app.llm.get_last_request_payload()
+        if hasattr(self.app.store, "save_raw_api_request") and request_payload:
+            self.app.store.save_raw_api_request(user_id, convo_id, request_payload)
+
         if hasattr(self.app.store, "save_raw_api_response") and llm_response:
             try:
                 response_to_save = llm_response.model_dump()
@@ -224,7 +226,7 @@ class Synchronous(Engine):
 
             if isinstance(response_to_save, (dict, list)):
                 self.app.store.save_raw_api_response(
-                    user_id, conversation.id, response_to_save
+                    user_id, convo_id, response_to_save
                 )
 
     def _build_output(
@@ -235,9 +237,9 @@ class Synchronous(Engine):
             for msg in conversation.messages
             if (
                 not self.app.llm.is_tool_message(msg)
-                and msg.role != SYSTEM_ROLE
-                and msg.content is not None
-                and str(msg.content).strip() != ""
+                and msg.get("role") != SYSTEM_ROLE
+                and msg.get("content") is not None
+                and str(msg.get("content", "")).strip() != ""
             )
         ]
         formatted_messages = self.app.layout_builder.build_messages(display_messages)
@@ -281,16 +283,16 @@ class Synchronous(Engine):
 
         if conversation:
             # If we have a conversation context, append error and use the standard output builder
-            error_response = ChatMessage(role=ASSISTANT_ROLE, content=error_message)
+            error_response = {"role": ASSISTANT_ROLE, "content": error_message}
             conversation.messages.append(error_response)
             # Pass None for llm_response as the call failed
-            self._save_conversation(conversation, user_id, None)
+            self._save_conversation(conversation, user_id)
             # Use the existing conversation ID for the URL context (convo_id_from_url)
             return self._build_output(conversation, conversation.id, user_id)
         else:
             # If the error occurred before the conversation was established.
             # CRITICAL: We must format the error using the layout builder to return Dash components.
-            error_msg_obj = ChatMessage(role=ASSISTANT_ROLE, content=error_message)
+            error_msg_obj = {"role": ASSISTANT_ROLE, "content": error_message}
             formatted_error = self.app.layout_builder.build_messages([error_msg_obj])
 
             return {

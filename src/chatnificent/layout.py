@@ -2,13 +2,13 @@
 
 import unicodedata
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 import dash.dcc as dcc
 import dash.html as html
 from dash.development.base_component import Component as DashComponent
 
-from .models import USER_ROLE, ChatMessage
+from .models import USER_ROLE
 
 
 class Layout(ABC):
@@ -41,7 +41,7 @@ class Layout(ABC):
         pass
 
     @abstractmethod
-    def build_messages(self, messages: List[ChatMessage]) -> List[DashComponent]:
+    def build_messages(self, messages: List[Dict[str, Any]]) -> List[DashComponent]:
         """
         Render messages for display in chat area.
 
@@ -384,24 +384,26 @@ class Bootstrap(Layout):
             },
         )
 
-    def build_messages(self, messages: List[ChatMessage]) -> List[DashComponent]:
+    def build_messages(self, messages: List[Dict[str, Any]]) -> List[DashComponent]:
         """Build all message components for display."""
         if not messages:
             return []
         return [self.build_message(msg, i) for i, msg in enumerate(messages)]
 
-    def build_message(self, message: ChatMessage, index: int) -> DashComponent:
+    def build_message(self, message: Dict[str, Any], index: int) -> DashComponent:
         """Build single message component."""
-        direction = "rtl" if self._is_rtl(message.content) else "ltr"
-        if message.role == USER_ROLE:
+        content = message.get("content", "")
+        direction = "rtl" if self._is_rtl(content) else "ltr"
+        if message.get("role") == USER_ROLE:
             return self.build_user_message(message, index, direction)
         else:
             return self.build_assistant_message(message, index, direction)
 
     def build_user_message(
-        self, message: ChatMessage, index: int, direction: str = "ltr"
+        self, message: Dict[str, Any], index: int, direction: str = "ltr"
     ) -> DashComponent:
         """Build user message with Bootstrap styling - right-aligned with copy button."""
+        content = message.get("content", "")
         return html.Div(
             className="mb-3",
             dir=direction,
@@ -413,7 +415,7 @@ class Bootstrap(Layout):
                                 html.Div(
                                     [
                                         dcc.Markdown(
-                                            message.content,
+                                            content,
                                             id=f"user_msg_{index}",
                                             className="p-3 rounded-3 bg-light table",
                                             style={
@@ -433,14 +435,15 @@ class Bootstrap(Layout):
                         )
                     ]
                 ),
-                self.build_copy_button(message.content, "user", index),
+                self.build_copy_button(content, "user", index),
             ],
         )
 
     def build_assistant_message(
-        self, message: ChatMessage, index: int, direction: str = "ltr"
+        self, message: Dict[str, Any], index: int, direction: str = "ltr"
     ) -> DashComponent:
         """Build assistant message with Bootstrap styling - left-aligned with copy button."""
+        content = message.get("content", "")
         return html.Div(
             className="mb-3",
             dir=direction,
@@ -452,7 +455,7 @@ class Bootstrap(Layout):
                                 html.Div(
                                     [
                                         dcc.Markdown(
-                                            message.content,
+                                            content,
                                             id=f"assistant_msg_{index}",
                                             className="p-3 table",
                                             style={
@@ -467,7 +470,7 @@ class Bootstrap(Layout):
                         )
                     ]
                 ),
-                self.build_copy_button(message.content, "assistant", index),
+                self.build_copy_button(content, "assistant", index),
             ],
         )
 
@@ -661,30 +664,32 @@ class Mantine(Layout):
             style={"zIndex": 1000},
         )
 
-    def build_messages(self, messages: List[ChatMessage]) -> List[DashComponent]:
+    def build_messages(self, messages: List[Dict[str, Any]]) -> List[DashComponent]:
         """Build all message components for display."""
         if not messages:
             return []
 
         return [self.build_message(msg, i) for i, msg in enumerate(messages)]
 
-    def build_message(self, message: ChatMessage, index: int) -> DashComponent:
+    def build_message(self, message: Dict[str, Any], index: int) -> DashComponent:
         """Build single message component."""
-        direction = "rtl" if self._is_rtl(message.content) else "ltr"
-        if message.role == USER_ROLE:
+        content = message.get("content", "")
+        direction = "rtl" if self._is_rtl(content) else "ltr"
+        if message.get("role") == USER_ROLE:
             return self.build_user_message(message, index, direction)
         else:
             return self.build_assistant_message(message, index, direction)
 
     def build_user_message(
-        self, message: ChatMessage, index: int, direction: str = "ltr"
+        self, message: Dict[str, Any], index: int, direction: str = "ltr"
     ) -> DashComponent:
         """User message - direct translation from Bootstrap with Mantine colors."""
+        content = message.get("content", "")
         return html.Div(
             style={"marginBottom": "16px", "direction": direction},
             children=[
                 dcc.Markdown(
-                    message.content,
+                    content,
                     id=f"user_msg_{index}",
                     style={
                         "padding": "8px",
@@ -696,26 +701,26 @@ class Mantine(Layout):
                         "maxWidth": "66.67%",
                     },
                 ),
-                self.build_copy_button(message.content, "user", index),
+                self.build_copy_button(content, "user", index),
             ],
         )
 
     def build_assistant_message(
-        self, message: ChatMessage, index: int, direction: str = "ltr"
+        self, message: Dict[str, Any], index: int, direction: str = "ltr"
     ) -> DashComponent:
         """Assistant message - direct translation from Bootstrap."""
-
+        content = message.get("content", "")
         return html.Div(
             style={"marginBottom": "8px", "direction": direction},
             children=[
                 dcc.Markdown(
-                    message.content,
+                    content,
                     id=f"assistant_msg_{index}",
                     style={
                         "wordWrap": "break-word",
                     },
                 ),
-                self.build_copy_button(message.content, "assistant", index),
+                self.build_copy_button(content, "assistant", index),
             ],
         )
 
@@ -941,23 +946,25 @@ class Minimal(Layout):
         )
 
     # ===== MESSAGE FORMATTING METHODS =====
-    def build_messages(self, messages: List[ChatMessage]) -> List[DashComponent]:
+    def build_messages(self, messages: List[Dict[str, Any]]) -> List[DashComponent]:
         """Build simple message list."""
         if not messages:
             return []
         return [self.build_message(msg, i) for i, msg in enumerate(messages)]
 
-    def build_message(self, message: ChatMessage, index: int) -> DashComponent:
+    def build_message(self, message: Dict[str, Any], index: int) -> DashComponent:
         """Build simple message component."""
-        direction = "rtl" if self._is_rtl(message.content) else "ltr"
-        if message.role == USER_ROLE:
+        content = message.get("content", "")
+        direction = "rtl" if self._is_rtl(content) else "ltr"
+        if message.get("role") == USER_ROLE:
             return self.build_user_message(message, index, direction)
         else:
             return self.build_assistant_message(message, index, direction)
 
     def build_user_message(
-        self, message: ChatMessage, index: int, direction: str = "ltr"
+        self, message: Dict[str, Any], index: int, direction: str = "ltr"
     ) -> DashComponent:
+        content = message.get("content", "")
         return html.Div(
             className="user-message mb-3",
             dir=direction,
@@ -965,16 +972,17 @@ class Minimal(Layout):
                 html.Div(
                     className="user-message-content",
                     children=[
-                        dcc.Markdown(message.content, id=f"user_msg_{index}"),
-                        self.build_copy_button(message.content, "user", index),
+                        dcc.Markdown(content, id=f"user_msg_{index}"),
+                        self.build_copy_button(content, "user", index),
                     ],
                 )
             ],
         )
 
     def build_assistant_message(
-        self, message: ChatMessage, index: int, direction: str = "ltr"
+        self, message: Dict[str, Any], index: int, direction: str = "ltr"
     ) -> DashComponent:
+        content = message.get("content", "")
         return html.Div(
             className="assistant-message mb-3",
             dir=direction,
@@ -982,8 +990,8 @@ class Minimal(Layout):
                 html.Div(
                     className="assistant-message-content",
                     children=[
-                        dcc.Markdown(message.content, id=f"assistant_msg_{index}"),
-                        self.build_copy_button(message.content, "assistant", index),
+                        dcc.Markdown(content, id=f"assistant_msg_{index}"),
+                        self.build_copy_button(content, "assistant", index),
                     ],
                 )
             ],

@@ -47,9 +47,7 @@ def register_callbacks(app):
                 f"Error resolving session context: {str(e)}. Please refresh the page."
             )
 
-            from .models import ASSISTANT_ROLE, ChatMessage
-
-            error_msg_obj = ChatMessage(role=ASSISTANT_ROLE, content=error_message)
+            error_msg_obj = {"role": ASSISTANT_ROLE, "content": error_message}
             formatted_error = app.layout_builder.build_messages([error_msg_obj])
 
             return (
@@ -94,7 +92,7 @@ def register_callbacks(app):
             filtered_messages = [
                 msg
                 for msg in conversation.messages
-                if msg.role in [USER_ROLE, ASSISTANT_ROLE]
+                if msg.get("role") in [USER_ROLE, ASSISTANT_ROLE]
             ]
             if not filtered_messages:
                 return []
@@ -180,12 +178,13 @@ def register_callbacks(app):
 
                 if conv and conv.messages:
                     first_user_msg = next(
-                        (msg for msg in conv.messages if msg.role == USER_ROLE), None
+                        (msg for msg in conv.messages if msg.get("role") == USER_ROLE), None
                     )
                     if first_user_msg:
                         # Handle potential non-string content for title display
-                        if isinstance(first_user_msg.content, str):
-                            title_content = first_user_msg.content
+                        content = first_user_msg.get("content", "")
+                        if isinstance(content, str):
+                            title_content = content
                         else:
                             # Fallback for structured content (e.g. tool results)
                             title_content = "[Structured Content]"

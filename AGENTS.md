@@ -8,8 +8,8 @@
 > Minimally complete. Maximally hackable.
 
 ```python
-from chatnificent import Chatnificent
-app = Chatnificent()
+import chatnificent as chat
+app = chat.Chatnificent()
 app.run(debug=True)  # Visit http://127.0.0.1:8050
 ```
 
@@ -60,7 +60,7 @@ class LLM(ABC):
 
 # Usage
 import chatnificent as chat
-app = Chatnificent(llm=chat.llm.Anthropic(api_key="sk-..."))
+app = chat.Chatnificent(llm=chat.llm.Anthropic(api_key="sk-..."))
 ```
 
 ### 2. Store Pillar (`store.py`)
@@ -75,7 +75,7 @@ class Store(ABC):
         """Load conversation from storage."""
 
 # Usage
-app = Chatnificent(store=chat.store.SQLite(db_path="chats.db"))
+app = chat.Chatnificent(store=chat.store.SQLite(db_path="chats.db"))
 ```
 
 ### 3. Layout Pillar (`layout.py`)
@@ -123,35 +123,55 @@ class CustomEngine(chat.engine.Synchronous):
         payload.insert(0, {"role": "system", "content": "Be concise."})
         return payload
 
-app = Chatnificent(engine=CustomEngine())
+app = chat.Chatnificent(engine=CustomEngine())
 ```
 
 ## Data Models (`models.py`)
 
-### ChatMessage - Enhanced for Tool Calling
+### Native Message Dicts + Conversation Dataclass
 ```python
-class ChatMessage(BaseModel):
-    role: Role  # "system" | "user" | "assistant" | "tool" | "model"
-    content: MessageContent  # str | List[Dict] | None
-    tool_calls: Optional[List[Dict[str, Any]]] = None
-    tool_call_id: Optional[str] = None
-    name: Optional[str] = None
+# Role constants
+USER_ROLE = "user"
+ASSISTANT_ROLE = "assistant"
+SYSTEM_ROLE = "system"
+TOOL_ROLE = "tool"
+MODEL_ROLE = "model"  # Gemini uses "model" instead of "assistant"
 
-class Conversation(BaseModel):
+@dataclass
+class Conversation:
     id: str
-    messages: List[ChatMessage] = []
+    messages: list  # List[Dict[str, Any]] — provider-native dicts
+
+    def copy(self, deep: bool = False) -> "Conversation": ...
 ```
+
+Messages are **plain dicts** in each provider's native format. There is no
+universal message schema — an OpenAI message looks different from an Anthropic
+one, and that's intentional. The LLM pillar owns the shape of its own messages
+via `create_assistant_message()` and `create_tool_result_messages()`.
 
 ## Integration and Orchestration
 
-To support any LLM provider (API formats, conversation structures, etc.), Chatnificent uses **OpenAI formats as the universal standard**. Each LLM concrete class translates from/to that format.
+Chatnificent stores messages in each **provider's native dict format**. There is no universal intermediary format — an OpenAI conversation and an Anthropic conversation look different on disk, and that's by design.
 
-This enables the engine to work seamlessly without worrying about how to ingest, display, or process any message or tool call—it delegates this to the respective provider who has the necessary translation methods.
+The engine never inspects message internals. It only touches the minimal universal contract:
+- Adds user messages via `{"role": "user", "content": text}`
+- Delegates everything else to the LLM pillar's abstract methods
+
+Each LLM concrete class is responsible for:
+- `create_assistant_message()` — converting its native response into a persistable dict
+- `create_tool_result_messages()` — formatting tool results for its own API
+- `extract_content()` — pulling display text from its native response
+- `is_tool_message()` — identifying its own tool-related messages
+
+The **Tools** pillar outputs a standard JSON Schema tool definition. Each LLM's
+`_translate_tool_schema()` converts that into the provider's native tool format
+before calling the API.
 
 This approach:
-- Enables easy extension to add any LLM
-- Uses the most popular Python package in the LLM space (`openai`)
-- Provides a common interface for all providers
+- Preserves full provider fidelity (thinking blocks, citations, etc.)
+- Avoids lossy format translations
+- Raw API responses are also saved to `raw_api_requests.jsonl` for auditing
 
 ## Customization Patterns
 
@@ -161,7 +181,7 @@ This approach:
 ```python
 import chatnificent as chat
 
-app = Chatnificent(
+app = chat.Chatnificent(
     llm=chat.llm.Anthropic(model="claude-3-5-sonnet-20240620"),
     store=chat.store.File(directory="./research_chats"),
     layout=chat.layout.Minimal(),  # Clean, distraction-free
@@ -171,7 +191,7 @@ app = Chatnificent(
 
 **Enterprise Setup:**
 ```python
-app = Chatnificent(
+app = chat.Chatnificent(
     llm=chat.llm.OpenAI(),
     store=chat.store.SQLite(db_path="enterprise.db"),
     auth=chat.auth.SingleUser(user_id="corp_user"),
@@ -181,7 +201,7 @@ app = Chatnificent(
 
 **Development Assistant:**
 ```python
-app = Chatnificent(
+app = chat.Chatnificent(
     llm=chat.llm.Ollama(model="llama3"),  # Local model
     store=chat.store.InMemory(),  # Fast prototyping
     tools=chat.tools.PythonTool(),  # Code execution
@@ -191,7 +211,7 @@ app = Chatnificent(
 
 **Multilingual Support:**
 ```python
-app = Chatnificent(
+app = chat.Chatnificent(
     llm=chat.llm.Gemini(model="gemini-pro"),  # Multilingual model
     store=chat.store.SQLite(db_path="global.db"),
     auth=chat.auth.SingleUser(user_id="global_user"),
@@ -202,22 +222,28 @@ app = Chatnificent(
 ### Custom Pillar Implementation
 
 ```python
+import json
+
 class RedisStore(chat.store.Store):
     def __init__(self, redis_url: str):
         self.client = redis.from_url(redis_url)
     
     def save_conversation(self, user_id: str, conversation: Conversation):
         key = f"chat:{user_id}:{conversation.id}"
-        self.client.set(key, conversation.model_dump_json())
+        data = {"id": conversation.id, "messages": conversation.messages}
+        self.client.set(key, json.dumps(data))
     
     def load_conversation(self, user_id: str, convo_id: str):
         key = f"chat:{user_id}:{convo_id}"
-        data = self.client.get(key)
-        return Conversation.model_validate_json(data) if data else None
+        raw = self.client.get(key)
+        if not raw:
+            return None
+        data = json.loads(raw)
+        return Conversation(id=data["id"], messages=data["messages"])
     
     # Implement other required methods...
 
-app = Chatnificent(store=RedisStore("redis://localhost:6379"))
+app = chat.Chatnificent(store=RedisStore("redis://localhost:6379"))
 ```
 
 ## Development Commands
@@ -257,7 +283,7 @@ uv pip install -e .
 ```
 src/chatnificent/
 ├── __init__.py          # Main Chatnificent class + pillar imports
-├── models.py            # ChatMessage, Conversation, ToolCall, ToolResult  
+├── models.py            # Conversation dataclass, role constants
 ├── callbacks.py         # Dash callbacks orchestrating pillars
 ├── auth.py             # User identification (Anonymous, SingleUser)
 ├── store.py            # Conversation persistence (InMemory, File, SQLite)
@@ -290,6 +316,6 @@ src/chatnificent/
 
 **Need request lifecycle customization?** → Subclass `engine.Synchronous`, override hooks/seams
 
-**Need tool integration?** → Subclass `tools.Tool`, handle `ToolCall` → `ToolResult`
+**Need tool integration?** → Subclass `tools.Tool`, handle tool call dicts → tool result dicts
 
 The framework validates required component IDs at startup and handles pillar orchestration automatically via `callbacks.py`.

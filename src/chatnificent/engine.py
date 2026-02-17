@@ -6,18 +6,6 @@ import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-# Import dash.no_update for use in the output builder
-try:
-    from dash import no_update
-except ImportError:
-    # Fallback for environments where Dash might not be present (e.g. unit tests).
-    # This allows the engine logic to be tested independently of the Dash framework.
-    class _NoUpdate:
-        def __repr__(self):
-            return "no_update"
-
-    no_update = _NoUpdate()
-
 
 from .models import (
     ASSISTANT_ROLE,
@@ -46,8 +34,23 @@ class Engine(ABC):
         user_input: str,
         user_id: str,
         convo_id_from_url: Optional[str],
-    ) -> Dict[str, Any]:
-        """The main public entry point for processing a user's message."""
+    ) -> Conversation:
+        """Process a user message and return the updated Conversation.
+
+        Parameters
+        ----------
+        user_input : str
+            The user's message text.
+        user_id : str
+            The authenticated user's identifier.
+        convo_id_from_url : Optional[str]
+            The conversation ID from the current URL, or None for a new chat.
+
+        Returns
+        -------
+        Conversation
+            The conversation with the new user and assistant messages appended.
+        """
         pass
 
 
@@ -63,7 +66,7 @@ class Synchronous(Engine):
         user_input: str,
         user_id: str,
         convo_id_from_url: Optional[str],
-    ) -> Dict[str, Any]:
+    ) -> Conversation:
         """Orchestrates the synchronous, multi-turn agentic lifecycle."""
 
         conversation = None
@@ -141,8 +144,7 @@ class Synchronous(Engine):
             self._before_save(conversation)
             self._save_conversation(conversation, user_id)
 
-            # 6. Output
-            return self._build_output(conversation, convo_id_from_url, user_id)
+            return conversation
 
         except Exception as e:
             return self._handle_error(e, user_id, conversation)
@@ -229,33 +231,6 @@ class Synchronous(Engine):
                     user_id, convo_id, response_to_save
                 )
 
-    def _build_output(
-        self, conversation: Conversation, convo_id_from_url: Optional[str], user_id: str
-    ) -> Dict[str, Any]:
-        display_messages = [
-            msg
-            for msg in conversation.messages
-            if (
-                not self.app.llm.is_tool_message(msg)
-                and msg.get("role") != SYSTEM_ROLE
-                and msg.get("content") is not None
-                and str(msg.get("content", "")).strip() != ""
-            )
-        ]
-        formatted_messages = self.app.layout_builder.build_messages(display_messages)
-
-        new_pathname = no_update
-        if convo_id_from_url != conversation.id:
-            new_pathname = self.app.url.build_conversation_path(
-                user_id, conversation.id
-            )
-        return {
-            "messages": formatted_messages,
-            "input_value": "",
-            "submit_disabled": False,
-            "pathname": new_pathname,
-        }
-
     # =========================================================================
     # Hooks (Extensibility Points - Empty by default)
     # =========================================================================
@@ -277,32 +252,23 @@ class Synchronous(Engine):
 
     def _handle_error(
         self, error: Exception, user_id: str, conversation: Optional[Conversation]
-    ) -> Dict[str, Any]:
+    ) -> Conversation:
         logger.exception("Error during message handling")
         error_message = f"I encountered an error: {str(error)}. Please try again."
 
-        if conversation:
-            # If we have a conversation context, append error and use the standard output builder
-            error_response = {"role": ASSISTANT_ROLE, "content": error_message}
-            conversation.messages.append(error_response)
-            # Pass None for llm_response as the call failed
-            self._save_conversation(conversation, user_id)
-            # Use the existing conversation ID for the URL context (convo_id_from_url)
-            return self._build_output(conversation, conversation.id, user_id)
-        else:
-            # If the error occurred before the conversation was established.
-            # CRITICAL: We must format the error using the layout builder to return Dash components.
-            error_msg_obj = {"role": ASSISTANT_ROLE, "content": error_message}
-            formatted_error = self.app.layout_builder.build_messages([error_msg_obj])
+        if not conversation:
+            conversation = Conversation(id="")
 
-            return {
-                "messages": formatted_error,
-                "input_value": "",
-                "submit_disabled": False,
-                "pathname": no_update,
-            }
+        error_response = {"role": ASSISTANT_ROLE, "content": error_message}
+        conversation.messages.append(error_response)
+
+        if conversation.id:
+            try:
+                self._save_conversation(conversation, user_id)
+            except Exception:
+                logger.exception("Failed to save error conversation")
+
+        return conversation
 
 
-class Streaming(Engine):
-    def handle_message(self, *args, **kwargs) -> Any:
-        raise NotImplementedError("StreamingEngine is not yet implemented.")
+

@@ -2,7 +2,32 @@
 
 from dash import ALL, Input, Output, State, callback_context, no_update
 
-from .models import ASSISTANT_ROLE, USER_ROLE
+from .models import ASSISTANT_ROLE, SYSTEM_ROLE, USER_ROLE
+
+
+def _build_display_output(app, conversation, convo_id_from_url, user_id):
+    """Format an engine Conversation into Dash callback return values.
+
+    This bridges the framework-agnostic engine output to the Dash-specific
+    presentation layer.
+    """
+    display_messages = [
+        msg
+        for msg in conversation.messages
+        if (
+            not app.llm.is_tool_message(msg)
+            and msg.get("role") != SYSTEM_ROLE
+            and msg.get("content") is not None
+            and str(msg.get("content", "")).strip() != ""
+        )
+    ]
+    formatted_messages = app.layout_builder.build_messages(display_messages)
+
+    new_pathname = no_update
+    if convo_id_from_url != conversation.id:
+        new_pathname = app.url.build_conversation_path(user_id, conversation.id)
+
+    return formatted_messages, "", False, new_pathname
 
 
 def register_callbacks(app):
@@ -61,12 +86,7 @@ def register_callbacks(app):
             user_input.strip(), user_id, convo_id_from_url
         )
 
-        return (
-            output.get("messages", []),
-            output.get("input_value", ""),
-            output.get("submit_disabled", False),
-            output.get("pathname", no_update),
-        )
+        return _build_display_output(app, output, convo_id_from_url, user_id)
 
     @app.callback(
         Output("messages_container", "children", allow_duplicate=True),

@@ -6,7 +6,7 @@ import pytest
 from chatnificent import Chatnificent
 from chatnificent.engine import Synchronous
 from chatnificent.llm import Anthropic, Echo, Gemini
-from chatnificent.models import ASSISTANT_ROLE, USER_ROLE
+from chatnificent.models import ASSISTANT_ROLE, USER_ROLE, Conversation
 
 
 class TestEngineLLMIntegration:
@@ -14,21 +14,17 @@ class TestEngineLLMIntegration:
 
     def test_basic_conversation_flow_with_echo(self, test_app):
         """Test complete conversation flow with Echo LLM."""
-        # Use the test_app which has Echo LLM
         result = test_app.engine.handle_message(
             user_input="Hello, Echo!", user_id="test_user", convo_id_from_url=None
         )
 
-        # Verify response structure
-        assert "messages" in result
-        assert "input_value" in result
-        assert result["input_value"] == ""  # Input should be cleared
-        assert not result["submit_disabled"]
+        # Engine returns a Conversation
+        assert isinstance(result, Conversation)
 
         # Get the actual conversation ID
         conversations = test_app.store.list_conversations("test_user")
         assert len(conversations) > 0
-        convo_id = conversations[0]  # Get most recent
+        convo_id = conversations[0]
 
         # Verify conversation was saved
         conversation = test_app.store.load_conversation("test_user", convo_id)
@@ -163,9 +159,11 @@ class TestEngineLLMIntegration:
                 user_input="Cause an error", user_id="test_user", convo_id_from_url=None
             )
 
-            # Should return error response
-            assert "messages" in result
-            assert not result["submit_disabled"]
+            # Should return a Conversation with error message
+            assert isinstance(result, Conversation)
+            assert any(
+                "error" in msg.get("content", "").lower() for msg in result.messages
+            )
 
             # Error should be saved in conversation
             conversations = test_app.store.list_conversations("test_user")

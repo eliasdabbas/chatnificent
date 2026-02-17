@@ -12,8 +12,6 @@ keywords = [
     "chatbot",
     "chat",
     "ai",
-    "flask",
-    "dash",
     "web-framework",
     "openai",
     "anthropic",
@@ -41,9 +39,7 @@ classifiers = [
     "Topic :: Software Development :: User Interfaces",
     "Typing :: Typed"
 ]
-dependencies = [
-    "dash>=3.0.0",
-]
+dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/eliasdabbas/chatnificent"
@@ -51,14 +47,31 @@ Repository = "https://github.com/eliasdabbas/chatnificent"
 "Bug Tracker" = "https://github.com/eliasdabbas/chatnificent/issues"
 
 [project.optional-dependencies]
-default = [
+# Server adapters
+dash = [
+    "dash>=3.0.0",
     "dash-bootstrap-components>=2.0.0",
-    "openai>=1.0.0",
 ]
-
 mantine = [
+    "chatnificent[dash]",
     "dash-mantine-components>=1.1.0",
     "dash-iconify==0.1.2",
+]
+
+# LLM providers
+openai = ["openai>=1.0.0"]
+anthropic = ["anthropic>=0.30.0"]
+gemini = ["google-genai"]
+ollama = ["ollama"]
+
+# Bundles
+default = ["chatnificent[dash,openai]"]
+
+# Development — all adapters + test tools (CI uses this)
+dev = [
+    "chatnificent[dash,mantine,openai,anthropic,gemini,ollama]",
+    "pytest",
+    "pytest-mock",
 ]
 
 [build-system]

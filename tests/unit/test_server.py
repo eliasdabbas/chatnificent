@@ -1,9 +1,19 @@
-"""Unit tests for the server module."""
+"""Unit tests for the Server ABC and DevServer (core, zero dependencies).
 
+Server adapter tests live in tests/unit/server/.
+"""
+
+import io
+import json
 from unittest.mock import Mock, patch
 
 import pytest
-from chatnificent.server import DashServer, Server
+from chatnificent.server import DevServer, Server
+
+
+# =============================================================================
+# Server ABC
+# =============================================================================
 
 
 class TestServerBase:
@@ -46,83 +56,122 @@ class TestServerBase:
         assert srv.app is mock_app
 
 
-class TestDashServer:
-    """Test the DashServer implementation."""
+# =============================================================================
+# DevServer
+# =============================================================================
 
-    def test_create_server_creates_dash_app(self):
-        """DashServer.create_server() creates a Dash application."""
-        from chatnificent import Chatnificent
 
-        app = Chatnificent()
-        dash_app = app.server.dash_app
+class TestDevServer:
+    """Test the DevServer implementation."""
 
-        from dash import Dash
+    def test_default_host_and_port(self):
+        """DevServer defaults to 127.0.0.1:8050."""
+        srv = DevServer()
+        assert srv._host == "127.0.0.1"
+        assert srv._port == 8050
 
-        assert isinstance(dash_app, Dash)
+    def test_create_server_stores_config(self):
+        """create_server() stores host/port without binding a socket."""
+        srv = DevServer()
+        srv.create_server(host="0.0.0.0", port=3000)
+        assert srv._host == "0.0.0.0"
+        assert srv._port == 3000
+        assert srv.httpd is None
 
-    def test_dash_server_has_layout(self):
-        """DashServer sets layout from layout_builder."""
-        from chatnificent import Chatnificent
-
-        app = Chatnificent()
-        assert app.server.dash_app.layout is not None
-
-    def test_dash_server_registers_callbacks(self):
-        """DashServer registers callbacks during create_server."""
-        with patch("chatnificent.callbacks.register_callbacks") as mock_register:
+    def test_devserver_is_default_without_dash(self):
+        """Without Dash installed, Chatnificent falls back to DevServer."""
+        with patch.dict("sys.modules", {"dash": None}):
             from chatnificent import Chatnificent
 
             app = Chatnificent()
-            mock_register.assert_called_once()
+            assert isinstance(app.server, DevServer)
 
-    def test_server_pillar_on_chatnificent(self):
-        """Chatnificent has a server attribute."""
+
+class TestDevHandler:
+    """Test DevServer HTTP handler endpoints."""
+
+    @pytest.fixture
+    def app(self):
+        """Chatnificent instance with Echo + InMemory + DevServer."""
         from chatnificent import Chatnificent
+        from chatnificent.llm import Echo
+        from chatnificent.store import InMemory
 
-        app = Chatnificent()
-        assert hasattr(app, "server")
-        assert isinstance(app.server, DashServer)
+        return Chatnificent(llm=Echo(), store=InMemory(), server=DevServer())
 
-    def test_custom_server_injection(self):
-        """Custom Server implementation can be injected."""
-        from chatnificent import Chatnificent
+    @pytest.fixture
+    def handler_class(self, app):
+        """Return a partially-bound _DevHandler class ready for testing."""
+        from functools import partial
 
-        class CustomServer(Server):
-            def create_server(self, **kwargs):
-                self.created = True
-                return None
+        from chatnificent.server import _DevHandler
 
-            def run(self, **kwargs):
-                pass
+        return partial(_DevHandler, app)
 
-        custom = CustomServer()
-        app = Chatnificent(server=custom)
+    def _make_handler(self, handler_class, method, path, body=None):
+        """Simulate an HTTP request, returning raw response text."""
+        from chatnificent.server import _DevHandler
 
-        assert app.server is custom
-        assert app.server.app is app
-        assert custom.created is True
+        raw_body = json.dumps(body).encode("utf-8") if body is not None else b""
 
-    def test_chatnificent_run_delegates_to_server(self):
-        """Chatnificent.run() delegates to server.run()."""
+        wfile = io.BytesIO()
 
-        class SpyServer(Server):
-            def __init__(self):
-                super().__init__()
-                self.run_called = False
-                self.run_kwargs = {}
+        with patch.object(_DevHandler, "__init__", lambda self, app, *a, **kw: None):
+            h = _DevHandler.__new__(_DevHandler)
+            h._app = handler_class.args[0] if hasattr(handler_class, "args") else None
+            h.rfile = io.BytesIO(raw_body)
+            h.wfile = wfile
+            h.requestline = f"{method} {path} HTTP/1.1"
+            h.command = method
+            h.path = path
+            h.headers = {"Content-Length": str(len(raw_body)), "Host": "localhost"}
+            h.request_version = "HTTP/1.1"
+            h.close_connection = True
 
-            def create_server(self, **kwargs):
-                return None
+            if method == "GET":
+                h.do_GET()
+            elif method == "POST":
+                h.rfile = io.BytesIO(raw_body)
+                h.do_POST()
 
-            def run(self, **kwargs):
-                self.run_called = True
-                self.run_kwargs = kwargs
+            wfile.seek(0)
+            return wfile.read().decode("utf-8", errors="replace")
 
-        from chatnificent import Chatnificent
+    def test_get_root_returns_html(self, handler_class):
+        """GET / returns the chat UI HTML page."""
+        response = self._make_handler(handler_class, "GET", "/")
+        assert "200" in response
+        assert "text/html" in response
+        assert "Chatnificent" in response
 
-        spy = SpyServer()
-        app = Chatnificent(server=spy)
-        app.run(debug=True, port=9999)
+    def test_get_index_returns_html(self, handler_class):
+        """GET /index.html also returns the chat UI."""
+        response = self._make_handler(handler_class, "GET", "/index.html")
+        assert "200" in response
+        assert "Chatnificent" in response
 
-        assert spy.run_called
-        assert spy.run_kwargs == {"debug": True, "port": 9999}
+    def test_get_unknown_path_returns_404(self, handler_class):
+        """GET to unknown path returns 404."""
+        response = self._make_handler(handler_class, "GET", "/unknown")
+        assert "404" in response
+
+    def test_post_chat_returns_response(self, handler_class):
+        """POST /api/chat returns a JSON response with conversation_id."""
+        response = self._make_handler(
+            handler_class, "POST", "/api/chat", {"message": "hello"}
+        )
+        assert "200" in response
+        assert "conversation_id" in response
+        assert "response" in response
+
+    def test_post_chat_empty_message(self, handler_class):
+        """POST /api/chat with empty message returns 400."""
+        response = self._make_handler(
+            handler_class, "POST", "/api/chat", {"message": ""}
+        )
+        assert "400" in response
+
+    def test_post_unknown_path_returns_404(self, handler_class):
+        """POST to unknown path returns 404."""
+        response = self._make_handler(handler_class, "POST", "/unknown")
+        assert "404" in response

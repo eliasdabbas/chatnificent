@@ -146,10 +146,12 @@ class TestURLParts:
 
     def test_url_parts_serialization(self):
         """Test URLParts serialization behavior."""
+        from dataclasses import asdict
+
         parts = URLParts(user_id="test_user", convo_id="test_convo")
 
         # Should be serializable to dict
-        serialized = parts.model_dump()
+        serialized = asdict(parts)
         expected = {"user_id": "test_user", "convo_id": "test_convo"}
         assert serialized == expected
 

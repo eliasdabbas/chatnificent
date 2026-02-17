@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 import pytest
 from chatnificent import Chatnificent
 from chatnificent.engine import Synchronous
-from chatnificent.llm import Anthropic, Echo, Gemini
+from chatnificent.llm import Echo
 from chatnificent.models import ASSISTANT_ROLE, USER_ROLE, Conversation
 
 
@@ -103,7 +103,7 @@ class TestEngineLLMIntegration:
         mock_response = Mock()
         mock_response.content = [Mock(type="text", text="Hello from Anthropic")]
 
-        mock_anthropic = Mock(spec=Anthropic)
+        mock_anthropic = Mock()
         mock_anthropic.generate_response.return_value = mock_response
         mock_anthropic.extract_content.return_value = "Hello from Anthropic"
         mock_anthropic.parse_tool_calls.return_value = []
@@ -129,7 +129,7 @@ class TestEngineLLMIntegration:
         mock_response = Mock()
         mock_response.text = "Hello from Gemini"
 
-        mock_gemini = Mock(spec=Gemini)
+        mock_gemini = Mock()
         mock_gemini.generate_response.return_value = mock_response
         mock_gemini.extract_content.return_value = "Hello from Gemini"
         mock_gemini.parse_tool_calls.return_value = []

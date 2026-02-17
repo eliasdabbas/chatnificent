@@ -11,6 +11,9 @@ libraries (dash_bootstrap_components, dash_mantine_components).
 """
 
 import pytest
+
+dash = pytest.importorskip("dash", reason="Layout tests require the dash extra")
+
 from chatnificent.layout import Layout
 
 

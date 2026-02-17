@@ -5,6 +5,9 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+pytest.importorskip("openai", reason="OpenAI tests require the openai package")
+
 from chatnificent.models import (
     ASSISTANT_ROLE,
     TOOL_ROLE,

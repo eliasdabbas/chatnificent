@@ -8,29 +8,21 @@ customize the application's routing scheme without modifying core callbacks.
 """
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Optional
 from urllib.parse import parse_qs, urlencode
 
-from pydantic import BaseModel, Field
 
+@dataclass
+class URLParts:
+    """A structured representation of the state parsed from a URL.
 
-class URLParts(BaseModel):
-    """
-    A structured representation of the state parsed from a URL.
-
-    This model serves as the data contract between the URL pillar and the
-    rest of the application, providing a clear, validated structure for
-    the components of a URL path.
+    Serves as the data contract between the URL pillar and the rest of the
+    application, providing a clear structure for URL components.
     """
 
-    user_id: Optional[str] = Field(
-        None,
-        description="The user ID, if present in the URL. If None, the auth pillar should determine the user.",
-    )
-    convo_id: Optional[str] = Field(
-        None,
-        description="The conversation ID, if present. If None, it signifies a new chat.",
-    )
+    user_id: Optional[str] = None
+    convo_id: Optional[str] = None
 
 
 class URL(ABC):
@@ -59,7 +51,7 @@ class URL(ABC):
         Returns
         -------
         URLParts
-            A Pydantic model containing the parsed user_id and optional convo_id.
+            A dataclass containing the parsed user_id and optional convo_id.
         """
         pass
 

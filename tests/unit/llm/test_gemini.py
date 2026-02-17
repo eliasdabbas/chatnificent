@@ -13,6 +13,9 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+
+pytest.importorskip("google.genai", reason="Gemini tests require the google-genai package")
+
 from chatnificent.models import (
     ASSISTANT_ROLE,
     MODEL_ROLE,

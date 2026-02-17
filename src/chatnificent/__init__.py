@@ -12,7 +12,7 @@ __version__ = _get_version("chatnificent")
 
 from typing import TYPE_CHECKING, Optional, Type
 
-from . import auth, engine, layout, llm, models, retrieval, server, store, tools, url
+from . import auth, engine, llm, models, retrieval, server, store, tools, url
 
 if TYPE_CHECKING:
     from .engine import Engine
@@ -47,7 +47,8 @@ class Chatnificent:
         Parameters
         ----------
         server : server.Server, optional
-            The HTTP transport layer. Defaults to server.DashServer.
+            The HTTP transport layer. Defaults to DashServer if Dash is
+            installed, otherwise DevServer (zero-dependency stdlib server).
         layout : layout.Layout, optional
         llm : llm.LLM, optional
         store : store.Store, optional
@@ -76,21 +77,7 @@ class Chatnificent:
         if layout:
             self.layout_builder = layout
         else:
-            try:
-                from .layout import Bootstrap
-
-                self.layout_builder = Bootstrap()
-            except ImportError:
-                import warnings
-
-                warnings.warn(
-                    "Chatnificent is running with a minimal layout because 'dash-bootstrap-components' is not installed. "
-                    'For the default UI, install with: pip install "chatnificent[default]"',
-                    UserWarning,
-                )
-                from .layout import Minimal
-
-                self.layout_builder = Minimal()
+            self.layout_builder = None
 
         if llm:
             self.llm = llm
@@ -157,9 +144,40 @@ class Chatnificent:
         if server is not None:
             self.server = server
         else:
-            from .server import DashServer
+            try:
+                import dash  # noqa: F401
+                from .server import DashServer
 
-            self.server = DashServer()
+                self.server = DashServer()
+            except ImportError:
+                from .server import DevServer
+
+                self.server = DevServer()
+
+        # Auto-resolve layout for DashServer if not explicitly provided
+        try:
+            from .server import DashServer as _DashServer
+        except Exception:
+            _DashServer = None
+
+        if _DashServer is not None and isinstance(self.server, _DashServer) and self.layout_builder is None:
+            try:
+                from .layout import Bootstrap
+
+                self.layout_builder = Bootstrap()
+            except ImportError:
+                try:
+                    from .layout import Minimal
+
+                    self.layout_builder = Minimal()
+                except ImportError:
+                    import warnings
+
+                    warnings.warn(
+                        "DashServer requires a Layout pillar but Dash components are not installed. "
+                        'Install with: pip install "chatnificent[dash]"',
+                        UserWarning,
+                    )
 
         self.server.app = self
         self.server.create_server(**kwargs)

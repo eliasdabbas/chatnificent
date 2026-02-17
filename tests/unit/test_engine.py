@@ -147,7 +147,9 @@ class TestSynchronousEngine:
         )
 
         mock_app.llm.create_tool_result_messages = Mock(
-            return_value=[{"role": "tool", "content": "Tool result", "tool_call_id": "tool-1"}]
+            return_value=[
+                {"role": "tool", "content": "Tool result", "tool_call_id": "tool-1"}
+            ]
         )
 
         result = engine.handle_message("Use a tool", "user123", None)

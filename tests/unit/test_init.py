@@ -161,7 +161,7 @@ class TestPillarIntegration:
         with patch("chatnificent.callbacks.register_callbacks") as mock_register:
             app = Chatnificent()
 
-            mock_register.assert_called_once_with(app)
+            mock_register.assert_called_once()
 
 
 class TestStylesheetAndScriptHandling:

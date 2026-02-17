@@ -30,8 +30,8 @@ def _build_display_output(app, conversation, convo_id_from_url, user_id):
     return formatted_messages, "", False, new_pathname
 
 
-def register_callbacks(app):
-    @app.callback(
+def register_callbacks(dash_app, app):
+    @dash_app.callback(
         [
             Output("messages_container", "children"),
             Output("input_textarea", "value"),
@@ -88,7 +88,7 @@ def register_callbacks(app):
 
         return _build_display_output(app, output, convo_id_from_url, user_id)
 
-    @app.callback(
+    @dash_app.callback(
         Output("messages_container", "children", allow_duplicate=True),
         [
             Input("url_location", "pathname"),
@@ -121,7 +121,7 @@ def register_callbacks(app):
         except Exception:
             return []
 
-    @app.callback(
+    @dash_app.callback(
         [
             Output("url_location", "pathname", allow_duplicate=True),
             Output("sidebar", "hidden", allow_duplicate=True),
@@ -142,7 +142,7 @@ def register_callbacks(app):
         except Exception:
             return no_update, no_update
 
-    @app.callback(
+    @dash_app.callback(
         [
             Output("url_location", "pathname", allow_duplicate=True),
             Output("sidebar", "hidden", allow_duplicate=True),
@@ -165,7 +165,7 @@ def register_callbacks(app):
         except Exception:
             return no_update, no_update
 
-    @app.callback(
+    @dash_app.callback(
         Output("sidebar", "hidden"),
         [Input("sidebar_toggle", "n_clicks")],
         [State("sidebar", "hidden")],
@@ -176,7 +176,7 @@ def register_callbacks(app):
             return no_update
         return not is_hidden
 
-    @app.callback(
+    @dash_app.callback(
         Output("conversations_list", "children"),
         [
             Input("url_location", "pathname"),
@@ -232,11 +232,11 @@ def register_callbacks(app):
         except Exception:
             return []
 
-    _register_clientside_callbacks(app)
+    _register_clientside_callbacks(dash_app)
 
 
-def _register_clientside_callbacks(app):
-    app.clientside_callback(
+def _register_clientside_callbacks(dash_app):
+    dash_app.clientside_callback(
         """
         function(pathname) {
             // Set up enter to send functionality when page loads/changes
@@ -274,7 +274,7 @@ def _register_clientside_callbacks(app):
     )
 
     # Auto-scroll to bottom
-    app.clientside_callback(
+    dash_app.clientside_callback(
         """
         function(messages_content) {
             if (messages_content && messages_content.length > 0) {
@@ -294,7 +294,7 @@ def _register_clientside_callbacks(app):
     )
 
     # Focus input after sending
-    app.clientside_callback(
+    dash_app.clientside_callback(
         """
         function(input_value) {
             if (input_value === "") {
@@ -312,7 +312,7 @@ def _register_clientside_callbacks(app):
     )
 
     # Auto-detect RTL text
-    app.clientside_callback(
+    dash_app.clientside_callback(
         """
         function(textarea_value) {
             if (textarea_value) {

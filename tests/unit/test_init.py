@@ -1,12 +1,17 @@
-"""Unit tests for Chatnificent initialization and configuration."""
+"""Unit tests for Chatnificent initialization and configuration.
+
+These are CORE tests — they must pass with zero optional dependencies.
+Server adapter tests live in tests/unit/server/,
+LLM adapter tests live in tests/unit/llm/.
+"""
 
 from unittest.mock import Mock, patch
 
 import pytest
 from chatnificent import Chatnificent
 from chatnificent.engine import Engine, Synchronous
-from chatnificent.layout import Bootstrap, Minimal
-from chatnificent.llm import Echo, OpenAI
+from chatnificent.llm import Echo
+from chatnificent.server import DevServer, Server
 from chatnificent.store import InMemory
 
 
@@ -14,19 +19,18 @@ class TestChatnificentInit:
     """Test Chatnificent initialization and pillar configuration."""
 
     def test_default_initialization(self):
-        """Test Chatnificent initializes with default pillars."""
-        with patch("chatnificent.llm.OpenAI"):
-            app = Chatnificent()
+        """Test Chatnificent initializes with all pillar attributes."""
+        app = Chatnificent()
 
-            # Check defaults are set
-            assert hasattr(app, "llm")
-            assert hasattr(app, "store")
-            assert hasattr(app, "layout_builder")
-            assert hasattr(app, "engine")
-            assert hasattr(app, "auth")
-            assert hasattr(app, "tools")
-            assert hasattr(app, "retrieval")
-            assert hasattr(app, "url")
+        assert hasattr(app, "llm")
+        assert hasattr(app, "store")
+        assert hasattr(app, "layout")
+        assert hasattr(app, "engine")
+        assert hasattr(app, "auth")
+        assert hasattr(app, "tools")
+        assert hasattr(app, "retrieval")
+        assert hasattr(app, "url")
+        assert hasattr(app, "server")
 
     def test_custom_llm_initialization(self):
         """Test custom LLM provider injection."""
@@ -42,29 +46,36 @@ class TestChatnificentInit:
 
         assert app.store is mock_store
 
-    def test_custom_layout_initialization(self):
-        """Test custom layout builder injection."""
-        import dash.html as html
+    def test_custom_server_injection(self):
+        """Test custom server injection."""
 
-        mock_layout = Mock()
-        # Return a real Dash component to satisfy validation
-        mock_layout.build_layout.return_value = html.Div(id="test-layout")
-        mock_layout.get_external_stylesheets.return_value = []
-        mock_layout.get_external_scripts.return_value = []
+        class StubServer(Server):
+            def create_server(self, **kwargs):
+                return None
 
-        app = Chatnificent(layout=mock_layout)
+            def run(self, **kwargs):
+                pass
 
-        assert app.layout_builder is mock_layout
-        mock_layout.build_layout.assert_called_once()
+        stub = StubServer()
+        app = Chatnificent(server=stub)
+
+        assert app.server is stub
+        assert app.server.app is app
 
     def test_echo_llm_fallback(self):
         """Test fallback to Echo LLM when OpenAI not available."""
-        with patch("chatnificent.llm.OpenAI", side_effect=ImportError):
+        with patch.dict("sys.modules", {"openai": None}):
             with patch("warnings.warn") as mock_warn:
                 app = Chatnificent()
 
                 assert isinstance(app.llm, Echo)
                 mock_warn.assert_called_once()
+
+    def test_devserver_fallback_without_dash(self):
+        """Without Dash, Chatnificent falls back to DevServer."""
+        with patch.dict("sys.modules", {"dash": None}):
+            app = Chatnificent()
+            assert isinstance(app.server, DevServer)
 
 
 class TestEngineInitialization:
@@ -79,14 +90,11 @@ class TestEngineInitialization:
 
     def test_custom_engine_instance_with_lazy_binding(self):
         """Test passing engine instance with lazy binding."""
-        # Create engine without app
         custom_engine = Synchronous()
         assert custom_engine.app is None
 
-        # Pass to Chatnificent
         app = Chatnificent(engine=custom_engine)
 
-        # Verify lazy binding occurred
         assert app.engine is custom_engine
         assert custom_engine.app is app
 
@@ -98,15 +106,12 @@ class TestEngineInitialization:
                 super().__init__(app)
                 self.custom_attr = "test"
 
-        # Create instance without app
         custom_engine = CustomEngine()
         assert custom_engine.app is None
         assert custom_engine.custom_attr == "test"
 
-        # Pass to Chatnificent
         app = Chatnificent(engine=custom_engine)
 
-        # Verify binding and custom attributes preserved
         assert app.engine is custom_engine
         assert custom_engine.app is app
         assert custom_engine.custom_attr == "test"
@@ -116,10 +121,8 @@ class TestEngineInitialization:
         mock_app = Mock()
         custom_engine = Synchronous(mock_app)
 
-        # Pass to Chatnificent
         new_app = Chatnificent(engine=custom_engine)
 
-        # App reference should be overwritten with new app
         assert custom_engine.app is new_app
         assert custom_engine.app is not mock_app
 
@@ -148,7 +151,6 @@ class TestPillarIntegration:
             engine=custom_engine,
         )
 
-        # Verify engine can access all pillars
         assert custom_engine.app.llm is mock_llm
         assert custom_engine.app.store is mock_store
         assert custom_engine.app.auth is mock_auth
@@ -156,52 +158,28 @@ class TestPillarIntegration:
         assert custom_engine.app.retrieval is mock_retrieval
         assert custom_engine.app.url is mock_url
 
-    def test_callbacks_registered_after_initialization(self):
-        """Test callbacks are registered during initialization."""
-        with patch("chatnificent.callbacks.register_callbacks") as mock_register:
-            app = Chatnificent()
+    def test_run_delegates_to_server(self):
+        """Chatnificent.run() delegates to server.run()."""
 
-            mock_register.assert_called_once_with(app)
+        class SpyServer(Server):
+            def __init__(self):
+                super().__init__()
+                self.run_called = False
+                self.run_kwargs = {}
 
+            def create_server(self, **kwargs):
+                return None
 
-class TestStylesheetAndScriptHandling:
-    """Test external stylesheet and script handling."""
+            def run(self, **kwargs):
+                self.run_called = True
+                self.run_kwargs = kwargs
 
-    def test_layout_stylesheets_added(self):
-        """Test layout stylesheets are added to kwargs."""
-        import dash.html as html
+        spy = SpyServer()
+        app = Chatnificent(server=spy)
+        app.run(debug=True, port=9999)
 
-        mock_layout = Mock()
-        mock_layout.build_layout.return_value = html.Div(id="test-layout")
-        mock_layout.get_external_stylesheets.return_value = [
-            "https://example.com/style.css"
-        ]
-        mock_layout.get_external_scripts.return_value = []
-
-        app = Chatnificent(layout=mock_layout)
-
-        # Note: We can't easily test this without accessing internal state
-        # In a real test, we'd verify the Dash app has these stylesheets
-
-    def test_existing_stylesheets_preserved(self):
-        """Test existing stylesheets in kwargs are preserved."""
-        import dash.html as html
-
-        existing_stylesheet = "https://existing.com/style.css"
-
-        mock_layout = Mock()
-        mock_layout.build_layout.return_value = html.Div(id="test-layout")
-        mock_layout.get_external_stylesheets.return_value = [
-            "https://layout.com/style.css"
-        ]
-        mock_layout.get_external_scripts.return_value = []
-
-        app = Chatnificent(
-            layout=mock_layout, external_stylesheets=[existing_stylesheet]
-        )
-
-        # Both stylesheets should be present
-        # Note: Again, would need to check Dash internals
+        assert spy.run_called
+        assert spy.run_kwargs == {"debug": True, "port": 9999}
 
 
 class TestBackwardCompatibility:
@@ -214,15 +192,3 @@ class TestBackwardCompatibility:
 
         assert app.engine is custom_engine
         assert custom_engine.app is app
-
-    # Note: If we wanted to support both engine and engine_class temporarily:
-    # def test_engine_class_deprecated_but_works(self):
-    #     """Test old engine_class parameter still works with warning."""
-    #     with patch('warnings.warn') as mock_warn:
-    #         class CustomEngine(Synchronous):
-    #             pass
-    #
-    #         app = Chatnificent(engine_class=CustomEngine)
-    #
-    #         assert isinstance(app.engine, CustomEngine)
-    #         mock_warn.assert_called_once()  # Deprecation warning

@@ -5,6 +5,9 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+pytest.importorskip("anthropic", reason="Anthropic tests require the anthropic package")
+
 from chatnificent.models import (
     ASSISTANT_ROLE,
     USER_ROLE,
@@ -184,9 +187,7 @@ class TestCreateAssistantMessage:
 
 class TestCreateToolResultMessages:
     def test_single_result(self, anthropic_llm):
-        results = [
-            {"tool_call_id": "tu_1", "function_name": "fn", "content": "result"}
-        ]
+        results = [{"tool_call_id": "tu_1", "function_name": "fn", "content": "result"}]
         convo = Conversation(id="test")
         msgs = anthropic_llm.create_tool_result_messages(results, convo)
         assert len(msgs) == 1

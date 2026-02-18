@@ -10,17 +10,12 @@ from importlib.metadata import version as _get_version
 
 __version__ = _get_version("chatnificent")
 
-from typing import TYPE_CHECKING, Optional, Type
+from typing import Optional
 
-from dash import Dash
-
-from . import auth, engine, layout, llm, models, retrieval, store, tools, url
-
-if TYPE_CHECKING:
-    from .engine import Engine
+from . import auth, engine, layout, llm, models, retrieval, server, store, tools, url
 
 
-class Chatnificent(Dash):
+class Chatnificent:
     """
     The main class for the Chatnificent LLM Chat UI Framework.
 
@@ -32,6 +27,7 @@ class Chatnificent(Dash):
 
     def __init__(
         self,
+        server: Optional["server.Server"] = None,
         layout: Optional["layout.Layout"] = None,
         llm: Optional["llm.LLM"] = None,
         store: Optional["store.Store"] = None,
@@ -47,6 +43,9 @@ class Chatnificent(Dash):
 
         Parameters
         ----------
+        server : server.Server, optional
+            The HTTP transport layer. Defaults to DevServer
+            (zero-dependency stdlib server).
         layout : layout.Layout, optional
         llm : llm.LLM, optional
         store : store.Store, optional
@@ -55,21 +54,9 @@ class Chatnificent(Dash):
         retrieval : retrieval.Retrieval, optional
         url : url.URL, optional
         engine : engine.Engine, optional
-            The orchestration engine class to use for managing the request lifecycle.
-            Defaults to engine.Synchronous.
+            The orchestration engine. Defaults to engine.Synchronous.
         **kwargs
-            Additional arguments passed to the Dash constructor.
-
-        Notes
-        -----
-        The constructor automatically adds Bootstrap CSS and Bootstrap Icons
-        to external_stylesheets if not already present.
-
-        Raises
-        ------
-        ValueError
-            If the layout is missing required component IDs needed for the chat
-            functionality.
+            Additional arguments passed to the Server's create_server method.
 
         Examples
         --------
@@ -85,23 +72,11 @@ class Chatnificent(Dash):
         ... )
         """
         if layout:
-            self.layout_builder = layout
+            self.layout = layout
         else:
-            try:
-                from .layout import Bootstrap
+            from .layout import DefaultLayout
 
-                self.layout_builder = Bootstrap()
-            except ImportError:
-                import warnings
-
-                warnings.warn(
-                    "Chatnificent is running with a minimal layout because 'dash-bootstrap-components' is not installed. "
-                    'For the default UI, install with: pip install "chatnificent[default]"',
-                    UserWarning,
-                )
-                from .layout import Minimal
-
-                self.layout_builder = Minimal()
+            self.layout = DefaultLayout()
 
         if llm:
             self.llm = llm
@@ -114,25 +89,15 @@ class Chatnificent(Dash):
                 import warnings
 
                 warnings.warn(
-                    "Chatnificent is running with a simple EchoLLM because the 'openai' package is not installed. "
-                    'For the default OpenAI integration, install with: pip install "chatnificent[default]"',
+                    "No LLM provider SDK found — falling back to EchoLLM (mirrors your input). "
+                    "Install a provider, e.g.: pip install 'chatnificent[openai]', "
+                    "'chatnificent[anthropic]', 'chatnificent[gemini]', or 'chatnificent[ollama]'",
                     UserWarning,
+                    stacklevel=2,
                 )
                 from .llm import Echo
 
                 self.llm = Echo()
-
-        if "external_stylesheets" not in kwargs:
-            kwargs["external_stylesheets"] = []
-        kwargs["external_stylesheets"].extend(
-            self.layout_builder.get_external_stylesheets()
-        )
-
-        if "external_scripts" not in kwargs:
-            kwargs["external_scripts"] = []
-        kwargs["external_scripts"].extend(self.layout_builder.get_external_scripts())
-
-        super().__init__(**kwargs)
 
         if store is not None:
             self.store = store
@@ -154,6 +119,7 @@ class Chatnificent(Dash):
             from .tools import NoTool
 
             self.tools = NoTool()
+
         if retrieval is not None:
             self.retrieval = retrieval
         else:
@@ -176,11 +142,22 @@ class Chatnificent(Dash):
 
             self.engine = Synchronous(self)
 
-        self.layout = self.layout_builder.build_layout()
-        self._register_callbacks()
+        if server is not None:
+            self.server = server
+        else:
+            from .server import DevServer
 
-    def _register_callbacks(self) -> None:
-        """Registers all the callbacks that orchestrate the pillars."""
-        from .callbacks import register_callbacks
+            self.server = DevServer()
 
-        register_callbacks(self)
+        self.server.app = self
+        self.server.create_server(**kwargs)
+
+    def run(self, **kwargs) -> None:
+        """Start the application server.
+
+        Parameters
+        ----------
+        **kwargs
+            Runtime options passed to the server (host, port, debug, etc.).
+        """
+        self.server.run(**kwargs)

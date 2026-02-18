@@ -2,11 +2,36 @@
 
 from dash import ALL, Input, Output, State, callback_context, no_update
 
-from .models import ASSISTANT_ROLE, USER_ROLE
+from .models import ASSISTANT_ROLE, SYSTEM_ROLE, USER_ROLE
 
 
-def register_callbacks(app):
-    @app.callback(
+def _build_display_output(app, conversation, convo_id_from_url, user_id):
+    """Format an engine Conversation into Dash callback return values.
+
+    This bridges the framework-agnostic engine output to the Dash-specific
+    presentation layer.
+    """
+    display_messages = [
+        msg
+        for msg in conversation.messages
+        if (
+            not app.llm.is_tool_message(msg)
+            and msg.get("role") != SYSTEM_ROLE
+            and msg.get("content") is not None
+            and str(msg.get("content", "")).strip() != ""
+        )
+    ]
+    formatted_messages = app.layout.build_messages(display_messages)
+
+    new_pathname = no_update
+    if convo_id_from_url != conversation.id:
+        new_pathname = app.url.build_conversation_path(user_id, conversation.id)
+
+    return formatted_messages, "", False, new_pathname
+
+
+def register_callbacks(dash_app, app):
+    @dash_app.callback(
         [
             Output("messages_container", "children"),
             Output("input_textarea", "value"),
@@ -48,7 +73,7 @@ def register_callbacks(app):
             )
 
             error_msg_obj = {"role": ASSISTANT_ROLE, "content": error_message}
-            formatted_error = app.layout_builder.build_messages([error_msg_obj])
+            formatted_error = app.layout.build_messages([error_msg_obj])
 
             return (
                 formatted_error,
@@ -61,14 +86,9 @@ def register_callbacks(app):
             user_input.strip(), user_id, convo_id_from_url
         )
 
-        return (
-            output.get("messages", []),
-            output.get("input_value", ""),
-            output.get("submit_disabled", False),
-            output.get("pathname", no_update),
-        )
+        return _build_display_output(app, output, convo_id_from_url, user_id)
 
-    @app.callback(
+    @dash_app.callback(
         Output("messages_container", "children", allow_duplicate=True),
         [
             Input("url_location", "pathname"),
@@ -96,12 +116,12 @@ def register_callbacks(app):
             ]
             if not filtered_messages:
                 return []
-            return app.layout_builder.build_messages(filtered_messages)
+            return app.layout.build_messages(filtered_messages)
 
         except Exception:
             return []
 
-    @app.callback(
+    @dash_app.callback(
         [
             Output("url_location", "pathname", allow_duplicate=True),
             Output("sidebar", "hidden", allow_duplicate=True),
@@ -122,7 +142,7 @@ def register_callbacks(app):
         except Exception:
             return no_update, no_update
 
-    @app.callback(
+    @dash_app.callback(
         [
             Output("url_location", "pathname", allow_duplicate=True),
             Output("sidebar", "hidden", allow_duplicate=True),
@@ -145,7 +165,7 @@ def register_callbacks(app):
         except Exception:
             return no_update, no_update
 
-    @app.callback(
+    @dash_app.callback(
         Output("sidebar", "hidden"),
         [Input("sidebar_toggle", "n_clicks")],
         [State("sidebar", "hidden")],
@@ -156,7 +176,7 @@ def register_callbacks(app):
             return no_update
         return not is_hidden
 
-    @app.callback(
+    @dash_app.callback(
         Output("conversations_list", "children"),
         [
             Input("url_location", "pathname"),
@@ -212,11 +232,11 @@ def register_callbacks(app):
         except Exception:
             return []
 
-    _register_clientside_callbacks(app)
+    _register_clientside_callbacks(dash_app)
 
 
-def _register_clientside_callbacks(app):
-    app.clientside_callback(
+def _register_clientside_callbacks(dash_app):
+    dash_app.clientside_callback(
         """
         function(pathname) {
             // Set up enter to send functionality when page loads/changes
@@ -254,7 +274,7 @@ def _register_clientside_callbacks(app):
     )
 
     # Auto-scroll to bottom
-    app.clientside_callback(
+    dash_app.clientside_callback(
         """
         function(messages_content) {
             if (messages_content && messages_content.length > 0) {
@@ -274,7 +294,7 @@ def _register_clientside_callbacks(app):
     )
 
     # Focus input after sending
-    app.clientside_callback(
+    dash_app.clientside_callback(
         """
         function(input_value) {
             if (input_value === "") {
@@ -292,7 +312,7 @@ def _register_clientside_callbacks(app):
     )
 
     # Auto-detect RTL text
-    app.clientside_callback(
+    dash_app.clientside_callback(
         """
         function(textarea_value) {
             if (textarea_value) {

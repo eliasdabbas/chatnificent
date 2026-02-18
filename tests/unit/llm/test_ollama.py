@@ -4,6 +4,9 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+pytest.importorskip("ollama", reason="Ollama tests require the ollama package")
+
 from chatnificent.models import (
     ASSISTANT_ROLE,
     TOOL_ROLE,

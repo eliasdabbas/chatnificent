@@ -23,7 +23,7 @@ class TestEngineBase:
         # Create a concrete implementation for testing
         class ConcreteEngine(Engine):
             def handle_message(self, user_input, user_id, convo_id_from_url):
-                return {}
+                return Conversation(id="test")
 
         engine = ConcreteEngine(mock_app)
         assert engine.app is mock_app
@@ -33,7 +33,7 @@ class TestEngineBase:
 
         class ConcreteEngine(Engine):
             def handle_message(self, user_input, user_id, convo_id_from_url):
-                return {}
+                return Conversation(id="test")
 
         engine = ConcreteEngine()
         assert engine.app is None
@@ -74,14 +74,6 @@ class TestSynchronousEngine:
         app.tools = Mock()
         app.tools.get_tools = Mock(return_value=None)
 
-        app.layout_builder = Mock()
-        app.layout_builder.build_messages = Mock(return_value=[])
-
-        app.url = Mock()
-        app.url.build_conversation_path = Mock(
-            return_value="/conversation/test-convo-1"
-        )
-
         return app
 
     @pytest.fixture
@@ -100,11 +92,10 @@ class TestSynchronousEngine:
         assert mock_app.llm.extract_content.called
         assert mock_app.store.save_conversation.called
 
-        # Check result structure
-        assert "messages" in result
-        assert "input_value" in result
-        assert "submit_disabled" in result
-        assert "pathname" in result
+        # Engine now returns a Conversation
+        assert isinstance(result, Conversation)
+        assert result.id == "test-convo-1"
+        assert len(result.messages) == 2  # User + Assistant
 
     def test_empty_tool_calls_triggers_finalization(self, engine, mock_app):
         """Test that empty tool_calls list (not None) triggers finalization."""
@@ -156,7 +147,9 @@ class TestSynchronousEngine:
         )
 
         mock_app.llm.create_tool_result_messages = Mock(
-            return_value=[{"role": "tool", "content": "Tool result", "tool_call_id": "tool-1"}]
+            return_value=[
+                {"role": "tool", "content": "Tool result", "tool_call_id": "tool-1"}
+            ]
         )
 
         result = engine.handle_message("Use a tool", "user123", None)
@@ -225,9 +218,9 @@ class TestSynchronousEngine:
 
         result = engine.handle_message("Cause error", "user123", None)
 
-        # Should return error response
-        assert "messages" in result
-        assert result["submit_disabled"] == False
+        # Should return a Conversation with the error message appended
+        assert isinstance(result, Conversation)
+        assert any("error" in msg.get("content", "").lower() for msg in result.messages)
 
     def test_retrieval_integration(self, engine, mock_app):
         """Test that retrieval is called when available."""
@@ -266,9 +259,6 @@ class TestEngineHooks:
         mock_app.retrieval.retrieve = Mock(return_value=None)
         mock_app.tools = Mock()
         mock_app.tools.get_tools = Mock(return_value=None)
-        mock_app.layout_builder = Mock()
-        mock_app.layout_builder.build_messages = Mock(return_value=[])
-        mock_app.url = Mock()
 
         # Create engine with tracked hooks
         class TrackedEngine(Synchronous):
@@ -330,5 +320,8 @@ class TestEngineLazyBinding:
         """Test that engine methods fail gracefully without app."""
         engine = Synchronous()
 
-        with pytest.raises(AttributeError, match="'NoneType' object has no attribute"):
-            engine.handle_message("Test", "user123", None)
+        # Without an app, the engine catches the error and returns
+        # a Conversation with an error message
+        result = engine.handle_message("Test", "user123", None)
+        assert isinstance(result, Conversation)
+        assert any("error" in msg.get("content", "").lower() for msg in result.messages)

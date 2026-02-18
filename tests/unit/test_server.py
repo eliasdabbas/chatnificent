@@ -1,0 +1,184 @@
+"""Unit tests for the Server ABC and DevServer (core, zero dependencies).
+
+Server adapter tests live in tests/unit/server/.
+"""
+
+import io
+import json
+from unittest.mock import Mock, patch
+
+import pytest
+from chatnificent.server import DevServer, Server
+
+# =============================================================================
+# Server ABC
+# =============================================================================
+
+
+class TestServerBase:
+    """Test the abstract Server base class."""
+
+    def test_server_is_abstract(self):
+        """Server cannot be instantiated directly."""
+        with pytest.raises(TypeError, match="Can't instantiate abstract class"):
+            Server()
+
+    def test_server_with_app_reference(self):
+        """Server can be initialized with app reference."""
+        mock_app = Mock()
+
+        class ConcreteServer(Server):
+            def create_server(self, **kwargs):
+                return None
+
+            def run(self, **kwargs):
+                pass
+
+        srv = ConcreteServer(mock_app)
+        assert srv.app is mock_app
+
+    def test_server_without_app_reference(self):
+        """Server can be initialized without app (lazy binding)."""
+
+        class ConcreteServer(Server):
+            def create_server(self, **kwargs):
+                return None
+
+            def run(self, **kwargs):
+                pass
+
+        srv = ConcreteServer()
+        assert srv.app is None
+
+        mock_app = Mock()
+        srv.app = mock_app
+        assert srv.app is mock_app
+
+
+# =============================================================================
+# DevServer
+# =============================================================================
+
+
+class TestDevServer:
+    """Test the DevServer implementation."""
+
+    def test_default_host_and_port(self):
+        """DevServer defaults to 127.0.0.1:8050."""
+        srv = DevServer()
+        assert srv._host == "127.0.0.1"
+        assert srv._port == 8050
+
+    def test_create_server_stores_config(self):
+        """create_server() stores host/port without binding a socket."""
+        srv = DevServer()
+        srv.create_server(host="0.0.0.0", port=3000)
+        assert srv._host == "0.0.0.0"
+        assert srv._port == 3000
+        assert srv.httpd is None
+
+    def test_devserver_is_default_without_dash(self):
+        """Without Dash installed, Chatnificent falls back to DevServer."""
+        with patch.dict("sys.modules", {"dash": None}):
+            from chatnificent import Chatnificent
+
+            app = Chatnificent()
+            assert isinstance(app.server, DevServer)
+
+
+class TestDevHandler:
+    """Test DevServer HTTP handler endpoints."""
+
+    @pytest.fixture
+    def app(self):
+        """Chatnificent instance with Echo + InMemory + DevServer."""
+        from chatnificent import Chatnificent
+        from chatnificent.llm import Echo
+        from chatnificent.store import InMemory
+
+        return Chatnificent(llm=Echo(), store=InMemory(), server=DevServer())
+
+    @pytest.fixture
+    def handler_class(self, app):
+        """Return a partially-bound _DevHandler class ready for testing."""
+        from functools import partial
+
+        from chatnificent.server import _DevHandler
+
+        return partial(_DevHandler, app)
+
+    def _make_handler(self, handler_class, method, path, body=None):
+        """Simulate an HTTP request, returning raw response text."""
+        from chatnificent.server import _DevHandler
+
+        raw_body = json.dumps(body).encode("utf-8") if body is not None else b""
+
+        wfile = io.BytesIO()
+
+        with patch.object(_DevHandler, "__init__", lambda self, app, *a, **kw: None):
+            h = _DevHandler.__new__(_DevHandler)
+            h._app = handler_class.args[0] if hasattr(handler_class, "args") else None
+            h._new_session = False
+            h._session_id = None
+            h.rfile = io.BytesIO(raw_body)
+            h.wfile = wfile
+            h.requestline = f"{method} {path} HTTP/1.1"
+            h.command = method
+            h.path = path
+            h.headers = {"Content-Length": str(len(raw_body)), "Host": "localhost"}
+            h.request_version = "HTTP/1.1"
+            h.close_connection = True
+
+            if method == "GET":
+                h.do_GET()
+            elif method == "POST":
+                h.rfile = io.BytesIO(raw_body)
+                h.do_POST()
+
+            wfile.seek(0)
+            return wfile.read().decode("utf-8", errors="replace")
+
+    def test_get_root_returns_html(self, handler_class):
+        """GET / returns the chat UI HTML page."""
+        response = self._make_handler(handler_class, "GET", "/")
+        assert "200" in response
+        assert "text/html" in response
+        assert "Chatnificent" in response
+
+    def test_get_index_returns_html(self, handler_class):
+        """GET /index.html also returns the chat UI."""
+        response = self._make_handler(handler_class, "GET", "/index.html")
+        assert "200" in response
+        assert "Chatnificent" in response
+
+    def test_get_any_path_serves_page_for_deep_links(self, handler_class):
+        """GET to any non-API path serves the page (supports deep links like /001)."""
+        response = self._make_handler(handler_class, "GET", "/001")
+        assert "200" in response
+        assert "Chatnificent" in response
+
+    def test_get_unknown_api_path_returns_404(self, handler_class):
+        """GET to unknown /api/ path returns 404."""
+        response = self._make_handler(handler_class, "GET", "/api/unknown")
+        assert "404" in response
+
+    def test_post_chat_returns_response(self, handler_class):
+        """POST /api/chat returns a JSON response with conversation_id."""
+        response = self._make_handler(
+            handler_class, "POST", "/api/chat", {"message": "hello"}
+        )
+        assert "200" in response
+        assert "conversation_id" in response
+        assert "response" in response
+
+    def test_post_chat_empty_message(self, handler_class):
+        """POST /api/chat with empty message returns 400."""
+        response = self._make_handler(
+            handler_class, "POST", "/api/chat", {"message": ""}
+        )
+        assert "400" in response
+
+    def test_post_unknown_path_returns_404(self, handler_class):
+        """POST to unknown path returns 404."""
+        response = self._make_handler(handler_class, "POST", "/unknown")
+        assert "404" in response

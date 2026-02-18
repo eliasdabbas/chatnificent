@@ -4,6 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Chatnificent</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
     <style>
         :root {
             --bg: #f7f8fa;
@@ -293,7 +295,51 @@
             border-radius: var(--radius) var(--radius) var(--radius) 4px;
             border: 1px solid var(--border);
             box-shadow: var(--shadow-sm);
+            white-space: normal;
         }
+
+        .msg.assistant p { margin: 0 0 0.6em; }
+        .msg.assistant p:last-child { margin-bottom: 0; }
+        .msg.assistant pre {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            overflow-x: auto;
+            margin: 0.6em 0;
+            font-size: 0.88em;
+        }
+        .msg.assistant code {
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-size: 0.9em;
+        }
+        .msg.assistant :not(pre) > code {
+            background: var(--accent-subtle);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .msg.assistant ul, .msg.assistant ol { padding-left: 1.4em; margin: 0.4em 0; }
+        .msg.assistant blockquote {
+            border-left: 3px solid var(--accent);
+            margin: 0.6em 0;
+            padding: 4px 12px;
+            color: var(--text-secondary);
+        }
+        .msg.assistant h1, .msg.assistant h2, .msg.assistant h3 {
+            margin: 0.6em 0 0.3em;
+            font-size: 1em;
+            font-weight: 600;
+        }
+        .msg.assistant table {
+            border-collapse: collapse;
+            margin: 0.6em 0;
+            font-size: 0.9em;
+        }
+        .msg.assistant th, .msg.assistant td {
+            border: 1px solid var(--border);
+            padding: 6px 10px;
+        }
+        .msg.assistant th { background: var(--bg); font-weight: 600; }
 
         #loading {
             align-self: flex-start;
@@ -553,6 +599,7 @@
             $("#new-chat-btn").addEventListener("click", function () {
                 convoId = null; msgs.innerHTML = "";
                 msgs.appendChild(welcome); welcome.style.display = "";
+                history.pushState(null, "", "/");
                 refreshConvoList();
             });
 
@@ -561,10 +608,16 @@
                 this.style.height = Math.min(this.scrollHeight, 144) + "px";
             });
 
+            function renderMarkdown(text) {
+                try { return DOMPurify.sanitize(marked.parse(text)); }
+                catch (e) { return DOMPurify.sanitize(text); }
+            }
             function addMsg(role, text) {
                 if (welcome.style.display !== "none") welcome.style.display = "none";
                 var d = document.createElement("div");
-                d.className = "msg " + role; d.textContent = text;
+                d.className = "msg " + role;
+                if (role === "assistant") d.innerHTML = renderMarkdown(text);
+                else d.textContent = text;
                 msgs.appendChild(d); msgs.scrollTop = msgs.scrollHeight;
             }
             function showLoading() {
@@ -588,7 +641,12 @@
                     });
                     var data = await r.json(); hideLoading();
                     if (data.error) addMsg("assistant", "Error: " + data.error);
-                    else { addMsg("assistant", data.response); convoId = data.conversation_id; refreshConvoList(); }
+                    else {
+                        addMsg("assistant", data.response);
+                        convoId = data.conversation_id;
+                        history.replaceState(null, "", "/" + convoId);
+                        refreshConvoList();
+                    }
                 } catch (e) { hideLoading(); addMsg("assistant", "Error: " + e.message); }
                 sendBtn.disabled = false; input.focus();
             }
@@ -601,10 +659,11 @@
                 try {
                     var r = await fetch("/api/conversations"); var data = await r.json();
                     convoList.innerHTML = "";
-                    (data.conversations || []).forEach(function (id) {
+                    (data.conversations || []).forEach(function (c) {
+                        var id = c.id || c, title = c.title || id;
                         var el = document.createElement("div");
                         el.className = "convo-item" + (id === convoId ? " active" : "");
-                        el.textContent = id.substring(0, 8) + "\u2026"; el.title = id;
+                        el.textContent = title; el.title = title;
                         el.addEventListener("click", function () { loadConvo(id) });
                         convoList.appendChild(el);
                     });
@@ -615,11 +674,20 @@
                     var r = await fetch("/api/conversations/" + id); var data = await r.json();
                     if (data.error) return;
                     convoId = id; msgs.innerHTML = "";
+                    history.pushState(null, "", "/" + id);
                     (data.messages || []).forEach(function (m) { addMsg(m.role, m.content) });
                     refreshConvoList();
                 } catch (e) { }
             }
-            refreshConvoList(); input.focus();
+            window.addEventListener("popstate", function () {
+                var p = location.pathname.replace(/^\//, "");
+                if (p) loadConvo(p); else { convoId = null; msgs.innerHTML = ""; msgs.appendChild(welcome); welcome.style.display = ""; refreshConvoList(); }
+            });
+            (function initFromURL() {
+                var p = location.pathname.replace(/^\//, "");
+                if (p) loadConvo(p); else refreshConvoList();
+            })();
+            input.focus();
         })();
     </script>
 </body>

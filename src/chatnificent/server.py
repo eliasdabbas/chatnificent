@@ -6,9 +6,11 @@ delegating to the Engine, and formatting responses for the client.
 
 import json
 import logging
+import uuid
 from abc import ABC, abstractmethod
 from functools import partial
 from http import HTTPStatus
+from http.cookies import SimpleCookie
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -65,16 +67,30 @@ class _DevHandler(SimpleHTTPRequestHandler):
 
     def __init__(self, chatnificent_app, *args, **kwargs):
         self._app = chatnificent_app
+        self._new_session = False
+        self._session_id = None
         super().__init__(*args, **kwargs)
 
+    def _get_user_id(self):
+        """Get stable user identity from session cookie, creating one if needed."""
+        if self._session_id:
+            return self._session_id
+        cookie = SimpleCookie(self.headers.get("Cookie", ""))
+        if "chatnificent_session" in cookie:
+            self._session_id = cookie["chatnificent_session"].value
+        else:
+            self._session_id = str(uuid.uuid4()).split("-")[0]
+            self._new_session = True
+        return self._session_id
+
     def do_GET(self):
-        if self.path == "/" or self.path == "/index.html":
-            self._respond_html(self._app.layout.render_page())
-        elif self.path == "/api/conversations":
+        if self.path == "/api/conversations":
             self._handle_list_conversations()
         elif self.path.startswith("/api/conversations/"):
             convo_id = self.path.split("/api/conversations/", 1)[1].strip("/")
             self._handle_load_conversation(convo_id)
+        elif not self.path.startswith("/api/"):
+            self._respond_html(self._app.layout.render_page())
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
 
@@ -95,7 +111,7 @@ class _DevHandler(SimpleHTTPRequestHandler):
                 self._respond_json({"error": "Empty message"}, HTTPStatus.BAD_REQUEST)
                 return
 
-            user_id = self._app.auth.get_current_user_id()
+            user_id = self._get_user_id()
             convo_id = body.get("conversation_id")
 
             conversation = self._app.engine.handle_message(message, user_id, convo_id)
@@ -122,16 +138,30 @@ class _DevHandler(SimpleHTTPRequestHandler):
 
     def _handle_list_conversations(self):
         try:
-            user_id = self._app.auth.get_current_user_id()
+            user_id = self._get_user_id()
             convo_ids = self._app.store.list_conversations(user_id)
-            self._respond_json({"conversations": convo_ids})
+            conversations = []
+            for cid in convo_ids:
+                convo = self._app.store.load_conversation(user_id, cid)
+                title = cid
+                if convo and convo.messages:
+                    first_user = next(
+                        (m for m in convo.messages if m.get("role") == USER_ROLE),
+                        None,
+                    )
+                    if first_user:
+                        content = first_user.get("content", "")
+                        if isinstance(content, str) and content.strip():
+                            title = content.strip()[:30]
+                conversations.append({"id": cid, "title": title})
+            self._respond_json({"conversations": conversations})
         except Exception as e:
             logger.exception("DevServer error in /api/conversations")
             self._respond_json({"error": str(e)}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def _handle_load_conversation(self, convo_id):
         try:
-            user_id = self._app.auth.get_current_user_id()
+            user_id = self._get_user_id()
             conversation = self._app.store.load_conversation(user_id, convo_id)
             if not conversation:
                 self._respond_json(
@@ -166,6 +196,7 @@ class _DevHandler(SimpleHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        self._maybe_set_session_cookie()
         self.end_headers()
         self.wfile.write(body)
 
@@ -174,8 +205,16 @@ class _DevHandler(SimpleHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self._maybe_set_session_cookie()
         self.end_headers()
         self.wfile.write(body)
+
+    def _maybe_set_session_cookie(self):
+        if self._new_session and self._session_id:
+            self.send_header(
+                "Set-Cookie",
+                f"chatnificent_session={self._session_id}; Path=/; SameSite=Lax",
+            )
 
     def log_message(self, format, *args):
         logger.info(format, *args)

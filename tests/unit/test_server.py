@@ -119,6 +119,8 @@ class TestDevHandler:
         with patch.object(_DevHandler, "__init__", lambda self, app, *a, **kw: None):
             h = _DevHandler.__new__(_DevHandler)
             h._app = handler_class.args[0] if hasattr(handler_class, "args") else None
+            h._new_session = False
+            h._session_id = None
             h.rfile = io.BytesIO(raw_body)
             h.wfile = wfile
             h.requestline = f"{method} {path} HTTP/1.1"
@@ -150,9 +152,15 @@ class TestDevHandler:
         assert "200" in response
         assert "Chatnificent" in response
 
-    def test_get_unknown_path_returns_404(self, handler_class):
-        """GET to unknown path returns 404."""
-        response = self._make_handler(handler_class, "GET", "/unknown")
+    def test_get_any_path_serves_page_for_deep_links(self, handler_class):
+        """GET to any non-API path serves the page (supports deep links like /001)."""
+        response = self._make_handler(handler_class, "GET", "/001")
+        assert "200" in response
+        assert "Chatnificent" in response
+
+    def test_get_unknown_api_path_returns_404(self, handler_class):
+        """GET to unknown /api/ path returns 404."""
+        response = self._make_handler(handler_class, "GET", "/api/unknown")
         assert "404" in response
 
     def test_post_chat_returns_response(self, handler_class):

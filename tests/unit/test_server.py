@@ -10,7 +10,6 @@ from unittest.mock import Mock, patch
 import pytest
 from chatnificent.server import DevServer, Server
 
-
 # =============================================================================
 # Server ABC
 # =============================================================================

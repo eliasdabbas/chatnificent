@@ -1,77 +1,50 @@
-"""Unified layout module - merges formatting, theming, and layout building."""
+"""Layout pillar — defines the chat UI's visual identity.
+
+Provides a thin Layout ABC for HTML-based servers and a DashLayout ABC
+for Dash-based servers. Each server type uses the appropriate interface.
+"""
 
 import unicodedata
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
-
-import dash.dcc as dcc
-import dash.html as html
-from dash.development.base_component import Component as DashComponent
 
 from .models import USER_ROLE
 
+_TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+
+# =====================================================================
+# Layout ABC — thin, zero-dependency interface
+# =====================================================================
+
 
 class Layout(ABC):
+    """Base class for all Chatnificent layouts.
+
+    Subclass this for HTML-based servers (DevServer, Starlette, FastAPI).
+    For Dash-based servers, subclass DashLayout instead.
     """
-    Unified base class that handles:
-    1. Overall layout building (header, sidebar, chat area, input)
-    2. Message formatting and rendering
-    3. Component styling and theming
-    """
-
-    def __init__(self, theme: Optional[str] = None):
-        """Initialize layout with optional theme variant."""
-        self.theme_name = theme
-        layout = self.build_layout()
-        self._validate_layout(layout)
-        self.component_styles = self.get_current_styles()
-
-    # ===== MINIMAL CORE INTERFACE =====
-    @abstractmethod
-    def build_layout(self) -> DashComponent:
-        """
-        Build complete app layout with required component IDs.
-
-        Must include these IDs for framework integration:
-        - sidebar, sidebar_toggle, conversations_list, new_conversation_button
-        - chat_area, messages_container, input_textarea, submit_button
-
-        Implementation strategy (decomposition, orchestration) is completely free.
-        """
-        pass
 
     @abstractmethod
-    def build_messages(self, messages: List[Dict[str, Any]]) -> List[DashComponent]:
+    def render_page(self) -> str:
+        """Return the full HTML page as a string.
+
+        Called by HTTP servers (DevServer, Starlette, etc.) to serve
+        the initial page load.
         """
-        Render messages for display in chat area.
 
-        Core contract for how users see their conversations.
+    def render_messages(self, messages: List[Dict[str, Any]]) -> str:
+        """Return an HTML fragment for the given messages.
+
+        Used by SSR servers (e.g. Starlette + htmx) for server-side
+        message rendering. Not required for client-rendered UIs.
         """
-        pass
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement render_messages(). "
+            "Override this method for server-side rendered layouts."
+        )
 
-    # ===== STYLING & THEMING METHODS =====
-    @abstractmethod
-    def get_external_stylesheets(self) -> List[Union[str, Dict]]:
-        """Return required external stylesheets."""
-        pass
-
-    def get_external_scripts(self) -> List[Union[str, Dict]]:
-        """Return required external scripts."""
-        return []
-
-    def get_class_name(self, component_key: str) -> Optional[str]:
-        """Get CSS className for component key."""
-        return self.component_styles.get(component_key, {}).get("className")
-
-    def get_style(self, component_key: str) -> Optional[Dict]:
-        """Get inline style dict for component key."""
-        return self.component_styles.get(component_key, {}).get("style")
-
-    def get_component_keys(self) -> Set[str]:
-        """Get all available component styling keys."""
-        return set(self.component_styles.keys())
-
-    # ===== UTILITY METHODS =====
     def _is_rtl(self, text: str) -> bool:
         """Check if text requires right-to-left rendering."""
         if not text or isinstance(text, list) or not text.strip():
@@ -83,6 +56,96 @@ class Layout(ABC):
             elif bidi == "L":
                 return False
         return False
+
+
+# =====================================================================
+# DefaultLayout — zero-dependency HTML layout
+# =====================================================================
+
+
+class DefaultLayout(Layout):
+    """Full-featured HTML chat layout using vanilla JS.
+
+    Zero external dependencies. Works with DevServer and any HTTP server
+    that calls render_page(). Analogous to Echo for the LLM pillar.
+    """
+
+    def render_page(self) -> str:
+        """Return the complete HTML chat page."""
+        return (_TEMPLATES_DIR / "default.html").read_text(encoding="utf-8")
+
+
+# =====================================================================
+# DashLayout — Dash-specific layout ABC
+# =====================================================================
+
+
+class DashLayout(Layout):
+    """Layout for Dash-based servers.
+
+    Extends the Layout ABC with Dash-specific methods for building
+    component trees. The HTML render methods raise NotImplementedError
+    since Dash handles its own page rendering.
+    """
+
+    def __init__(self, theme: Optional[str] = None):
+        """Initialize layout with optional theme variant."""
+        import dash.dcc
+        import dash.html
+
+        self.dcc = dash.dcc
+        self.html = dash.html
+        self.theme_name = theme
+        layout = self.build_layout()
+        self._validate_layout(layout)
+        self.component_styles = self.get_current_styles()
+
+    @abstractmethod
+    def build_layout(self):
+        """Build the Dash component tree for the full app layout.
+
+        Must include these IDs for callback integration:
+        - sidebar, sidebar_toggle, conversations_list, new_conversation_button
+        - chat_area, messages_container, input_textarea, submit_button
+        """
+
+    @abstractmethod
+    def build_messages(self, messages: List[Dict[str, Any]]) -> list:
+        """Return Dash components for the message list."""
+
+    @abstractmethod
+    def get_external_stylesheets(self) -> List[Union[str, Dict]]:
+        """Return required external stylesheets."""
+
+    def get_external_scripts(self) -> List[Union[str, Dict]]:
+        """Return required external scripts."""
+        return []
+
+    # HTML methods — Dash handles its own rendering
+    def render_page(self) -> str:
+        raise NotImplementedError(
+            f"{type(self).__name__} is a Dash layout. "
+            "Use DashServer, or override render_page() for HTML servers."
+        )
+
+    def render_messages(self, messages: List[Dict[str, Any]]) -> str:
+        raise NotImplementedError(
+            f"{type(self).__name__} is a Dash layout. "
+            "Use DashServer, or override render_messages() for HTML servers."
+        )
+
+    # ===== STYLING & THEMING METHODS =====
+    def get_class_name(self, component_key: str) -> Optional[str]:
+        """Get CSS className for component key."""
+        return self.component_styles.get(component_key, {}).get("className")
+
+    def get_style(self, component_key: str) -> Optional[Dict]:
+        """Get inline style dict for component key."""
+        return self.component_styles.get(component_key, {}).get("style")
+
+    def get_component_keys(self) -> Set[str]:
+        """Get all available component styling keys."""
+        return set(self.component_styles.keys())
 
     def get_current_styles(self) -> Dict[str, Dict]:
         """Extract component styles from layout tree."""
@@ -110,7 +173,7 @@ class Layout(ABC):
         traverse(layout)
         return styles
 
-    def _validate_layout(self, layout: DashComponent) -> None:
+    def _validate_layout(self, layout) -> None:
         """Validate layout contains required component IDs."""
         required_ids = {
             "sidebar",
@@ -143,7 +206,7 @@ class Layout(ABC):
             raise ValueError(f"Layout missing required component IDs: {missing_ids}")
 
 
-class Bootstrap(Layout):
+class Bootstrap(DashLayout):
     """Bootstrap-based layout with integrated message formatting and theming."""
 
     def __init__(self, theme: Optional[str] = "bootstrap"):
@@ -182,11 +245,11 @@ class Bootstrap(Layout):
             },
         ]
 
-    def build_layout(self) -> DashComponent:
+    def build_layout(self):
         """Complete Bootstrap layout - main structure visible for easy customization."""
         return self.dbc.Container(
             [
-                dcc.Location(id="url_location", refresh=False),
+                self.dcc.Location(id="url_location", refresh=False),
                 self.build_sidebar_toggle(),
                 self.build_sidebar(),
                 self.dbc.Row(
@@ -211,10 +274,10 @@ class Bootstrap(Layout):
             style={"height": "100vh"},
         )
 
-    def build_sidebar_toggle(self) -> DashComponent:
+    def build_sidebar_toggle(self):
         """Simple fixed burger menu button only."""
         return self.dbc.Button(
-            html.I(className="bi bi-list"),
+            self.html.I(className="bi bi-list"),
             id="sidebar_toggle",
             n_clicks=0,
             className="navbar-brand",
@@ -232,15 +295,15 @@ class Bootstrap(Layout):
             },
         )
 
-    def build_sidebar(self) -> DashComponent:
+    def build_sidebar(self):
         """Collapsible sidebar with new chat button above conversations list."""
-        return html.Div(
+        return self.html.Div(
             [
-                html.Br(),
-                html.Br(),
-                html.Br(),
-                html.Span(
-                    [html.I(className="bi bi-pencil-square me-2"), "New Chat"],
+                self.html.Br(),
+                self.html.Br(),
+                self.html.Br(),
+                self.html.Span(
+                    [self.html.I(className="bi bi-pencil-square me-2"), "New Chat"],
                     id="new_conversation_button",
                     n_clicks=0,
                     style={
@@ -250,7 +313,7 @@ class Bootstrap(Layout):
                         "cursor": "pointer",
                     },
                 ),
-                html.Ul(id="conversations_list", className="list-unstyled"),
+                self.html.Ul(id="conversations_list", className="list-unstyled"),
             ],
             id="sidebar",
             hidden=True,
@@ -267,11 +330,11 @@ class Bootstrap(Layout):
             },
         )
 
-    def build_chat_area(self) -> DashComponent:
+    def build_chat_area(self):
         """Chat area with proper viewport height and scrolling."""
-        return html.Div(
+        return self.html.Div(
             [
-                html.Div(
+                self.html.Div(
                     id="messages_container",
                     className="overflow-auto",
                     style={
@@ -286,9 +349,9 @@ class Bootstrap(Layout):
             id="chat_area",
         )
 
-    def build_input_area(self) -> DashComponent:
+    def build_input_area(self):
         """Fixed input area at bottom of screen that never scrolls."""
-        return html.Div(
+        return self.html.Div(
             [
                 self.dbc.Container(
                     [
@@ -297,9 +360,9 @@ class Bootstrap(Layout):
                             [
                                 self.dbc.Col(
                                     [
-                                        html.Div(
+                                        self.html.Div(
                                             [
-                                                html.Span(
+                                                self.html.Span(
                                                     "Working...",
                                                     style={"marginRight": "8px"},
                                                 ),
@@ -327,7 +390,7 @@ class Bootstrap(Layout):
                             [
                                 self.dbc.Col(
                                     [
-                                        html.Div(
+                                        self.html.Div(
                                             [
                                                 self.dbc.Textarea(
                                                     id="input_textarea",
@@ -340,7 +403,7 @@ class Bootstrap(Layout):
                                                     },
                                                 ),
                                                 self.dbc.Button(
-                                                    html.I(className="bi bi-send"),
+                                                    self.html.I(className="bi bi-send"),
                                                     id="submit_button",
                                                     n_clicks=0,
                                                     style={
@@ -384,13 +447,13 @@ class Bootstrap(Layout):
             },
         )
 
-    def build_messages(self, messages: List[Dict[str, Any]]) -> List[DashComponent]:
+    def build_messages(self, messages: List[Dict[str, Any]]) -> list:
         """Build all message components for display."""
         if not messages:
             return []
         return [self.build_message(msg, i) for i, msg in enumerate(messages)]
 
-    def build_message(self, message: Dict[str, Any], index: int) -> DashComponent:
+    def build_message(self, message: Dict[str, Any], index: int):
         """Build single message component."""
         content = message.get("content", "")
         direction = "rtl" if self._is_rtl(content) else "ltr"
@@ -401,10 +464,10 @@ class Bootstrap(Layout):
 
     def build_user_message(
         self, message: Dict[str, Any], index: int, direction: str = "ltr"
-    ) -> DashComponent:
+    ):
         """Build user message with Bootstrap styling - right-aligned with copy button."""
         content = message.get("content", "")
-        return html.Div(
+        return self.html.Div(
             className="mb-3",
             dir=direction,
             children=[
@@ -412,9 +475,9 @@ class Bootstrap(Layout):
                     [
                         self.dbc.Col(
                             [
-                                html.Div(
+                                self.html.Div(
                                     [
-                                        dcc.Markdown(
+                                        self.dcc.Markdown(
                                             content,
                                             id=f"user_msg_{index}",
                                             className="p-3 rounded-3 bg-light table",
@@ -441,10 +504,10 @@ class Bootstrap(Layout):
 
     def build_assistant_message(
         self, message: Dict[str, Any], index: int, direction: str = "ltr"
-    ) -> DashComponent:
+    ):
         """Build assistant message with Bootstrap styling - left-aligned with copy button."""
         content = message.get("content", "")
-        return html.Div(
+        return self.html.Div(
             className="mb-3",
             dir=direction,
             children=[
@@ -452,9 +515,9 @@ class Bootstrap(Layout):
                     [
                         self.dbc.Col(
                             [
-                                html.Div(
+                                self.html.Div(
                                     [
-                                        dcc.Markdown(
+                                        self.dcc.Markdown(
                                             content,
                                             id=f"assistant_msg_{index}",
                                             className="p-3 table",
@@ -474,15 +537,13 @@ class Bootstrap(Layout):
             ],
         )
 
-    def build_copy_button(
-        self, content: str, msg_type: str, index: int
-    ) -> Optional[DashComponent]:
+    def build_copy_button(self, content: str, msg_type: str, index: int):
         """Build copy button with proper Bootstrap positioning, only if content is non-empty."""
         if content is None or str(content).strip() == "":
             return None
-        return html.Div(
+        return self.html.Div(
             [
-                dcc.Clipboard(
+                self.dcc.Clipboard(
                     content=content,
                     id=f"copy_{msg_type}_{index}",
                     title="Copy message",
@@ -502,7 +563,7 @@ class Bootstrap(Layout):
         )
 
 
-class Mantine(Layout):
+class Mantine(DashLayout):
     """Mantine-based layout - systematic translation from Bootstrap."""
 
     def __init__(self, theme: Optional[str] = "light"):
@@ -518,13 +579,13 @@ class Mantine(Layout):
         """Mantine stylesheets are bundled as of 1.2.0."""
         return []
 
-    def build_layout(self) -> DashComponent:
+    def build_layout(self):
         """Complete Mantine layout - wraps MantineProvider around Bootstrap structure."""
         return self.dmc.MantineProvider(
             forceColorScheme=self.theme_name or "light",
             children=self.dmc.TypographyStylesProvider(
                 [
-                    dcc.Location(id="url_location", refresh=False),
+                    self.dcc.Location(id="url_location", refresh=False),
                     self.build_sidebar_toggle(),
                     self.build_sidebar(),
                     self.build_chat_area(),
@@ -533,7 +594,7 @@ class Mantine(Layout):
             ),
         )
 
-    def build_sidebar_toggle(self) -> DashComponent:
+    def build_sidebar_toggle(self):
         """Header with burger menu - uses ActionIcon but keeps same styling."""
         return self.dmc.ActionIcon(
             self.DashIconify(icon="bi-list", width=36),
@@ -550,9 +611,9 @@ class Mantine(Layout):
             },
         )
 
-    def build_sidebar(self) -> DashComponent:
-        """Sidebar - wrapped in html.Div for hidden property."""
-        return html.Div(  # CALLBACK COMPONENT - needs hidden property
+    def build_sidebar(self):
+        """Sidebar - wrapped in self.html.Div for hidden property."""
+        return self.html.Div(  # CALLBACK COMPONENT - needs hidden property
             [
                 self.dmc.Button(
                     "New Chat",
@@ -565,7 +626,7 @@ class Mantine(Layout):
                     mb="md",
                 ),
                 self.dmc.ScrollArea(
-                    html.Ul(  # CALLBACK COMPONENT - conversations list
+                    self.html.Ul(  # CALLBACK COMPONENT - conversations list
                         id="conversations_list",
                         style={"listStyle": "none", "padding": "0"},
                     ),
@@ -587,7 +648,7 @@ class Mantine(Layout):
             },
         )
 
-    def build_chat_area(self) -> DashComponent:
+    def build_chat_area(self):
         """Chat area ."""
         return self.dmc.Grid(
             self.dmc.GridCol(
@@ -603,7 +664,7 @@ class Mantine(Layout):
             id="chat_area",
         )
 
-    def build_input_area(self) -> DashComponent:
+    def build_input_area(self):
         """Input area - status_indicator wrapped, submit_button wrapped."""
         return self.dmc.Grid(
             children=[
@@ -611,7 +672,7 @@ class Mantine(Layout):
                     span={"md": 7},
                     children=self.dmc.Container(
                         [
-                            html.Div(
+                            self.html.Div(
                                 self.dmc.Button(
                                     [self.dmc.Text("Working...")],
                                     rightSection=self.dmc.Loader(
@@ -664,14 +725,14 @@ class Mantine(Layout):
             style={"zIndex": 1000},
         )
 
-    def build_messages(self, messages: List[Dict[str, Any]]) -> List[DashComponent]:
+    def build_messages(self, messages: List[Dict[str, Any]]) -> list:
         """Build all message components for display."""
         if not messages:
             return []
 
         return [self.build_message(msg, i) for i, msg in enumerate(messages)]
 
-    def build_message(self, message: Dict[str, Any], index: int) -> DashComponent:
+    def build_message(self, message: Dict[str, Any], index: int):
         """Build single message component."""
         content = message.get("content", "")
         direction = "rtl" if self._is_rtl(content) else "ltr"
@@ -682,13 +743,13 @@ class Mantine(Layout):
 
     def build_user_message(
         self, message: Dict[str, Any], index: int, direction: str = "ltr"
-    ) -> DashComponent:
+    ):
         """User message - direct translation from Bootstrap with Mantine colors."""
         content = message.get("content", "")
-        return html.Div(
+        return self.html.Div(
             style={"marginBottom": "16px", "direction": direction},
             children=[
-                dcc.Markdown(
+                self.dcc.Markdown(
                     content,
                     id=f"user_msg_{index}",
                     style={
@@ -707,13 +768,13 @@ class Mantine(Layout):
 
     def build_assistant_message(
         self, message: Dict[str, Any], index: int, direction: str = "ltr"
-    ) -> DashComponent:
+    ):
         """Assistant message - direct translation from Bootstrap."""
         content = message.get("content", "")
-        return html.Div(
+        return self.html.Div(
             style={"marginBottom": "8px", "direction": direction},
             children=[
-                dcc.Markdown(
+                self.dcc.Markdown(
                     content,
                     id=f"assistant_msg_{index}",
                     style={
@@ -724,15 +785,13 @@ class Mantine(Layout):
             ],
         )
 
-    def build_copy_button(
-        self, content: str, msg_type: str, index: int
-    ) -> Optional[DashComponent]:
+    def build_copy_button(self, content: str, msg_type: str, index: int):
         """Copy button - exact translation from Bootstrap, only if content is non-empty."""
         if content is None or str(content).strip() == "":
             return None
-        return html.Div(
+        return self.html.Div(
             [
-                dcc.Clipboard(
+                self.dcc.Clipboard(
                     content=content,
                     id=f"copy_{msg_type}_{index}",
                     title="Copy message",
@@ -753,7 +812,7 @@ class Mantine(Layout):
         )
 
 
-class Minimal(Layout):
+class Minimal(DashLayout):
     """Minimal layout using only standard Dash/HTML components."""
 
     def __init__(self, theme: Optional[str] = None):
@@ -765,16 +824,16 @@ class Minimal(Layout):
         ]
 
     # ===== LAYOUT BUILDING METHODS =====
-    def build_layout(self) -> DashComponent:
+    def build_layout(self):
         """Build simple HTML layout."""
-        return html.Div(
+        return self.html.Div(
             [
-                dcc.Location(id="url_location", refresh=False),
+                self.dcc.Location(id="url_location", refresh=False),
                 self.build_sidebar_toggle(),
                 self.build_sidebar(),
-                html.Div(
+                self.html.Div(
                     [
-                        html.Div(
+                        self.html.Div(
                             [
                                 self.build_chat_area(),
                                 self.build_input_area(),
@@ -798,8 +857,8 @@ class Minimal(Layout):
             },
         )
 
-    def build_sidebar_toggle(self) -> DashComponent:
-        return html.Button(
+    def build_sidebar_toggle(self):
+        return self.html.Button(
             "☰",
             id="sidebar_toggle",
             n_clicks=0,
@@ -817,16 +876,16 @@ class Minimal(Layout):
             },
         )
 
-    def build_sidebar(self) -> DashComponent:
-        return html.Div(
+    def build_sidebar(self):
+        return self.html.Div(
             [
-                html.Br(),
-                html.Br(),
-                html.Br(),
-                html.Br(),
-                html.Br(),
-                html.Span(
-                    html.B("✏️ New chat"),
+                self.html.Br(),
+                self.html.Br(),
+                self.html.Br(),
+                self.html.Br(),
+                self.html.Br(),
+                self.html.Span(
+                    self.html.B("✏️ New chat"),
                     id="new_conversation_button",
                     n_clicks=0,
                     style={
@@ -834,10 +893,10 @@ class Minimal(Layout):
                         "cursor": "pointer",
                     },
                 ),
-                html.Br(),
-                html.Br(),
-                html.Br(),
-                html.Ul(id="conversations_list"),
+                self.html.Br(),
+                self.html.Br(),
+                self.html.Br(),
+                self.html.Ul(id="conversations_list"),
             ],
             id="sidebar",
             hidden=True,
@@ -855,11 +914,11 @@ class Minimal(Layout):
             },
         )
 
-    def build_chat_area(self) -> DashComponent:
-        return html.Div(
+    def build_chat_area(self):
+        return self.html.Div(
             id="chat_area",
             children=[
-                html.Div(
+                self.html.Div(
                     id="messages_container",
                     style={
                         "minHeight": "300px",
@@ -873,12 +932,12 @@ class Minimal(Layout):
             ],
         )
 
-    def build_input_area(self) -> DashComponent:
-        return html.Div(
+    def build_input_area(self):
+        return self.html.Div(
             [
-                html.Div(
+                self.html.Div(
                     [
-                        html.Span(
+                        self.html.Span(
                             "Working...",
                             style={"marginRight": "8px"},
                         ),
@@ -894,9 +953,9 @@ class Minimal(Layout):
                         "fontWeight": "300",
                     },
                 ),
-                html.Div(
+                self.html.Div(
                     [
-                        dcc.Textarea(
+                        self.dcc.Textarea(
                             id="input_textarea",
                             rows=4,
                             style={
@@ -909,7 +968,7 @@ class Minimal(Layout):
                                 "borderRadius": "25px 0 0 25px",
                             },
                         ),
-                        html.Button(
+                        self.html.Button(
                             "Send",
                             id="submit_button",
                             n_clicks=0,
@@ -946,13 +1005,13 @@ class Minimal(Layout):
         )
 
     # ===== MESSAGE FORMATTING METHODS =====
-    def build_messages(self, messages: List[Dict[str, Any]]) -> List[DashComponent]:
+    def build_messages(self, messages: List[Dict[str, Any]]) -> list:
         """Build simple message list."""
         if not messages:
             return []
         return [self.build_message(msg, i) for i, msg in enumerate(messages)]
 
-    def build_message(self, message: Dict[str, Any], index: int) -> DashComponent:
+    def build_message(self, message: Dict[str, Any], index: int):
         """Build simple message component."""
         content = message.get("content", "")
         direction = "rtl" if self._is_rtl(content) else "ltr"
@@ -963,16 +1022,16 @@ class Minimal(Layout):
 
     def build_user_message(
         self, message: Dict[str, Any], index: int, direction: str = "ltr"
-    ) -> DashComponent:
+    ):
         content = message.get("content", "")
-        return html.Div(
+        return self.html.Div(
             className="user-message mb-3",
             dir=direction,
             children=[
-                html.Div(
+                self.html.Div(
                     className="user-message-content",
                     children=[
-                        dcc.Markdown(content, id=f"user_msg_{index}"),
+                        self.dcc.Markdown(content, id=f"user_msg_{index}"),
                         self.build_copy_button(content, "user", index),
                     ],
                 )
@@ -981,31 +1040,29 @@ class Minimal(Layout):
 
     def build_assistant_message(
         self, message: Dict[str, Any], index: int, direction: str = "ltr"
-    ) -> DashComponent:
+    ):
         content = message.get("content", "")
-        return html.Div(
+        return self.html.Div(
             className="assistant-message mb-3",
             dir=direction,
             children=[
-                html.Div(
+                self.html.Div(
                     className="assistant-message-content",
                     children=[
-                        dcc.Markdown(content, id=f"assistant_msg_{index}"),
+                        self.dcc.Markdown(content, id=f"assistant_msg_{index}"),
                         self.build_copy_button(content, "assistant", index),
                     ],
                 )
             ],
         )
 
-    def build_copy_button(
-        self, content: str, msg_type: str, index: int
-    ) -> Optional[DashComponent]:
+    def build_copy_button(self, content: str, msg_type: str, index: int):
         """Build copy button with proper Bootstrap positioning, only if content is non-empty."""
         if content is None or str(content).strip() == "":
             return None
-        return html.Div(
+        return self.html.Div(
             [
-                dcc.Clipboard(
+                self.dcc.Clipboard(
                     content=content,
                     id=f"copy_{msg_type}_{index}",
                     title="Copy message",

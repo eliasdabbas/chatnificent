@@ -21,7 +21,7 @@ def _build_display_output(app, conversation, convo_id_from_url, user_id):
             and str(msg.get("content", "")).strip() != ""
         )
     ]
-    formatted_messages = app.layout_builder.build_messages(display_messages)
+    formatted_messages = app.layout.build_messages(display_messages)
 
     new_pathname = no_update
     if convo_id_from_url != conversation.id:
@@ -73,7 +73,7 @@ def register_callbacks(dash_app, app):
             )
 
             error_msg_obj = {"role": ASSISTANT_ROLE, "content": error_message}
-            formatted_error = app.layout_builder.build_messages([error_msg_obj])
+            formatted_error = app.layout.build_messages([error_msg_obj])
 
             return (
                 formatted_error,
@@ -116,7 +116,7 @@ def register_callbacks(dash_app, app):
             ]
             if not filtered_messages:
                 return []
-            return app.layout_builder.build_messages(filtered_messages)
+            return app.layout.build_messages(filtered_messages)
 
         except Exception:
             return []

@@ -10,12 +10,9 @@ from importlib.metadata import version as _get_version
 
 __version__ = _get_version("chatnificent")
 
-from typing import TYPE_CHECKING, Optional, Type
+from typing import Optional
 
-from . import auth, engine, llm, models, retrieval, server, store, tools, url
-
-if TYPE_CHECKING:
-    from .engine import Engine
+from . import auth, engine, layout, llm, models, retrieval, server, store, tools, url
 
 
 class Chatnificent:
@@ -47,8 +44,8 @@ class Chatnificent:
         Parameters
         ----------
         server : server.Server, optional
-            The HTTP transport layer. Defaults to DashServer if Dash is
-            installed, otherwise DevServer (zero-dependency stdlib server).
+            The HTTP transport layer. Defaults to DevServer
+            (zero-dependency stdlib server).
         layout : layout.Layout, optional
         llm : llm.LLM, optional
         store : store.Store, optional
@@ -75,9 +72,11 @@ class Chatnificent:
         ... )
         """
         if layout:
-            self.layout_builder = layout
+            self.layout = layout
         else:
-            self.layout_builder = None
+            from .layout import DefaultLayout
+
+            self.layout = DefaultLayout()
 
         if llm:
             self.llm = llm
@@ -90,9 +89,11 @@ class Chatnificent:
                 import warnings
 
                 warnings.warn(
-                    "Chatnificent is running with a simple EchoLLM because the 'openai' package is not installed. "
-                    'For the default OpenAI integration, install with: pip install "chatnificent[default]"',
+                    "No LLM provider SDK found — falling back to EchoLLM (mirrors your input). "
+                    "Install a provider, e.g.: pip install 'chatnificent[openai]', "
+                    "'chatnificent[anthropic]', 'chatnificent[gemini]', or 'chatnificent[ollama]'",
                     UserWarning,
+                    stacklevel=2,
                 )
                 from .llm import Echo
 
@@ -144,40 +145,9 @@ class Chatnificent:
         if server is not None:
             self.server = server
         else:
-            try:
-                import dash  # noqa: F401
-                from .server import DashServer
+            from .server import DevServer
 
-                self.server = DashServer()
-            except ImportError:
-                from .server import DevServer
-
-                self.server = DevServer()
-
-        # Auto-resolve layout for DashServer if not explicitly provided
-        try:
-            from .server import DashServer as _DashServer
-        except Exception:
-            _DashServer = None
-
-        if _DashServer is not None and isinstance(self.server, _DashServer) and self.layout_builder is None:
-            try:
-                from .layout import Bootstrap
-
-                self.layout_builder = Bootstrap()
-            except ImportError:
-                try:
-                    from .layout import Minimal
-
-                    self.layout_builder = Minimal()
-                except ImportError:
-                    import warnings
-
-                    warnings.warn(
-                        "DashServer requires a Layout pillar but Dash components are not installed. "
-                        'Install with: pip install "chatnificent[dash]"',
-                        UserWarning,
-                    )
+            self.server = DevServer()
 
         self.server.app = self
         self.server.create_server(**kwargs)

@@ -24,13 +24,13 @@ class TestDashServerCreation:
         assert isinstance(app.server.dash_app, dash.Dash)
 
     def test_has_layout(self):
-        """DashServer sets layout from layout_builder."""
+        """DashServer sets layout from app.layout."""
         app = Chatnificent()
         assert app.server.dash_app.layout is not None
 
     def test_registers_callbacks(self):
         """DashServer registers callbacks during create_server."""
-        with patch("chatnificent.callbacks.register_callbacks") as mock_register:
+        with patch("chatnificent._callbacks.register_callbacks") as mock_register:
             app = Chatnificent()
             mock_register.assert_called_once()
 
@@ -54,7 +54,7 @@ class TestDashServerLayout:
 
         app = Chatnificent(layout=mock_layout)
 
-        assert app.layout_builder is mock_layout
+        assert app.layout is mock_layout
         mock_layout.build_layout.assert_called_once()
 
     def test_layout_stylesheets_added(self):

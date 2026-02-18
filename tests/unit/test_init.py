@@ -24,7 +24,7 @@ class TestChatnificentInit:
 
         assert hasattr(app, "llm")
         assert hasattr(app, "store")
-        assert hasattr(app, "layout_builder")
+        assert hasattr(app, "layout")
         assert hasattr(app, "engine")
         assert hasattr(app, "auth")
         assert hasattr(app, "tools")

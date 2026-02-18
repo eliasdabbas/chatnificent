@@ -59,73 +59,6 @@ class Server(ABC):
 # DevServer — zero-dependency stdlib server for development & demonstration
 # =============================================================================
 
-_DEV_HTML = """\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Chatnificent</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f5;height:100vh;display:flex;flex-direction:column}
-#header{background:#1a1a2e;color:#fff;padding:12px 20px;font-size:1.1rem;font-weight:600}
-#messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:12px}
-.msg{max-width:75%;padding:10px 14px;border-radius:12px;line-height:1.5;word-wrap:break-word;white-space:pre-wrap}
-.msg.user{align-self:flex-end;background:#0066cc;color:#fff;border-bottom-right-radius:4px}
-.msg.assistant{align-self:flex-start;background:#fff;color:#222;border:1px solid #ddd;border-bottom-left-radius:4px}
-#input-area{display:flex;gap:8px;padding:12px 20px;background:#fff;border-top:1px solid #ddd}
-#input{flex:1;padding:10px;border:1px solid #ccc;border-radius:8px;font-size:1rem;resize:none;font-family:inherit}
-#send{padding:10px 24px;background:#0066cc;color:#fff;border:none;border-radius:8px;font-size:1rem;cursor:pointer}
-#send:hover{background:#0052a3}
-#send:disabled{background:#999;cursor:not-allowed}
-#subtitle{background:#1a1a2e;color:#9a9ab0;padding:0 20px 10px;font-size:0.8rem}
-</style>
-</head>
-<body>
-<div id="header">Chatnificent</div>
-<div id="subtitle">Development server — not for production. See <a href="https://github.com/eliasdabbas/chatnificent" style="color:#7aa2f7">docs</a> for Starlette, FastAPI, Dash, and other server options.</div>
-<div id="messages"></div>
-<div id="input-area">
-<textarea id="input" rows="2" placeholder="Type a message..."></textarea>
-<button id="send">Send</button>
-</div>
-<script>
-const msgs=document.getElementById("messages"),input=document.getElementById("input"),btn=document.getElementById("send");
-let convoId=null;
-
-function addMsg(role,text){
-  const d=document.createElement("div");
-  d.className="msg "+role;
-  d.textContent=text;
-  msgs.appendChild(d);
-  msgs.scrollTop=msgs.scrollHeight;
-}
-
-async function send(){
-  const text=input.value.trim();
-  if(!text)return;
-  addMsg("user",text);
-  input.value="";
-  btn.disabled=true;
-  try{
-    const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:text,conversation_id:convoId})});
-    const data=await r.json();
-    if(data.error){addMsg("assistant","Error: "+data.error);}
-    else{addMsg("assistant",data.response);convoId=data.conversation_id;}
-  }catch(e){addMsg("assistant","Error: "+e.message);}
-  btn.disabled=false;
-  input.focus();
-}
-
-btn.addEventListener("click",send);
-input.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}});
-input.focus();
-</script>
-</body>
-</html>
-"""
-
 
 class _DevHandler(SimpleHTTPRequestHandler):
     """HTTP request handler for DevServer."""
@@ -136,7 +69,7 @@ class _DevHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/" or self.path == "/index.html":
-            self._respond_html(_DEV_HTML)
+            self._respond_html(self._app.layout.render_page())
         elif self.path == "/api/conversations":
             self._handle_list_conversations()
         elif self.path.startswith("/api/conversations/"):
@@ -309,20 +242,28 @@ class DashServer(Server):
     def create_server(self, **kwargs) -> Any:
         from dash import Dash
 
-        layout_builder = self.app.layout_builder
+        from .layout import DashLayout
+
+        layout = self.app.layout
+        if not isinstance(layout, DashLayout):
+            raise TypeError(
+                f"DashServer requires a DashLayout (e.g. Bootstrap, Mantine, Minimal), "
+                f"got {type(layout).__name__}. "
+                f'Pass layout=Bootstrap() or install with: pip install "chatnificent[dash]"'
+            )
 
         if "external_stylesheets" not in kwargs:
             kwargs["external_stylesheets"] = []
-        kwargs["external_stylesheets"].extend(layout_builder.get_external_stylesheets())
+        kwargs["external_stylesheets"].extend(layout.get_external_stylesheets())
 
         if "external_scripts" not in kwargs:
             kwargs["external_scripts"] = []
-        kwargs["external_scripts"].extend(layout_builder.get_external_scripts())
+        kwargs["external_scripts"].extend(layout.get_external_scripts())
 
         self.dash_app = Dash(**kwargs)
-        self.dash_app.layout = layout_builder.build_layout()
+        self.dash_app.layout = layout.build_layout()
 
-        from .callbacks import register_callbacks
+        from ._callbacks import register_callbacks
 
         register_callbacks(self.dash_app, self.app)
 

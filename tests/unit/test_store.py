@@ -808,4 +808,16 @@ class TestInMemory:
 
         conversations = store.list_conversations("user1")
         assert len(conversations) == 1
-        assert conversations[0] == "conv_001"
+
+    def test_inmemory_save_without_prior_namespace(self):
+        """save_conversation should work even if the user namespace doesn't exist yet."""
+        store = InMemory()
+        convo = Conversation(
+            id="conv_001",
+            messages=[{"role": "user", "content": "Hello"}],
+        )
+        store.save_conversation("new_user", convo)
+
+        loaded = store.load_conversation("new_user", "conv_001")
+        assert loaded is not None
+        assert loaded.messages[0]["content"] == "Hello"

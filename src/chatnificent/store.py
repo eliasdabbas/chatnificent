@@ -62,7 +62,7 @@ class InMemory(Store):
         return self._store.get(user_id, {}).get(convo_id)
 
     def save_conversation(self, user_id: str, conversation: Conversation):
-        self._store[user_id][conversation.id] = conversation.copy(deep=True)
+        self._store.setdefault(user_id, {})[conversation.id] = conversation.copy(deep=True)
 
     def list_conversations(self, user_id: str) -> List[str]:
         """Lists all conversation IDs for a given user. Returns empty list if user doesn't exist."""

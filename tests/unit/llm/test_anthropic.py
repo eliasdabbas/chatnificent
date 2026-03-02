@@ -263,6 +263,16 @@ class TestGenerateResponse:
         # System message should not be in messages list
         assert all(m.get("role") != "system" for m in call_kwargs["messages"])
 
+    def test_does_not_mutate_caller_messages(self, anthropic_llm):
+        messages = [
+            {"role": "system", "content": "Be concise."},
+            {"role": "user", "content": "Hi"},
+        ]
+        original_len = len(messages)
+        anthropic_llm.generate_response(messages)
+        assert len(messages) == original_len
+        assert messages[0]["role"] == "system"
+
     def test_tools_translated(self, anthropic_llm):
         messages = [{"role": "user", "content": "Hi"}]
         tools = [

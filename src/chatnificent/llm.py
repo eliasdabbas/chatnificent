@@ -136,6 +136,31 @@ class LLM(ABC):
                 )
         return []
 
+    def extract_stream_delta(self, chunk: Any) -> Optional[str]:
+        """Extract text delta from a single streamed chunk.
+
+        Called once per chunk when the engine iterates a streaming
+        response.  Each provider's chunk shape is different, so every
+        concrete class that supports ``stream=True`` must override this.
+
+        Parameters
+        ----------
+        chunk : Any
+            A single chunk from the streaming iterator returned by
+            ``generate_response(..., stream=True)``.
+
+        Returns
+        -------
+        Optional[str]
+            The text delta contained in this chunk, or ``None`` if the
+            chunk carries no content (e.g. a role-only or finish chunk).
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement "
+            f"extract_stream_delta(). Pass stream=True only to "
+            f"providers that support streaming."
+        )
+
     def is_tool_message(self, message: Dict[str, Any]) -> bool:
         """Check if a message dict is a special tool-related message for a provider.
 
@@ -244,6 +269,11 @@ class _OpenAICompatible(LLM):
                 }
             )
         return messages
+
+    def extract_stream_delta(self, chunk: Any) -> Optional[str]:
+        if not chunk.choices:
+            return None
+        return chunk.choices[0].delta.content
 
     def is_tool_message(self, message: Dict[str, Any]) -> bool:
         return message.get("role") == TOOL_ROLE
@@ -443,6 +473,7 @@ class Anthropic(LLM):
         tools: Optional[List[Any]] = None,
         **kwargs: Any,
     ) -> Any:
+        messages = list(messages)
         system_prompt = None
         if messages and messages[0].get("role") == "system":
             system_prompt = messages.pop(0)["content"]
@@ -523,6 +554,11 @@ class Anthropic(LLM):
         if role == ASSISTANT_ROLE:
             return any(item.get("type") == "tool_use" for item in content_data)
         return False
+
+    def extract_stream_delta(self, chunk: Any) -> Optional[str]:
+        if chunk.type == "content_block_delta" and hasattr(chunk, "delta"):
+            return getattr(chunk.delta, "text", None)
+        return None
 
 
 class Gemini(LLM):
@@ -889,6 +925,9 @@ class Ollama(LLM):
             )
         return messages
 
+    def extract_stream_delta(self, chunk: Any) -> Optional[str]:
+        return chunk.get("message", {}).get("content")
+
 
 class Echo(LLM):
     """Mock LLM for testing purposes and fallback."""
@@ -916,8 +955,6 @@ class Echo(LLM):
     ) -> Any:
         import time
 
-        time.sleep(0.8)
-
         user_prompt = ""
         for msg in reversed(messages):
             if msg.get("role") == USER_ROLE:
@@ -943,13 +980,31 @@ class Echo(LLM):
         if tools:
             content += "\n\n_Note: Tools were provided but ignored by Echo LLM._"
 
+        stream = kwargs.get("stream") or self.default_params.get("stream", False)
+        if stream:
+            return self._stream_echo(content)
+
+        time.sleep(0.8)
         return {
             "content": content,
             "model": model or self.model,
             "type": "echo_response",
         }
 
+    def _stream_echo(self, content: str):
+        """Yield one character at a time to simulate streaming."""
+        import time
+
+        for char in content:
+            time.sleep(0.02)
+            yield {"content": char, "type": "echo_stream_chunk"}
+
     def extract_content(self, response: Any) -> Optional[str]:
         if isinstance(response, dict) and response.get("type") == "echo_response":
             return response.get("content")
         return str(response)
+
+    def extract_stream_delta(self, chunk: Any) -> Optional[str]:
+        if isinstance(chunk, dict):
+            return chunk.get("content")
+        return None

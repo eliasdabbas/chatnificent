@@ -4,13 +4,11 @@ Defines the core orchestration logic for the Chatnificent application.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
-
+from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional
 
 from .models import (
     ASSISTANT_ROLE,
     SYSTEM_ROLE,
-    TOOL_ROLE,
     USER_ROLE,
     Conversation,
 )
@@ -24,9 +22,25 @@ if TYPE_CHECKING:
 class Engine(ABC):
     """Abstract Base Class for all Chatnificent Engines."""
 
-    def __init__(self, app: Optional["Chatnificent"] = None) -> None:
-        """Initialize with optional app reference (can be bound later via app setter)."""
+    def __init__(
+        self,
+        app: Optional["Chatnificent"] = None,
+        max_agentic_turns: int = 5,
+    ) -> None:
+        """Initialize with optional app reference.
+
+        Can be bound later via app setter.
+
+        Parameters
+        ----------
+        app : Optional[Chatnificent]
+            The Chatnificent application instance.
+        max_agentic_turns : int
+            Maximum number of tool-calling loop iterations before forcing a
+            final response. By default 5.
+        """
         self.app = app
+        self.max_agentic_turns = max_agentic_turns
 
     @abstractmethod
     def handle_message(
@@ -53,13 +67,75 @@ class Engine(ABC):
         """
         pass
 
+    @abstractmethod
+    def handle_message_stream(
+        self,
+        user_input: str,
+        user_id: str,
+        convo_id_from_url: Optional[str],
+    ) -> Generator[Dict[str, Any], None, None]:
+        """Process a user message and yield SSE event dicts as the response streams.
+
+        Each yielded dict has ``event`` and ``data`` keys:
+
+        - ``{"event": "status", "data": "Calling tool: ..."}``
+        - ``{"event": "delta",  "data": "token text"}``
+        - ``{"event": "done",   "data": {"conversation_id": "..."}}``
+        - ``{"event": "error",  "data": "error message"}``
+
+        Parameters
+        ----------
+        user_input : str
+            The user's message text.
+        user_id : str
+            The authenticated user's identifier.
+        convo_id_from_url : Optional[str]
+            The conversation ID from the current URL, or None for a new chat.
+
+        Yields
+        ------
+        Dict[str, Any]
+            Server-Sent Event dicts with ``event`` and ``data`` keys.
+        """
+        pass
+
 
 class Synchronous(Engine):
     """
-    The default engine that processes a request synchronously with an agentic loop.
+    The default engine that processes requests with an agentic loop.
+
+    Supports both non-streaming (``handle_message``) and streaming
+    (``handle_message_stream``) request lifecycles.
     """
 
-    MAX_AGENTIC_TURNS = 5
+    def _initialize_conversation(
+        self, user_input: str, user_id: str, convo_id_from_url: Optional[str]
+    ) -> Conversation:
+        """Resolve or create a conversation and append the user message."""
+        conversation = self._resolve_conversation(user_id, convo_id_from_url)
+        conversation = self._add_user_message(conversation, user_input)
+        return conversation
+
+    def _apply_retrieval_context(
+        self, user_input: str, user_id: str, conversation: Conversation
+    ) -> Optional[str]:
+        """Run the retrieval pipeline and inject context into messages."""
+        self._before_retrieval(user_input, conversation)
+        retrieval_context = self._retrieve_context(
+            user_input, user_id, conversation.id
+        )
+        self._after_retrieval(retrieval_context)
+
+        if retrieval_context and not any(
+            msg.get("role") == SYSTEM_ROLE for msg in conversation.messages
+        ):
+            system_message = {
+                "role": SYSTEM_ROLE,
+                "content": f"Context:\n---\n{retrieval_context}\n---",
+            }
+            conversation.messages.insert(0, system_message)
+
+        return retrieval_context
 
     def handle_message(
         self,
@@ -67,35 +143,25 @@ class Synchronous(Engine):
         user_id: str,
         convo_id_from_url: Optional[str],
     ) -> Conversation:
-        """Orchestrates the synchronous, multi-turn agentic lifecycle."""
+        """Orchestrates the non-streaming, multi-turn agentic lifecycle."""
 
         conversation = None
         try:
             # 1. Initialization
-            conversation = self._resolve_conversation(user_id, convo_id_from_url)
-            conversation = self._add_user_message(conversation, user_input)
+            conversation = self._initialize_conversation(
+                user_input, user_id, convo_id_from_url
+            )
 
             # 2. Contextualization (RAG)
-            self._before_retrieval(user_input, conversation)
-            retrieval_context = self._retrieve_context(
-                user_input, user_id, conversation.id
+            retrieval_context = self._apply_retrieval_context(
+                user_input, user_id, conversation
             )
-            self._after_retrieval(retrieval_context)
-
-            if retrieval_context and not any(
-                msg.get("role") == SYSTEM_ROLE for msg in conversation.messages
-            ):
-                system_message = {
-                    "role": SYSTEM_ROLE,
-                    "content": f"Context:\n---\n{retrieval_context}\n---",
-                }
-                conversation.messages.insert(0, system_message)
 
             # 3. Agentic Loop
             llm_response = None
-            tool_calls = None  # Initialize scope
+            tool_calls = None
 
-            for turn in range(self.MAX_AGENTIC_TURNS):
+            for _turn in range(self.max_agentic_turns):
                 self._before_llm_call(conversation)
                 llm_payload = self._prepare_llm_payload(conversation, retrieval_context)
 
@@ -121,7 +187,6 @@ class Synchronous(Engine):
                 tool_results = self._execute_tools(tool_calls)
 
                 # Add Tool Results using Adapter
-                # Note: This uses the plural method to allow provider-specific batching (e.g., Anthropic)
                 tool_result_messages = self.app.llm.create_tool_result_messages(
                     tool_results, conversation
                 )
@@ -130,11 +195,9 @@ class Synchronous(Engine):
             else:
                 # Loop finished without breaking (Max turns reached)
                 self._handle_max_turns(conversation)
-                # Clear tool_calls to ensure the final response logic below is triggered correctly
                 tool_calls = None
 
             # 4. Finalization
-            # Add the final assistant message if the loop broke normally and a response exists
             if not tool_calls and llm_response is not None:
                 text_content = self.app.llm.extract_content(llm_response)
                 assistant_message = {"role": ASSISTANT_ROLE, "content": text_content}
@@ -148,6 +211,140 @@ class Synchronous(Engine):
 
         except Exception as e:
             return self._handle_error(e, user_id, conversation)
+
+    def handle_message_stream(
+        self,
+        user_input: str,
+        user_id: str,
+        convo_id_from_url: Optional[str],
+    ) -> Generator[Dict[str, Any], None, None]:
+        """Orchestrates the streaming, multi-turn agentic lifecycle."""
+
+        conversation = None
+        try:
+            # 1. Initialization
+            conversation = self._initialize_conversation(
+                user_input, user_id, convo_id_from_url
+            )
+
+            # 2. Contextualization (RAG)
+            retrieval_context = self._apply_retrieval_context(
+                user_input, user_id, conversation
+            )
+
+            # 3. Agentic Loop
+            llm_response = None
+            tool_calls = None
+            accumulated_text = ""
+
+            for _turn in range(self.max_agentic_turns):
+                self._before_llm_call(conversation)
+                llm_payload = self._prepare_llm_payload(conversation, retrieval_context)
+
+                has_tools = bool(self.app.tools.get_tools())
+
+                if has_tools:
+                    # Tool-calling turns always run non-streamed
+                    llm_response = self._generate_response(
+                        llm_payload, stream=False
+                    )
+                    self._after_llm_call(llm_response)
+                    self._save_raw_exchange(user_id, conversation.id, llm_response)
+
+                    tool_calls = self.app.llm.parse_tool_calls(llm_response)
+
+                    if not tool_calls:
+                        text_content = self.app.llm.extract_content(llm_response)
+                        if text_content:
+                            accumulated_text = text_content
+                            yield {"event": "delta", "data": text_content}
+                            self._on_stream_delta(text_content, accumulated_text)
+                        break
+
+                    # Emit any text content before executing tools
+                    # (Anthropic can return text + tool_use in the same response)
+                    text_content = self.app.llm.extract_content(llm_response)
+                    if text_content:
+                        accumulated_text += text_content
+                        yield {"event": "delta", "data": text_content}
+                        self._on_stream_delta(text_content, accumulated_text)
+
+                    assistant_message = self.app.llm.create_assistant_message(
+                        llm_response
+                    )
+                    conversation.messages.append(assistant_message)
+
+                    for tool_call in tool_calls:
+                        fn_name = tool_call.get("function_name", "unknown")
+                        yield {
+                            "event": "status",
+                            "data": f"Calling tool: {fn_name}...",
+                        }
+
+                        result = self._execute_tools([tool_call])[0]
+
+                        yield {"event": "status", "data": "Tool result received."}
+
+                        tool_result_messages = (
+                            self.app.llm.create_tool_result_messages(
+                                [result], conversation
+                            )
+                        )
+                        conversation.messages.extend(tool_result_messages)
+
+                else:
+                    # No tools — stream the response token-by-token
+                    stream = self._generate_response(llm_payload)
+                    for chunk in stream:
+                        delta = self.app.llm.extract_stream_delta(chunk)
+                        if delta:
+                            accumulated_text += delta
+                            yield {"event": "delta", "data": delta}
+                            self._on_stream_delta(delta, accumulated_text)
+                    break
+
+            else:
+                # Max turns reached — save before returning
+                self._handle_max_turns(conversation)
+                self._before_save(conversation)
+                self._save_conversation(conversation, user_id)
+                yield {
+                    "event": "done",
+                    "data": {"conversation_id": conversation.id},
+                }
+                return
+
+            # 4. Finalization
+            if accumulated_text:
+                assistant_message = {
+                    "role": ASSISTANT_ROLE,
+                    "content": accumulated_text,
+                }
+                conversation.messages.append(assistant_message)
+
+            # Save raw exchange for the streaming path
+            self._save_raw_exchange(user_id, conversation.id, None)
+
+            # 5. Persistence
+            self._before_save(conversation)
+            self._save_conversation(conversation, user_id)
+
+            yield {"event": "done", "data": {"conversation_id": conversation.id}}
+
+        except Exception as e:
+            logger.exception("Error during streaming message handling")
+            yield {"event": "error", "data": str(e)}
+
+            if conversation and conversation.id:
+                error_response = {
+                    "role": ASSISTANT_ROLE,
+                    "content": f"I encountered an error: {str(e)}. Please try again.",
+                }
+                conversation.messages.append(error_response)
+                try:
+                    self._save_conversation(conversation, user_id)
+                except Exception:
+                    logger.exception("Failed to save error conversation")
 
     # =========================================================================
     # Seams (Core Logic - Overridable)
@@ -183,14 +380,22 @@ class Synchronous(Engine):
     ) -> List[Dict[str, Any]]:
         return list(conversation.messages)
 
-    def _generate_response(self, llm_payload: List[Dict[str, Any]]) -> Any:
-        """[Seam] Executes the synchronous call to the LLM pillar."""
-        # Future enhancement: Determine required tool format based on LLM type if Tools pillar supports translation.
+    def _generate_response(self, llm_payload: List[Dict[str, Any]], **kwargs) -> Any:
+        """[Seam] Executes the call to the LLM pillar.
+
+        Parameters
+        ----------
+        llm_payload : List[Dict[str, Any]]
+            The message list to send to the LLM.
+        **kwargs : Any
+            Additional keyword arguments forwarded to ``generate_response()``
+            (e.g. ``stream=False`` to override a streaming-configured LLM).
+        """
         tools = self.app.tools.get_tools()
         if tools:
-            return self.app.llm.generate_response(llm_payload, tools=tools)
+            return self.app.llm.generate_response(llm_payload, tools=tools, **kwargs)
         else:
-            return self.app.llm.generate_response(llm_payload)
+            return self.app.llm.generate_response(llm_payload, **kwargs)
 
     def _execute_tools(self, tool_calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """[Seam] Executes tools using the standardized protocol."""
@@ -205,7 +410,10 @@ class Synchronous(Engine):
         logger.warning(f"Max agentic turns reached for conversation {conversation.id}")
         limit_message = {
             "role": ASSISTANT_ROLE,
-            "content": "I reached the maximum number of steps allowed. Please try rephrasing or simplifying your request.",
+            "content": (
+                "I reached the maximum number of steps allowed. "
+                "Please try rephrasing or simplifying your request."
+            ),
         }
         conversation.messages.append(limit_message)
 
@@ -248,6 +456,18 @@ class Synchronous(Engine):
         pass
 
     def _before_save(self, conversation: Conversation) -> None:
+        pass
+
+    def _on_stream_delta(self, delta: str, accumulated: str) -> None:
+        """[Hook] Called after each streamed text delta.
+
+        Parameters
+        ----------
+        delta : str
+            The new text chunk just received.
+        accumulated : str
+            The full accumulated text so far.
+        """
         pass
 
     def _handle_error(

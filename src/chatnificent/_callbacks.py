@@ -5,22 +5,27 @@ from dash import ALL, Input, Output, State, callback_context, no_update
 from .models import ASSISTANT_ROLE, SYSTEM_ROLE, USER_ROLE
 
 
+def _filter_display_messages(messages, llm):
+    """Return only messages that should be rendered in the chat UI."""
+    return [
+        msg
+        for msg in messages
+        if (
+            not llm.is_tool_message(msg)
+            and msg.get("role") != SYSTEM_ROLE
+            and msg.get("content") is not None
+            and str(msg.get("content", "")).strip() != ""
+        )
+    ]
+
+
 def _build_display_output(app, conversation, convo_id_from_url, user_id):
     """Format an engine Conversation into Dash callback return values.
 
     This bridges the framework-agnostic engine output to the Dash-specific
     presentation layer.
     """
-    display_messages = [
-        msg
-        for msg in conversation.messages
-        if (
-            not app.llm.is_tool_message(msg)
-            and msg.get("role") != SYSTEM_ROLE
-            and msg.get("content") is not None
-            and str(msg.get("content", "")).strip() != ""
-        )
-    ]
+    display_messages = _filter_display_messages(conversation.messages, app.llm)
     formatted_messages = app.layout.build_messages(display_messages)
 
     new_pathname = no_update
@@ -109,11 +114,9 @@ def register_callbacks(dash_app, app):
             if not conversation or not conversation.messages:
                 return []
 
-            filtered_messages = [
-                msg
-                for msg in conversation.messages
-                if msg.get("role") in [USER_ROLE, ASSISTANT_ROLE]
-            ]
+            filtered_messages = _filter_display_messages(
+                conversation.messages, app.llm
+            )
             if not filtered_messages:
                 return []
             return app.layout.build_messages(filtered_messages)

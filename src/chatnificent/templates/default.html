@@ -341,6 +341,13 @@
         }
         .msg.assistant th { background: var(--bg); font-weight: 600; }
 
+        .status-indicator {
+            color: var(--text-secondary);
+            font-size: 0.85em;
+            font-style: italic;
+            margin-top: 0.4em;
+        }
+
         #loading {
             align-self: flex-start;
             padding: 14px 20px;
@@ -619,6 +626,7 @@
                 if (role === "assistant") d.innerHTML = renderMarkdown(text);
                 else d.textContent = text;
                 msgs.appendChild(d); msgs.scrollTop = msgs.scrollHeight;
+                return d;
             }
             function showLoading() {
                 var el = document.createElement("div");
@@ -636,16 +644,60 @@
                 try {
                     var r = await fetch("/api/chat", {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Accept": "text/event-stream"
+                        },
                         body: JSON.stringify({ message: text, conversation_id: convoId })
                     });
-                    var data = await r.json(); hideLoading();
-                    if (data.error) addMsg("assistant", "Error: " + data.error);
-                    else {
-                        addMsg("assistant", data.response);
-                        convoId = data.conversation_id;
-                        history.replaceState(null, "", "/" + convoId);
-                        refreshConvoList();
+                    var ct = (r.headers.get("Content-Type") || "");
+                    if (ct.indexOf("text/event-stream") !== -1) {
+                        hideLoading();
+                        var bubble = addMsg("assistant", "");
+                        var accumulated = "";
+                        var reader = r.body.getReader();
+                        var decoder = new TextDecoder();
+                        var buf = "";
+                        while (true) {
+                            var result = await reader.read();
+                            if (result.done) break;
+                            buf += decoder.decode(result.value, { stream: true });
+                            var lines = buf.split("\n");
+                            buf = lines.pop();
+                            for (var i = 0; i < lines.length; i++) {
+                                var line = lines[i];
+                                if (line.indexOf("data: ") !== 0) continue;
+                                var payload;
+                                try { payload = JSON.parse(line.slice(6)); } catch(_) { continue; }
+                                if (payload.event === "delta") {
+                                    accumulated += payload.data;
+                                    bubble.innerHTML = renderMarkdown(accumulated);
+                                    msgs.scrollTop = msgs.scrollHeight;
+                                } else if (payload.event === "status") {
+                                    bubble.innerHTML = renderMarkdown(accumulated || "") +
+                                        '<div class="status-indicator">' + DOMPurify.sanitize(payload.data) + '</div>';
+                                    msgs.scrollTop = msgs.scrollHeight;
+                                } else if (payload.event === "done") {
+                                    if (payload.data && payload.data.conversation_id) {
+                                        convoId = payload.data.conversation_id;
+                                        history.replaceState(null, "", "/" + convoId);
+                                        refreshConvoList();
+                                    }
+                                    bubble.innerHTML = renderMarkdown(accumulated);
+                                } else if (payload.event === "error") {
+                                    bubble.innerHTML = renderMarkdown(accumulated || "Error: " + payload.data);
+                                }
+                            }
+                        }
+                    } else {
+                        var data = await r.json(); hideLoading();
+                        if (data.error) addMsg("assistant", "Error: " + data.error);
+                        else {
+                            addMsg("assistant", data.response);
+                            convoId = data.conversation_id;
+                            history.replaceState(null, "", "/" + convoId);
+                            refreshConvoList();
+                        }
                     }
                 } catch (e) { hideLoading(); addMsg("assistant", "Error: " + e.message); }
                 sendBtn.disabled = false; input.focus();

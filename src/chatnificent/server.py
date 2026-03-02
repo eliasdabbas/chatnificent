@@ -96,9 +96,21 @@ class _DevHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         if self.path == "/api/chat":
-            self._handle_chat()
+            if self._is_streaming():
+                self._handle_chat_stream()
+            else:
+                self._handle_chat()
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
+
+    def _is_streaming(self):
+        """Check if the configured LLM is set up for streaming."""
+        llm = self._app.llm
+        if getattr(llm, "default_params", {}).get("stream", False):
+            return True
+        if hasattr(llm, "_streaming") and llm._streaming:
+            return True
+        return False
 
     def _handle_chat(self):
         try:
@@ -135,6 +147,49 @@ class _DevHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             logger.exception("DevServer error in /api/chat")
             self._respond_json({"error": str(e)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def _handle_chat_stream(self):
+        try:
+            body = self._read_json_body()
+            if body is None:
+                return
+
+            message = body.get("message", "").strip()
+            if not message:
+                self._respond_json(
+                    {"error": "Empty message"}, HTTPStatus.BAD_REQUEST
+                )
+                return
+
+            user_id = self._get_user_id()
+            convo_id = body.get("conversation_id")
+
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("X-Accel-Buffering", "no")
+            self._maybe_set_session_cookie()
+            self.end_headers()
+
+            for event in self._app.engine.handle_message_stream(
+                message, user_id, convo_id
+            ):
+                line = f"data: {json.dumps(event)}\n\n"
+                self.wfile.write(line.encode("utf-8"))
+                self.wfile.flush()
+
+        except Exception as e:
+            logger.exception("DevServer error in /api/chat (stream)")
+            try:
+                error_event = json.dumps(
+                    {"event": "error", "data": str(e)}
+                )
+                self.wfile.write(
+                    f"data: {error_event}\n\n".encode("utf-8")
+                )
+                self.wfile.flush()
+            except Exception:
+                pass
 
     def _handle_list_conversations(self):
         try:

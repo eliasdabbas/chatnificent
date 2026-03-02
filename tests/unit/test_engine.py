@@ -25,6 +25,9 @@ class TestEngineBase:
             def handle_message(self, user_input, user_id, convo_id_from_url):
                 return Conversation(id="test")
 
+            def handle_message_stream(self, user_input, user_id, convo_id_from_url):
+                yield {}
+
         engine = ConcreteEngine(mock_app)
         assert engine.app is mock_app
 
@@ -34,6 +37,9 @@ class TestEngineBase:
         class ConcreteEngine(Engine):
             def handle_message(self, user_input, user_id, convo_id_from_url):
                 return Conversation(id="test")
+
+            def handle_message_stream(self, user_input, user_id, convo_id_from_url):
+                yield {}
 
         engine = ConcreteEngine()
         assert engine.app is None
@@ -172,7 +178,7 @@ class TestSynchronousEngine:
 
         # Should stop after MAX_AGENTIC_TURNS
         assert (
-            mock_app.llm.generate_response.call_count == Synchronous.MAX_AGENTIC_TURNS
+            mock_app.llm.generate_response.call_count == engine.max_agentic_turns
         )
 
     def test_conversation_persistence(self, engine, mock_app):

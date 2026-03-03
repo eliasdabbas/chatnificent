@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from chatnificent import Chatnificent
-from chatnificent.engine import Engine, Synchronous
+from chatnificent.engine import Engine, Orchestrator
 from chatnificent.llm import Echo
 from chatnificent.server import DevServer, Server
 from chatnificent.store import InMemory
@@ -82,15 +82,15 @@ class TestEngineInitialization:
     """Test engine initialization and lazy binding."""
 
     def test_default_engine_initialization(self):
-        """Test default Synchronous engine is created."""
+        """Test default Orchestrator engine is created."""
         app = Chatnificent()
 
-        assert isinstance(app.engine, Synchronous)
+        assert isinstance(app.engine, Orchestrator)
         assert app.engine.app is app
 
     def test_custom_engine_instance_with_lazy_binding(self):
         """Test passing engine instance with lazy binding."""
-        custom_engine = Synchronous()
+        custom_engine = Orchestrator()
         assert custom_engine.app is None
 
         app = Chatnificent(engine=custom_engine)
@@ -101,7 +101,7 @@ class TestEngineInitialization:
     def test_custom_engine_subclass_with_lazy_binding(self):
         """Test custom engine subclass with lazy binding."""
 
-        class CustomEngine(Synchronous):
+        class CustomEngine(Orchestrator):
             def __init__(self, app=None):
                 super().__init__(app)
                 self.custom_attr = "test"
@@ -119,7 +119,7 @@ class TestEngineInitialization:
     def test_engine_with_pre_existing_app_reference(self):
         """Test engine that already has app reference."""
         mock_app = Mock()
-        custom_engine = Synchronous(mock_app)
+        custom_engine = Orchestrator(mock_app)
 
         new_app = Chatnificent(engine=custom_engine)
 
@@ -139,7 +139,7 @@ class TestPillarIntegration:
         mock_retrieval = Mock()
         mock_url = Mock()
 
-        custom_engine = Synchronous()
+        custom_engine = Orchestrator()
 
         app = Chatnificent(
             llm=mock_llm,
@@ -187,7 +187,7 @@ class TestBackwardCompatibility:
 
     def test_engine_parameter_accepts_instance(self):
         """Test new 'engine' parameter works correctly."""
-        custom_engine = Synchronous()
+        custom_engine = Orchestrator()
         app = Chatnificent(engine=custom_engine)
 
         assert app.engine is custom_engine

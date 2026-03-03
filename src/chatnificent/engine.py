@@ -100,7 +100,7 @@ class Engine(ABC):
         pass
 
 
-class Synchronous(Engine):
+class Orchestrator(Engine):
     """
     The default engine that processes requests with an agentic loop.
 

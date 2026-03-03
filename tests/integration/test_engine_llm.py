@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from chatnificent import Chatnificent
-from chatnificent.engine import Synchronous
+from chatnificent.engine import Orchestrator
 from chatnificent.llm import Echo
 from chatnificent.models import ASSISTANT_ROLE, USER_ROLE, Conversation
 
@@ -204,7 +204,7 @@ class TestEngineHooksIntegration:
     def test_hooks_called_with_real_components(self):
         """Test hooks are called in correct order with real LLM."""
 
-        class TrackedEngine(Synchronous):
+        class TrackedEngine(Orchestrator):
             def __init__(self, app=None):
                 super().__init__(app)
                 self.call_log = []
@@ -236,7 +236,7 @@ class TestEngineHooksIntegration:
     def test_hook_can_modify_conversation(self):
         """Test that hooks can modify the conversation."""
 
-        class ModifyingEngine(Synchronous):
+        class ModifyingEngine(Orchestrator):
             def _before_llm_call(self, conversation):
                 # Add a system message
                 conversation.messages.insert(

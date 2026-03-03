@@ -4,7 +4,7 @@ from typing import Any, Dict, List
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from chatnificent.engine import Engine, Synchronous
+from chatnificent.engine import Engine, Orchestrator
 from chatnificent.models import ASSISTANT_ROLE, USER_ROLE, Conversation
 
 
@@ -50,8 +50,8 @@ class TestEngineBase:
         assert engine.app is mock_app
 
 
-class TestSynchronousEngine:
-    """Test the Synchronous engine implementation."""
+class TestOrchestratorEngine:
+    """Test the Orchestrator engine implementation."""
 
     @pytest.fixture
     def mock_app(self):
@@ -84,8 +84,8 @@ class TestSynchronousEngine:
 
     @pytest.fixture
     def engine(self, mock_app):
-        """Create a Synchronous engine with mock app."""
-        return Synchronous(mock_app)
+        """Create a Orchestrator engine with mock app."""
+        return Orchestrator(mock_app)
 
     def test_handle_message_basic_flow(self, engine, mock_app):
         """Test basic message handling flow."""
@@ -249,7 +249,7 @@ class TestSynchronousEngine:
 
 
 class TestEngineHooks:
-    """Test the hook methods in Synchronous engine."""
+    """Test the hook methods in Orchestrator engine."""
 
     def test_hooks_are_called_in_order(self):
         """Test that all hook methods are called in the correct order."""
@@ -267,7 +267,7 @@ class TestEngineHooks:
         mock_app.tools.get_tools = Mock(return_value=None)
 
         # Create engine with tracked hooks
-        class TrackedEngine(Synchronous):
+        class TrackedEngine(Orchestrator):
             def __init__(self, app):
                 super().__init__(app)
                 self.call_log = []
@@ -295,7 +295,7 @@ class TestEngineHooks:
         mock_app = Mock()
         # ... setup mocks ...
 
-        class ModifyingEngine(Synchronous):
+        class ModifyingEngine(Orchestrator):
             def _before_llm_call(self, conversation):
                 # Add a system message
                 conversation.messages.insert(
@@ -311,12 +311,12 @@ class TestEngineLazyBinding:
 
     def test_engine_created_without_app(self):
         """Test engine can be created without app."""
-        engine = Synchronous()
+        engine = Orchestrator()
         assert engine.app is None
 
     def test_engine_app_bound_later(self):
         """Test app can be bound after engine creation."""
-        engine = Synchronous()
+        engine = Orchestrator()
         mock_app = Mock()
 
         engine.app = mock_app
@@ -324,7 +324,7 @@ class TestEngineLazyBinding:
 
     def test_engine_methods_require_app(self):
         """Test that engine methods fail gracefully without app."""
-        engine = Synchronous()
+        engine = Orchestrator()
 
         # Without an app, the engine catches the error and returns
         # a Conversation with an error message

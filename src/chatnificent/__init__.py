@@ -54,7 +54,7 @@ class Chatnificent:
         retrieval : retrieval.Retrieval, optional
         url : url.URL, optional
         engine : engine.Engine, optional
-            The orchestration engine. Defaults to engine.Synchronous.
+            The orchestration engine. Defaults to engine.Orchestrator.
         **kwargs
             Additional arguments passed to the Server's create_server method.
 
@@ -138,9 +138,9 @@ class Chatnificent:
             self.engine = engine
             self.engine.app = self
         else:
-            from .engine import Synchronous
+            from .engine import Orchestrator
 
-            self.engine = Synchronous(self)
+            self.engine = Orchestrator(self)
 
         if server is not None:
             self.server = server

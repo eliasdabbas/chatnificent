@@ -121,9 +121,7 @@ class Orchestrator(Engine):
     ) -> Optional[str]:
         """Run the retrieval pipeline and inject context into messages."""
         self._before_retrieval(user_input, conversation)
-        retrieval_context = self._retrieve_context(
-            user_input, user_id, conversation.id
-        )
+        retrieval_context = self._retrieve_context(user_input, user_id, conversation.id)
         self._after_retrieval(retrieval_context)
 
         if retrieval_context and not any(
@@ -245,9 +243,7 @@ class Orchestrator(Engine):
 
                 if has_tools:
                     # Tool-calling turns always run non-streamed
-                    llm_response = self._generate_response(
-                        llm_payload, stream=False
-                    )
+                    llm_response = self._generate_response(llm_payload, stream=False)
                     self._after_llm_call(llm_response)
                     self._save_raw_exchange(user_id, conversation.id, llm_response)
 
@@ -285,10 +281,8 @@ class Orchestrator(Engine):
 
                         yield {"event": "status", "data": "Tool result received."}
 
-                        tool_result_messages = (
-                            self.app.llm.create_tool_result_messages(
-                                [result], conversation
-                            )
+                        tool_result_messages = self.app.llm.create_tool_result_messages(
+                            [result], conversation
                         )
                         conversation.messages.extend(tool_result_messages)
 
@@ -489,6 +483,3 @@ class Orchestrator(Engine):
                 logger.exception("Failed to save error conversation")
 
         return conversation
-
-
-

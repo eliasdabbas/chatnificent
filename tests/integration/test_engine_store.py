@@ -25,7 +25,7 @@ class TestEngineStoreIntegration:
     def test_conversation_persistence_across_stores(self, store_implementations):
         """Test that conversations persist correctly with all store types."""
         for store_name, store in store_implementations:
-            app = Chatnificent(llm=Echo(), store=store)
+            app = Chatnificent(llm=Echo(stream=False), store=store)
 
             # Create a conversation
             app.engine.handle_message(
@@ -52,7 +52,7 @@ class TestEngineStoreIntegration:
             if store_name == "InMemory":
                 continue
 
-            app = Chatnificent(llm=Echo(), store=store)
+            app = Chatnificent(llm=Echo(stream=False), store=store)
 
             # User 1 creates conversation
             app.engine.handle_message(
@@ -81,7 +81,7 @@ class TestEngineStoreIntegration:
     def test_conversation_id_generation(self, store_implementations):
         """Test that stores generate unique conversation IDs correctly."""
         for store_name, store in store_implementations:
-            app = Chatnificent(llm=Echo(), store=store)
+            app = Chatnificent(llm=Echo(stream=False), store=store)
 
             # Create multiple conversations
             for i in range(3):
@@ -104,7 +104,7 @@ class TestEngineStoreIntegration:
     def test_continuing_existing_conversation(self, store_implementations):
         """Test continuing an existing conversation."""
         for _, store in store_implementations:
-            app = Chatnificent(llm=Echo(), store=store)
+            app = Chatnificent(llm=Echo(stream=False), store=store)
 
             # Start conversation
             app.engine.handle_message(
@@ -163,7 +163,7 @@ class TestEngineStoreIntegration:
     def test_nonexistent_conversation_handling(self, store_implementations):
         """Test handling of nonexistent conversation IDs."""
         for _, store in store_implementations:
-            app = Chatnificent(llm=Echo(), store=store)
+            app = Chatnificent(llm=Echo(stream=False), store=store)
 
             # Try to continue a nonexistent conversation
             app.engine.handle_message(
@@ -183,7 +183,7 @@ class TestEngineStoreIntegration:
     def test_empty_conversation_handling(self, store_implementations):
         """Test handling when trying to continue non-existent conversations."""
         for _, store in store_implementations:
-            app = Chatnificent(llm=Echo(), store=store)
+            app = Chatnificent(llm=Echo(stream=False), store=store)
 
             # Try to continue a conversation that doesn't exist
             app.engine.handle_message(
@@ -211,7 +211,7 @@ class TestStoreEdgeCases:
     def test_concurrent_saves(self, tmp_path):
         """Test that stores handle concurrent saves correctly."""
         store = File(str(tmp_path / "concurrent_test"))
-        app = Chatnificent(llm=Echo(), store=store)
+        app = Chatnificent(llm=Echo(stream=False), store=store)
 
         # Create initial conversation
         app.engine.handle_message(
@@ -254,7 +254,7 @@ class TestStoreEdgeCases:
 
         for store in stores:
             for user_id in special_ids:
-                app = Chatnificent(llm=Echo(), store=store)
+                app = Chatnificent(llm=Echo(stream=False), store=store)
 
                 # Create conversation with special user ID
                 app.engine.handle_message(
@@ -314,7 +314,7 @@ class TestStoreListingBehavior:
         ]
 
         for _, store in stores:
-            app = Chatnificent(llm=Echo(), store=store)
+            app = Chatnificent(llm=Echo(stream=False), store=store)
 
             # Create conversations with slight delays
             for i in range(3):

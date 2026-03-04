@@ -30,8 +30,8 @@ def anthropic_llm():
 
     instance = object.__new__(Anthropic)
     instance.client = MagicMock()
-    instance.model = "claude-sonnet-4-5"
-    instance.default_params = {"max_tokens": 4096}
+    instance.model = "claude-opus-4-6"
+    instance.default_params = {"max_tokens": 4096, "stream": True}
     return instance
 
 
@@ -55,7 +55,7 @@ class TestAnthropicConstructor:
         with patch("anthropic.Anthropic"):
             with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}):
                 instance = Anthropic()
-                assert instance.model == "claude-sonnet-4-5"
+                assert instance.model == "claude-opus-4-6"
 
     def test_default_max_tokens(self):
         from chatnificent.llm import Anthropic
@@ -64,6 +64,14 @@ class TestAnthropicConstructor:
             with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}):
                 instance = Anthropic()
                 assert instance.default_params["max_tokens"] == 4096
+
+    def test_stream_true_by_default(self):
+        from chatnificent.llm import Anthropic
+
+        with patch("anthropic.Anthropic"):
+            with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}):
+                instance = Anthropic()
+                assert instance.default_params["stream"] is True
 
     def test_custom_params_merged(self):
         from chatnificent.llm import Anthropic
@@ -88,7 +96,7 @@ class TestExtractContent:
         result = anthropic_llm.extract_content(response)
         assert "max_tokens" in result
         assert "Empty response" in result
-        assert "claude-sonnet-4-5" in result
+        assert "claude-opus-4-6" in result
 
     def test_empty_content_end_turn(self, anthropic_llm):
         response = make_anthropic_empty_response(stop_reason="end_turn")

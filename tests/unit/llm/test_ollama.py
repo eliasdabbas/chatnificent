@@ -30,6 +30,7 @@ def ollama_llm():
     instance = object.__new__(Ollama)
     instance.client = MagicMock()
     instance.model = "llama3.2"
+    instance.default_params = {}
     return instance
 
 

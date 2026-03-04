@@ -206,7 +206,7 @@ def test_app():
 
     app = Chatnificent(
         store=InMemory(),
-        llm=Echo(),
+        llm=Echo(stream=False),
         auth=SingleUser(),
     )
     return app

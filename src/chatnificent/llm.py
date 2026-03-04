@@ -282,14 +282,14 @@ class _OpenAICompatible(LLM):
 class OpenAI(_OpenAICompatible):
     """Concrete implementation for OpenAI models."""
 
-    def __init__(self, model: str = "gpt-4.1", api_key: Optional[str] = None, **kwargs):
+    def __init__(self, model: str = "gpt-5.2", api_key: Optional[str] = None, **kwargs):
         """
         Initializes the OpenAI client.
 
         Parameters
         ----------
         model : str, optional
-            The default model to use for chat completions, by default "gpt-4.1".
+            The default model to use for chat completions, by default "gpt-5.2".
         api_key : Optional[str], optional
             Your OpenAI API key. If not provided, the `OPENAI_API_KEY`
             environment variable will be used. By default None.
@@ -312,14 +312,14 @@ class OpenAI(_OpenAICompatible):
 
         self.client = OpenAI(api_key=resolved_api_key)
         self.model = model
-        self.default_params = kwargs
+        self.default_params = {"stream": True, **kwargs}
 
 
 class OpenRouter(_OpenAICompatible):
     """Concrete implementation for OpenRouter models."""
 
     def __init__(
-        self, model: str = "openai/gpt-4.1", api_key: Optional[str] = None, **kwargs
+        self, model: str = "openai/gpt-5.2", api_key: Optional[str] = None, **kwargs
     ):
         """
         Initializes the OpenRouter client.
@@ -327,8 +327,8 @@ class OpenRouter(_OpenAICompatible):
         Parameters
         ----------
         model : str, optional
-            The default model to use (e.g., 'openai/gpt-4.1'),
-            by default "openai/gpt-4.1".
+            The default model to use (e.g., 'openai/gpt-5.2'),
+            by default "openai/gpt-5.2".
         api_key : Optional[str], optional
             Your OpenRouter API key. If not provided, the `OPENROUTER_API_KEY`
             environment variable will be used. By default None.
@@ -354,7 +354,7 @@ class OpenRouter(_OpenAICompatible):
             api_key=resolved_api_key,
         )
         self.model = model
-        self.default_params = kwargs
+        self.default_params = {"stream": True, **kwargs}
 
     def generate_response(self, *args, **kwargs):
         headers = kwargs.pop("extra_headers", {})
@@ -403,7 +403,7 @@ class DeepSeek(_OpenAICompatible):
             api_key=resolved_api_key,
         )
         self.model = model
-        self.default_params = kwargs
+        self.default_params = {"stream": True, **kwargs}
 
 
 class Anthropic(LLM):
@@ -411,7 +411,7 @@ class Anthropic(LLM):
 
     def __init__(
         self,
-        model: str = "claude-sonnet-4-5",
+        model: str = "claude-opus-4-6",
         api_key: Optional[str] = None,
         **kwargs,
     ):
@@ -421,7 +421,7 @@ class Anthropic(LLM):
         Parameters
         ----------
         model : str, optional
-            The default model to use, by default "claude-3-opus-20240229".
+            The default model to use, by default "claude-opus-4-6".
         api_key : Optional[str], optional
             Your Anthropic API key. If not provided, the `ANTHROPIC_API_KEY`
             environment variable will be used. By default None.
@@ -444,7 +444,7 @@ class Anthropic(LLM):
 
         self.client = Anthropic(api_key=resolved_api_key)
         self.model = model
-        self.default_params = {"max_tokens": 4096}
+        self.default_params = {"max_tokens": 4096, "stream": True}
         self.default_params.update(kwargs)
 
     def _translate_tool_schema(
@@ -579,14 +579,14 @@ class Gemini(LLM):
         {"api_key", "vertexai", "project", "location", "http_options", "client_options"}
     )
 
-    def __init__(self, model: str = "gemini-2.5-flash", **kwargs):
+    def __init__(self, model: str = "gemini-3.1-pro-preview", **kwargs):
         """
         Initializes the Gemini client.
 
         Parameters
         ----------
         model : str, optional
-            The default model to use, by default "gemini-2.5-flash".
+            The default model to use, by default "gemini-3.1-pro-preview".
         **kwargs : Any
             Client keys (``api_key``, ``vertexai``, ``project``, ``location``,
             ``http_options``, ``client_options``) are forwarded to
@@ -855,16 +855,18 @@ class Gemini(LLM):
 
 
 class Ollama(LLM):
-    def __init__(self, model: str = "llama3.2"):
+    def __init__(self, model: str = "llama3.2", **kwargs):
         from ollama import Client
 
         self.client = Client()
         self.model = model
+        self.default_params = {"stream": True, **kwargs}
 
     def generate_response(self, messages, model=None, tools=None, **kwargs) -> Any:
         api_kwargs = {
             "model": model or self.model,
             "messages": messages,
+            **self.default_params,
             **kwargs,
         }
         if tools:
@@ -944,7 +946,7 @@ class Echo(LLM):
             Accepted for signature consistency but not used.
         """
         self.model = model
-        self.default_params = kwargs
+        self.default_params = {"stream": True, **kwargs}
 
     def generate_response(
         self,

@@ -96,7 +96,7 @@ class TestDevHandler:
         from chatnificent.llm import Echo
         from chatnificent.store import InMemory
 
-        return Chatnificent(llm=Echo(), store=InMemory(), server=DevServer())
+        return Chatnificent(llm=Echo(stream=False), store=InMemory(), server=DevServer())
 
     @pytest.fixture
     def handler_class(self, app):

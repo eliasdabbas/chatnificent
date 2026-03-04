@@ -220,7 +220,7 @@ class TestEngineHooksIntegration:
                 self.call_log.append(f"before_save:{len(conversation.messages)}")
 
         engine = TrackedEngine()
-        app = Chatnificent(llm=Echo(), engine=engine)
+        app = Chatnificent(llm=Echo(stream=False), engine=engine)
 
         app.engine.handle_message(
             user_input="Test", user_id="test_user", convo_id_from_url=None
@@ -244,7 +244,7 @@ class TestEngineHooksIntegration:
                 )
 
         engine = ModifyingEngine()
-        app = Chatnificent(llm=Echo(), engine=engine)
+        app = Chatnificent(llm=Echo(stream=False), engine=engine)
 
         app.engine.handle_message(
             user_input="Test", user_id="test_user", convo_id_from_url=None
@@ -264,13 +264,13 @@ class TestEngineWithRealProviders:
     @pytest.mark.parametrize(
         "llm_class,expected_content",
         [
-            (Echo, "Echo LLM"),
+            (lambda: Echo(stream=False), "Echo LLM"),
             # We could add more real providers here if we want to test them
         ],
     )
     def test_different_llm_providers(self, llm_class, expected_content):
         """Test engine works with different LLM providers."""
-        llm = llm_class()
+        llm = llm_class() if isinstance(llm_class, type) else llm_class()
         app = Chatnificent(llm=llm)
 
         app.engine.handle_message(

@@ -143,7 +143,7 @@ def gemini(mock_types):
         instance = object.__new__(Gemini)
         instance._genai_types = mock_types
         instance.client = MagicMock()
-        instance.model = "gemini-2.5-flash"
+        instance.model = "gemini-3.1-pro-preview"
         instance.default_params = {}
         return instance
 
@@ -760,7 +760,7 @@ class TestGenerateResponse:
 
         gemini.client.models.generate_content.assert_called_once()
         call_kwargs = gemini.client.models.generate_content.call_args
-        assert call_kwargs.kwargs["model"] == "gemini-2.5-flash"
+        assert call_kwargs.kwargs["model"] == "gemini-3.1-pro-preview"
 
     def test_model_override(self, gemini):
         messages = [{"role": "user", "content": "Hi"}]

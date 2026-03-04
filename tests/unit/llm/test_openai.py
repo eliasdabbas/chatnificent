@@ -31,7 +31,7 @@ def openai_llm():
 
     instance = object.__new__(OpenAI)
     instance.client = MagicMock()
-    instance.model = "gpt-4.1"
+    instance.model = "gpt-5.2"
     instance.default_params = {}
     return instance
 
@@ -43,7 +43,7 @@ def openrouter_llm():
 
     instance = object.__new__(OpenRouter)
     instance.client = MagicMock()
-    instance.model = "openai/gpt-4.1"
+    instance.model = "openai/gpt-5.2"
     instance.default_params = {}
     return instance
 
@@ -79,9 +79,9 @@ class TestOpenAIConstructor:
             from chatnificent.llm import OpenAI as LLMOpenAI
 
             instance = object.__new__(LLMOpenAI)
-            instance.model = "gpt-4.1"
+            instance.model = "gpt-5.2"
             instance.default_params = {}
-            assert instance.model == "gpt-4.1"
+            assert instance.model == "gpt-5.2"
 
     def test_default_model(self):
         from chatnificent.llm import OpenAI
@@ -89,7 +89,7 @@ class TestOpenAIConstructor:
         with patch("openai.OpenAI"):
             with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
                 instance = OpenAI()
-                assert instance.model == "gpt-4.1"
+                assert instance.model == "gpt-5.2"
 
     def test_custom_model(self):
         from chatnificent.llm import OpenAI
@@ -105,7 +105,23 @@ class TestOpenAIConstructor:
         with patch("openai.OpenAI"):
             with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
                 instance = OpenAI(temperature=0.7, top_p=0.9)
-                assert instance.default_params == {"temperature": 0.7, "top_p": 0.9}
+                assert instance.default_params == {"stream": True, "temperature": 0.7, "top_p": 0.9}
+
+    def test_stream_true_by_default(self):
+        from chatnificent.llm import OpenAI
+
+        with patch("openai.OpenAI"):
+            with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+                instance = OpenAI()
+                assert instance.default_params["stream"] is True
+
+    def test_stream_false_override(self):
+        from chatnificent.llm import OpenAI
+
+        with patch("openai.OpenAI"):
+            with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+                instance = OpenAI(stream=False)
+                assert instance.default_params["stream"] is False
 
 
 class TestOpenRouterConstructor:
@@ -125,7 +141,7 @@ class TestOpenRouterConstructor:
         with patch("openai.OpenAI"):
             with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}):
                 instance = OpenRouter()
-                assert instance.model == "openai/gpt-4.1"
+                assert instance.model == "openai/gpt-5.2"
 
 
 class TestDeepSeekConstructor:
@@ -165,7 +181,7 @@ class TestExtractContent:
         result = openai_llm.extract_content(response)
         assert "length" in result
         assert "Empty response" in result
-        assert "gpt-4.1" in result
+        assert "gpt-5.2" in result
 
     def test_empty_string_content_shows_finish_reason(self, openai_llm):
         response = make_openai_response(content="", finish_reason="content_filter")
@@ -192,7 +208,7 @@ class TestExtractContentOpenRouter:
     def test_empty_shows_model_name(self, openrouter_llm):
         response = make_openai_response(content=None, finish_reason="length")
         result = openrouter_llm.extract_content(response)
-        assert "openai/gpt-4.1" in result
+        assert "openai/gpt-5.2" in result
 
 
 class TestExtractContentDeepSeek:

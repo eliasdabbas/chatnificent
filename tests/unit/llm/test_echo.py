@@ -8,10 +8,10 @@ from chatnificent.models import ASSISTANT_ROLE, USER_ROLE
 
 @pytest.fixture()
 def echo_llm():
-    """Create an Echo instance."""
+    """Create an Echo instance with streaming disabled for unit tests."""
     from chatnificent.llm import Echo
 
-    return Echo()
+    return Echo(stream=False)
 
 
 # ===== Constructor tests =====
@@ -34,7 +34,7 @@ class TestEchoConstructor:
         from chatnificent.llm import Echo
 
         instance = Echo(temperature=0.5)
-        assert instance.default_params == {"temperature": 0.5}
+        assert instance.default_params == {"stream": True, "temperature": 0.5}
 
 
 # ===== extract_content tests =====

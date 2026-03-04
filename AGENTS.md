@@ -10,25 +10,28 @@
 ```python
 import chatnificent as chat
 app = chat.Chatnificent()
-app.run(debug=True)  # Visit http://127.0.0.1:8050
+app.run()  # http://127.0.0.1:8050
 ```
 
 Run with: `uv run app.py`
 
-## Core Architecture: 8 Pillars
+## Core Architecture: 9 Pillars
 
-Chatnificent uses **dependency injection** with 8 configurable "pillars". Each pillar has an abstract base class and concrete implementations:
+Chatnificent uses **dependency injection** with 9 configurable "pillars". Each pillar has an abstract base class and concrete implementations:
 
 | Pillar | File | Purpose | Default | Available |
 |--------|------|---------|---------|-----------|
-| **Layout** | `layout.py` | UI components | `Bootstrap` | Bootstrap, Mantine, Minimal |
-| **LLM** | `llm.py` | LLM API calls | `OpenAI` | OpenAI, Anthropic, Gemini, Ollama, Echo |
+| **Server** | `server.py` | HTTP transport | `DevServer` | DevServer, DashServer |
+| **Layout** | `layout.py` | UI rendering | `DefaultLayout` | DefaultLayout, Bootstrap, Mantine, Minimal |
+| **LLM** | `llm.py` | LLM API calls | `OpenAI` / `Echo` | OpenAI, Anthropic, Gemini, OpenRouter, DeepSeek, Ollama, Echo |
 | **Store** | `store.py` | Conversation persistence | `InMemory` | InMemory, File, SQLite |
 | **Auth** | `auth.py` | User identification | `Anonymous` | Anonymous, SingleUser |
-| **Engine** | `engine.py` | Request orchestration | `Synchronous` | Synchronous |
+| **Engine** | `engine.py` | Request orchestration | `Orchestrator` | Orchestrator |
 | **Tools** | `tools.py` | Function calling | `NoTool` | PythonTool, NoTool |
 | **Retrieval** | `retrieval.py` | RAG/context | `NoRetrieval` | NoRetrieval |
 | **URL** | `url.py` | Route parsing | `PathBased` | PathBased, QueryParams |
+
+The LLM default is auto-detected: if the OpenAI SDK is installed and `OPENAI_API_KEY` is set, it uses `OpenAI`. Otherwise it falls back to `Echo` (zero-dep mock). All LLM providers stream by default (`stream=True` in `default_params`).
 
 ## Philosophy: Minimally Complete, Maximally Hackable
 
@@ -40,10 +43,11 @@ Each pillar is designed with **atomic methods** that operate independently witho
 - **LLM**: `generate_response()` and `extract_content()` work with any message format
 - **Store**: `save_conversation()`, `load_conversation()` are storage-agnostic
 - **Auth**: `get_current_user_id()` works independently of other components
-- **Layout**: `build_layout()` renders regardless of LLM or storage backend
+- **Layout**: `render()` renders regardless of LLM or storage backend
+- **Server**: `create_server()` and `run()` work regardless of layout or LLM
 
 **True Pluggability:**
-All callbacks use **only abstract methods** from the pillar interfaces, ensuring complete backend interchangeability. Pillars communicate only through abstract interfaces, making the framework truly "minimally complete, maximally hackable."
+Pillars communicate only through abstract interfaces, making the framework truly "minimally complete, maximally hackable."
 
 ## Key Interfaces for Agents
 
@@ -78,17 +82,31 @@ class Store(ABC):
 app = chat.Chatnificent(store=chat.store.SQLite(db_path="chats.db"))
 ```
 
-### 3. Layout Pillar (`layout.py`)
+### 3. Server Pillar (`server.py`)
+```python
+class Server(ABC):
+    @abstractmethod
+    def create_server(self, **kwargs) -> None:
+        """Initialize the HTTP server."""
+
+    @abstractmethod
+    def run(self, **kwargs) -> None:
+        """Start serving requests."""
+```
+
+`DevServer` is the primary server — zero-dependency stdlib HTTP server with SSE streaming.
+`DashServer` wraps Plotly Dash for use with Dash-based layouts (Bootstrap, Mantine, Minimal).
+
+### 4. Layout Pillar (`layout.py`)
 ```python
 class Layout(ABC):
     @abstractmethod
-    def build_layout(self) -> DashComponent:
-        """Build the complete UI component tree."""
-
-# Required component IDs in any custom layout:
-# - user_input_textarea, chat_send_button, new_chat_button
-# - chat_area_main, convo_list_div, sidebar_offcanvas
+    def render(self) -> Any:
+        """Render the layout. Returns HTML string (DevServer) or Dash component tree (DashServer)."""
 ```
+
+`DefaultLayout` renders `templates/default.html` — a zero-dep vanilla HTML/JS chat UI for DevServer.
+Dash-based layouts (`Bootstrap`, `Mantine`, `Minimal`) build Dash component trees and require `DashServer`.
 
 ## Engine Orchestration
 
@@ -108,10 +126,17 @@ The engine can loop multiple times to allow the LLM to use tools, process result
 - The **Tools** pillar is responsible for defining and executing tools
 - The **Engine** provides status updates to the UI showing agent's internal state (e.g., "Running tool: ...")
 
+### Two Engine Entry Points
+
+- `handle_message()` — non-streaming path, returns a complete `Conversation`
+- `handle_message_stream()` — streaming path, yields SSE event dicts (`{"event": "delta", "data": "..."}`)
+
+The server routes between these based on `llm.default_params.get("stream", False)`.
+
 ### Customization via Hooks and Seams
 
 ```python
-class CustomEngine(chat.engine.Synchronous):
+class CustomEngine(chat.engine.Orchestrator):
     # Override HOOKS for monitoring
     def _after_llm_call(self, llm_response: Any) -> None:
         tokens = getattr(llm_response, 'usage', 'N/A')
@@ -177,15 +202,14 @@ This approach:
 
 ### Mix and Match Examples
 
-**Scientific Research Setup:**
+**Research Setup:**
 ```python
 import chatnificent as chat
 
 app = chat.Chatnificent(
-    llm=chat.llm.Anthropic(model="claude-3-5-sonnet-20240620"),
+    llm=chat.llm.Anthropic(),
     store=chat.store.File(directory="./research_chats"),
-    layout=chat.layout.Minimal(),  # Clean, distraction-free
-    tools=chat.tools.PythonTool(),  # Code execution
+    tools=chat.tools.PythonTool(),
 )
 ```
 
@@ -195,27 +219,27 @@ app = chat.Chatnificent(
     llm=chat.llm.OpenAI(),
     store=chat.store.SQLite(db_path="enterprise.db"),
     auth=chat.auth.SingleUser(user_id="corp_user"),
-    layout=chat.layout.Bootstrap(),  # Professional look
 )
 ```
 
-**Development Assistant:**
+**Local Development:**
 ```python
 app = chat.Chatnificent(
-    llm=chat.llm.Ollama(model="llama3"),  # Local model
-    store=chat.store.InMemory(),  # Fast prototyping
-    tools=chat.tools.PythonTool(),  # Code execution
-    layout=chat.layout.Minimal(),
+    llm=chat.llm.Ollama(model="llama3.2"),
+    store=chat.store.InMemory(),
+    tools=chat.tools.PythonTool(),
 )
 ```
 
-**Multilingual Support:**
+**Dash UI with Bootstrap:**
 ```python
+from chatnificent.server import DashServer
+
 app = chat.Chatnificent(
-    llm=chat.llm.Gemini(model="gemini-pro"),  # Multilingual model
-    store=chat.store.SQLite(db_path="global.db"),
-    auth=chat.auth.SingleUser(user_id="global_user"),
+    server=DashServer(),
     layout=chat.layout.Bootstrap(),
+    llm=chat.llm.Gemini(),
+    store=chat.store.SQLite(db_path="global.db"),
 )
 ```
 
@@ -283,16 +307,19 @@ uv pip install -e .
 ```
 src/chatnificent/
 ├── __init__.py          # Main Chatnificent class + pillar imports
+├── _callbacks.py        # Dash callbacks (DashServer only)
+├── server.py            # Server pillar (DevServer, DashServer)
 ├── models.py            # Conversation dataclass, role constants
-├── callbacks.py         # Dash callbacks orchestrating pillars
-├── auth.py             # User identification (Anonymous, SingleUser)
-├── store.py            # Conversation persistence (InMemory, File, SQLite)
-├── layout.py           # UI builders (Bootstrap, Mantine, Minimal)
-├── llm.py              # LLM providers (OpenAI, Anthropic, Gemini, etc.)
-├── engine.py           # Request orchestration (Synchronous)
-├── tools.py            # Function calling (PythonTool, NoTool)  
-├── retrieval.py        # RAG/context retrieval (NoRetrieval)
-└── url.py              # URL parsing (PathBased, QueryParams)
+├── auth.py              # User identification (Anonymous, SingleUser)
+├── store.py             # Conversation persistence (InMemory, File, SQLite)
+├── layout.py            # UI rendering (DefaultLayout, Bootstrap, Mantine, Minimal)
+├── llm.py               # LLM providers (OpenAI, Anthropic, Gemini, etc.)
+├── engine.py            # Request orchestration (Orchestrator)
+├── tools.py             # Function calling (PythonTool, NoTool)
+├── retrieval.py         # RAG/context retrieval (NoRetrieval)
+├── url.py               # URL parsing (PathBased, QueryParams)
+└── templates/
+    └── default.html     # DevServer HTML/JS chat UI
 ```
 
 ### Git Guidelines
@@ -304,7 +331,13 @@ src/chatnificent/
 - **Modular Architecture**: Consider which pillar new functionality belongs to
 - **Docstrings**: Use [Numpy-style docstrings](https://numpydoc.readthedocs.io/en/latest/format.html) for consistency
 - **Testing**: Write comprehensive unit tests, mocking pillar dependencies
-- **Required Component IDs**: Custom layouts must include: `url_location`, `chat_area_main`, `user_input_textarea`, `convo_list_div`, `chat_send_button`, `new_chat_button`, `sidebar_offcanvas`, `sidebar_toggle_button`
+### Component IDs
+
+**DevServer / DefaultLayout** (`templates/default.html`) — kebab-case HTML IDs:
+`sidebar-toggle`, `new-chat-btn`, `convo-list`, `messages`, `input`, `send`, `sidebar`, `theme-toggle`
+
+**DashServer / Dash layouts** (`_callbacks.py`) — snake_case Dash component IDs:
+`url_location`, `messages_container`, `input_textarea`, `submit_button`, `new_conversation_button`, `conversations_list`, `sidebar`, `sidebar_toggle`, `status_indicator`
 
 ## Quick Reference for Agents
 
@@ -312,10 +345,10 @@ src/chatnificent/
 
 **Need custom storage?** → Subclass `store.Store`, implement save/load methods
 
-**Need UI changes?** → Override `layout.Layout.build_layout()` (keep required component IDs)
+**Need UI changes?** → For DevServer: edit `templates/default.html`. For Dash: subclass `layout.DashLayout`
 
-**Need request lifecycle customization?** → Subclass `engine.Synchronous`, override hooks/seams
+**Need request lifecycle customization?** → Subclass `engine.Orchestrator`, override hooks/seams
 
 **Need tool integration?** → Subclass `tools.Tool`, handle tool call dicts → tool result dicts
 
-The framework validates required component IDs at startup and handles pillar orchestration automatically via `callbacks.py`.
+**Need a different HTTP server?** → Subclass `server.Server`, implement `create_server()` and `run()`

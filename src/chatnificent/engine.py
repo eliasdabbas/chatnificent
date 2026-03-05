@@ -3,6 +3,7 @@ Defines the core orchestration logic for the Chatnificent application.
 """
 
 import logging
+import uuid
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional
 
@@ -351,8 +352,7 @@ class Orchestrator(Engine):
         if convo_id:
             conversation = self.app.store.load_conversation(user_id, convo_id)
         if not conversation:
-            new_convo_id = self.app.store.get_next_conversation_id(user_id)
-            conversation = Conversation(id=new_convo_id)
+            conversation = Conversation(id=uuid.uuid4().hex[:8])
         return conversation
 
     def _add_user_message(

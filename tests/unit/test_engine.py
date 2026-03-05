@@ -70,7 +70,6 @@ class TestOrchestratorEngine:
         # Mock Store
         app.store = Mock()
         app.store.load_conversation = Mock(return_value=None)
-        app.store.get_next_conversation_id = Mock(return_value="test-convo-1")
         app.store.save_conversation = Mock()
 
         # Mock other components
@@ -100,7 +99,7 @@ class TestOrchestratorEngine:
 
         # Engine now returns a Conversation
         assert isinstance(result, Conversation)
-        assert result.id == "test-convo-1"
+        assert len(result.id) == 8
         assert len(result.messages) == 2  # User + Assistant
 
     def test_empty_tool_calls_triggers_finalization(self, engine, mock_app):
@@ -177,9 +176,7 @@ class TestOrchestratorEngine:
         result = engine.handle_message("Keep using tools", "user123", None)
 
         # Should stop after MAX_AGENTIC_TURNS
-        assert (
-            mock_app.llm.generate_response.call_count == engine.max_agentic_turns
-        )
+        assert mock_app.llm.generate_response.call_count == engine.max_agentic_turns
 
     def test_conversation_persistence(self, engine, mock_app):
         """Test that conversations are properly saved."""
@@ -194,7 +191,7 @@ class TestOrchestratorEngine:
         user_id, conversation = mock_app.store.save_conversation.call_args[0]
         assert user_id == "user123"
         assert isinstance(conversation, Conversation)
-        assert conversation.id == "test-convo-1"
+        assert len(conversation.id) == 8
         assert len(conversation.messages) >= 1
 
     def test_existing_conversation_load(self, engine, mock_app):
@@ -234,10 +231,11 @@ class TestOrchestratorEngine:
 
         result = engine.handle_message("Need context", "user123", None)
 
-        # Verify retrieval was called
-        mock_app.retrieval.retrieve.assert_called_once_with(
-            "Need context", "user123", "test-convo-1"
-        )
+        # Verify retrieval was called with the generated conversation ID
+        call_args = mock_app.retrieval.retrieve.call_args[0]
+        assert call_args[0] == "Need context"
+        assert call_args[1] == "user123"
+        assert len(call_args[2]) == 8
 
         # Verify context was added to LLM payload
         llm_payload = mock_app.llm.generate_response.call_args[0][0]
@@ -260,7 +258,6 @@ class TestEngineHooks:
         mock_app.llm.parse_tool_calls = Mock(return_value=[])
         mock_app.store = Mock()
         mock_app.store.load_conversation = Mock(return_value=None)
-        mock_app.store.get_next_conversation_id = Mock(return_value="test-1")
         mock_app.retrieval = Mock()
         mock_app.retrieval.retrieve = Mock(return_value=None)
         mock_app.tools = Mock()

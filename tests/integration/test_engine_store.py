@@ -289,9 +289,6 @@ class TestStoreEdgeCases:
                     }
                 )
 
-            # Establish user namespace first (mimicking realistic engine flow)
-            store.get_next_conversation_id("test_user")
-
             # Save and reload
             store.save_conversation("test_user", conv)
             loaded = store.load_conversation("test_user", "large")

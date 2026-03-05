@@ -37,9 +37,6 @@ class TestStoreInterface:
             def list_conversations(self, user_id: str):
                 return []
 
-            def get_next_conversation_id(self, user_id: str) -> str:
-                return "001"
-
         with pytest.raises(TypeError) as exc_info:
             IncompleteStore1()
 
@@ -54,9 +51,6 @@ class TestStoreInterface:
 
             def list_conversations(self, user_id: str):
                 return []
-
-            def get_next_conversation_id(self, user_id: str) -> str:
-                return "001"
 
         with pytest.raises(TypeError) as exc_info:
             IncompleteStore2()
@@ -73,32 +67,11 @@ class TestStoreInterface:
             def save_conversation(self, user_id: str, conversation: Conversation):
                 pass
 
-            def get_next_conversation_id(self, user_id: str) -> str:
-                return "001"
-
         with pytest.raises(TypeError) as exc_info:
             IncompleteStore3()
 
         error_message = str(exc_info.value)
         assert "list_conversations" in error_message
-
-        class IncompleteStore4(Store):
-            def load_conversation(
-                self, user_id: str, convo_id: str
-            ) -> Optional[Conversation]:
-                return None
-
-            def save_conversation(self, user_id: str, conversation: Conversation):
-                pass
-
-            def list_conversations(self, user_id: str):
-                return []
-
-        with pytest.raises(TypeError) as exc_info:
-            IncompleteStore4()
-
-        error_message = str(exc_info.value)
-        assert "get_next_conversation_id" in error_message
 
     def test_store_subclass_with_all_methods_works(self):
         """Test that complete Store subclasses work correctly."""
@@ -122,9 +95,6 @@ class TestStoreInterface:
                     if key.startswith(f"{user_id}:")
                 ]
 
-            def get_next_conversation_id(self, user_id: str) -> str:
-                return "custom_001"
-
         store = CustomStore()
         assert isinstance(store, Store)
 
@@ -141,9 +111,6 @@ class TestStoreInterface:
 
         conversations = store.list_conversations("user1")
         assert "test_conv" in conversations
-
-        next_id = store.get_next_conversation_id("user1")
-        assert next_id == "custom_001"
 
 
 class TestFile:
@@ -179,10 +146,6 @@ class TestFile:
             # Loading non-existent conversation should return None
             result = store.load_conversation("user1", "nonexistent")
             assert result is None
-
-            # Next conversation ID should start at "001"
-            next_id = store.get_next_conversation_id("user1")
-            assert next_id == "001"
 
     def test_file_save_and_load_single_conversation(self):
         """Test saving and loading a single conversation."""
@@ -259,35 +222,6 @@ class TestFile:
             assert user1_dir.exists()
             assert user2_dir.exists()
             assert user1_dir != user2_dir  # Different directories
-
-    def test_file_conversation_id_generation(self):
-        """Test conversation ID generation for File store."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            store = File(temp_dir)
-
-            # First ID should be "001"
-            id1 = store.get_next_conversation_id("user1")
-            assert id1 == "001"
-
-            # Add a conversation
-            conv = Conversation(
-                id="001", messages=[{"role": "user", "content": "test"}]
-            )
-            store.save_conversation("user1", conv)
-
-            # Next ID should be "002"
-            id2 = store.get_next_conversation_id("user1")
-            assert id2 == "002"
-
-            # Add non-sequential conversation
-            conv3 = Conversation(
-                id="005", messages=[{"role": "user", "content": "test"}]
-            )
-            store.save_conversation("user1", conv3)
-
-            # Next ID should be "006" (highest + 1)
-            id3 = store.get_next_conversation_id("user1")
-            assert id3 == "006"
 
     def test_file_list_conversations_ordering(self):
         """Test that list_conversations returns conversations in correct order."""
@@ -381,10 +315,6 @@ class TestSQLite:
             # Loading non-existent conversation should return None
             result = store.load_conversation("user1", "nonexistent")
             assert result is None
-
-            # Next conversation ID should start at "001"
-            next_id = store.get_next_conversation_id("user1")
-            assert next_id == "001"
         finally:
             Path(temp_db_path).unlink(missing_ok=True)
 
@@ -454,40 +384,6 @@ class TestSQLite:
 
             assert convs1 == ["conv_001"]
             assert convs2 == ["conv_001"]
-        finally:
-            Path(temp_db_path).unlink(missing_ok=True)
-
-    def test_sqlite_conversation_id_generation(self):
-        """Test conversation ID generation for SQLite store."""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_db:
-            temp_db_path = temp_db.name
-
-        try:
-            store = SQLite(temp_db_path)
-
-            # First ID should be "001"
-            id1 = store.get_next_conversation_id("user1")
-            assert id1 == "001"
-
-            # Add a conversation
-            conv = Conversation(
-                id="001", messages=[{"role": "user", "content": "test"}]
-            )
-            store.save_conversation("user1", conv)
-
-            # Next ID should be "002"
-            id2 = store.get_next_conversation_id("user1")
-            assert id2 == "002"
-
-            # Add non-sequential conversation
-            conv3 = Conversation(
-                id="005", messages=[{"role": "user", "content": "test"}]
-            )
-            store.save_conversation("user1", conv3)
-
-            # Next ID should be "006" (highest + 1)
-            id3 = store.get_next_conversation_id("user1")
-            assert id3 == "006"
         finally:
             Path(temp_db_path).unlink(missing_ok=True)
 
@@ -651,14 +547,6 @@ class TestInMemory:
         assert store.list_conversations("nonexistent_user") == []
         assert store.load_conversation("nonexistent_user", "any_convo") is None
 
-        # get_next_conversation_id should work for new users (creates their namespace)
-        next_id = store.get_next_conversation_id("new_user")
-        assert next_id == "001"
-
-        # Store should start with empty internal structure, but after get_next_conversation_id
-        # is called, it creates the user namespace
-        assert store._store == {"new_user": {}}
-
     def test_inmemory_save_and_load_single_conversation(self):
         """Test saving and loading a single conversation."""
         store = InMemory()
@@ -767,47 +655,21 @@ class TestInMemory:
         assert convs2 == ["conv_001"]
         assert loaded1 != loaded2  # Different conversation objects
 
-    def test_inmemory_conversation_id_generation(self):
-        """Test conversation ID generation."""
+    def test_inmemory_list_conversations(self):
+        """Test that list_conversations returns all conversation IDs."""
         store = InMemory()
-        store._store["user1"] = {}  # Create user namespace
-
-        id1 = store.get_next_conversation_id("user1")
-        assert id1 == "001"
-
-        conv = Conversation(id="001", messages=[{"role": "user", "content": "test"}])
-        store.save_conversation("user1", conv)
-
-        id2 = store.get_next_conversation_id("user1")
-        assert id2 == "002"
-
-        conv2 = Conversation(id="002", messages=[{"role": "user", "content": "test2"}])
-        store.save_conversation("user1", conv2)
-
-        id3 = store.get_next_conversation_id("user1")
-        assert id3 == "003"
-
-    def test_inmemory_list_conversations_ordering(self):
-        """Test that list_conversations returns conversations in correct order."""
-        store = InMemory()
-        store._store["user1"] = {}  # Create user namespace
 
         convs = [
-            Conversation(id="5", messages=[{"role": "user", "content": "Fifth"}]),
-            Conversation(id="1", messages=[{"role": "user", "content": "First"}]),
-            Conversation(id="10", messages=[{"role": "user", "content": "Tenth"}]),
-            Conversation(id="2", messages=[{"role": "user", "content": "Second"}]),
+            Conversation(id="abc", messages=[{"role": "user", "content": "First"}]),
+            Conversation(id="def", messages=[{"role": "user", "content": "Second"}]),
+            Conversation(id="ghi", messages=[{"role": "user", "content": "Third"}]),
         ]
 
         for conv in convs:
             store.save_conversation("user1", conv)
 
         conversations = store.list_conversations("user1")
-
-        numeric_order = [int(conv_id) for conv_id in conversations if conv_id.isdigit()]
-        assert numeric_order == sorted(numeric_order, reverse=True)
-
-        assert conversations[0] == "10"
+        assert set(conversations) == {"abc", "def", "ghi"}
 
     def test_inmemory_update_existing_conversation(self):
         """Test updating an existing conversation."""

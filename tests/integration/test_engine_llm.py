@@ -182,7 +182,6 @@ class TestEngineLLMIntegration:
         mock_llm.parse_tool_calls.return_value = []
 
         mock_store = Mock()
-        mock_store.get_next_conversation_id.return_value = "001"
         mock_store.load_conversation.return_value = None
         mock_store.save_conversation.return_value = None
         # Store supports raw response saving

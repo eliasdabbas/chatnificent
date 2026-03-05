@@ -106,7 +106,6 @@ def mock_auth():
 def mock_store():
     """Mock store provider for testing."""
     mock = MagicMock()
-    mock.get_next_conversation_id.return_value = "001"
     return mock
 
 

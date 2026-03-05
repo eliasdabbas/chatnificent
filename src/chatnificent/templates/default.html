@@ -613,6 +613,9 @@
             input.addEventListener("input", function () {
                 this.style.height = "auto";
                 this.style.height = Math.min(this.scrollHeight, 144) + "px";
+                var rtlPattern = /[\u0590-\u05ff\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb1d-\ufb4f\ufb50-\ufdff\ufe70-\ufeff]/;
+                var isRTL = rtlPattern.test(this.value);
+                this.dir = isRTL ? "rtl" : "ltr";
             });
 
             function renderMarkdown(text) {
@@ -625,6 +628,8 @@
                 d.className = "msg " + role;
                 if (role === "assistant") d.innerHTML = renderMarkdown(text);
                 else d.textContent = text;
+                var rtlPattern = /[\u0590-\u05ff\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb1d-\ufb4f\ufb50-\ufdff\ufe70-\ufeff]/;
+                if (rtlPattern.test(text)) d.dir = "rtl";
                 msgs.appendChild(d); msgs.scrollTop = msgs.scrollHeight;
                 return d;
             }
@@ -655,6 +660,8 @@
                         hideLoading();
                         var bubble = addMsg("assistant", "");
                         var accumulated = "";
+                        var bubbleRtl = false;
+                        var rtlRe = /[\u0590-\u05ff\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb1d-\ufb4f\ufb50-\ufdff\ufe70-\ufeff]/;
                         var reader = r.body.getReader();
                         var decoder = new TextDecoder();
                         var buf = "";
@@ -672,6 +679,7 @@
                                 if (payload.event === "delta") {
                                     accumulated += payload.data;
                                     bubble.innerHTML = renderMarkdown(accumulated);
+                                    if (!bubbleRtl && rtlRe.test(payload.data)) { bubbleRtl = true; bubble.dir = "rtl"; }
                                     msgs.scrollTop = msgs.scrollHeight;
                                 } else if (payload.event === "status") {
                                     bubble.innerHTML = renderMarkdown(accumulated || "") +

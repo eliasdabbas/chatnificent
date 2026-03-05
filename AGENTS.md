@@ -323,14 +323,62 @@ src/chatnificent/
 ```
 
 ### Git Guidelines
-- Never `git add .` - add files individually
-- Commit only relevant changes for the specific feature
-- Use atomic commits with clear messages
+
+**Staging:**
+- Never use `git add .` or `git add -A` — always add files individually and consciously
+- Review what you're staging: each file should belong to the commit's logical purpose
+
+**Meaningful units of change:**
+- Each commit should represent **one logical step** — a feature + its tests is one commit; an unrelated formatting fix belongs in a separate commit
+- Ask: "if I revert this commit, does exactly one coherent thing disappear?" If not, split it
+- Tests and implementation can (and usually should) live in the same commit when they're part of the same feature
+
+**Conventional Commits with pillar scopes:**
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) format. Use pillar names as scopes where applicable:
+
+```
+feat(llm): add Gemini streaming support
+fix(store): handle empty conversation edge case
+test(engine): add tool loop coverage
+refactor(auth): simplify user ID resolution
+docs: update AGENTS.md with TDD guidelines
+chore: upgrade pytest-cov dependency
+```
+
+Allowed prefixes: `feat`, `fix`, `test`, `docs`, `refactor`, `chore`
+
+### Red/Green TDD
+
+All new features and bug fixes **must** follow Red/Green TDD. This is a workflow discipline — seeing tests fail before writing implementation proves the tests are valid and not tautological.
+
+**Step-by-step recipe:**
+
+1. **Write failing tests first** — cover the expected interface, edge cases, and error paths. Mock pillar dependencies so tests are isolated.
+2. **Run tests → confirm red** — every new test must fail. If a test passes immediately, it's not testing new behavior.
+3. **Write minimal code to pass** — implement just enough to make the tests green. Resist the urge to add unrequested functionality.
+4. **Run tests → confirm green** — all tests (new and existing) must pass.
+5. **Refactor if needed** — clean up the implementation while keeping tests green.
+
+**What "comprehensive" means:**
+- Test the abstract interface contract (not internal implementation details)
+- Mock pillar dependencies to keep tests isolated and fast
+- Cover edge cases: empty inputs, missing data, invalid state
+- For LLM pillars: test both streaming and non-streaming paths
+
+**Test coverage:**
+
+Maintain **90%+ project-wide** test coverage. After making changes, run:
+
+```bash
+uv run pytest --cov=chatnificent --cov-report=term-missing
+```
+
+The `term-missing` flag highlights uncovered lines — use it to identify what still needs tests. Do not merge changes that drop coverage below the threshold.
 
 ### Development Conventions
 - **Modular Architecture**: Consider which pillar new functionality belongs to
 - **Docstrings**: Use [Numpy-style docstrings](https://numpydoc.readthedocs.io/en/latest/format.html) for consistency
-- **Testing**: Write comprehensive unit tests, mocking pillar dependencies
 ### Component IDs
 
 **DevServer / DefaultLayout** (`templates/default.html`) — kebab-case HTML IDs:

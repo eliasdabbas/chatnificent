@@ -598,6 +598,35 @@ class TestSQLite:
         finally:
             Path(temp_db_path).unlink(missing_ok=True)
 
+    def test_sqlite_full_message_roundtrip(self, tmp_path):
+        """Verify that all message dict keys survive a save/load round-trip.
+
+        Before ``message_data`` was added, only ``role`` and ``content``
+        were persisted, silently dropping keys like ``tool_calls``.
+        """
+        store = SQLite(db_path=str(tmp_path / "roundtrip.db"))
+        messages = [
+            {"role": "user", "content": "What is 2+2?"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_abc",
+                        "type": "function",
+                        "function": {"name": "calculator", "arguments": '{"expr":"2+2"}'},
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call_abc", "name": "calculator", "content": "4"},
+            {"role": "assistant", "content": "2 + 2 = 4"},
+        ]
+        convo = Conversation(id="round", messages=messages)
+        store.save_conversation("u1", convo)
+        loaded = store.load_conversation("u1", "round")
+        assert loaded is not None
+        assert loaded.messages == messages
+
 
 # InMemory tests - documents current single-user behavior (NO user isolation)
 class TestInMemory:

@@ -304,12 +304,21 @@ class SQLite(Store):
                     message_index INTEGER,
                     role TEXT,
                     content TEXT,
+                    message_data TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     PRIMARY KEY (user_id, conversation_id, message_index),
                     FOREIGN KEY (user_id, conversation_id) 
                         REFERENCES conversations(user_id, conversation_id)
                 )
             """)
+
+            # Migrate: add message_data column to existing databases
+            cursor.execute("PRAGMA table_info(messages)")
+            columns = {row[1] for row in cursor.fetchall()}
+            if "message_data" not in columns:
+                cursor.execute(
+                    "ALTER TABLE messages ADD COLUMN message_data TEXT"
+                )
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS raw_api_responses (
@@ -345,19 +354,23 @@ class SQLite(Store):
             conn.commit()
 
     def load_conversation(self, user_id: str, convo_id: str) -> Optional[Conversation]:
-        """Load conversation from database."""
+        """Load conversation from database.
+
+        Reads from ``message_data`` (full JSON blob) when available,
+        falling back to ``role``/``content`` columns for rows written
+        before the migration.
+        """
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
 
-                # Get messages for this conversation
                 cursor.execute(
                     """
-                    SELECT role, content 
+                    SELECT message_data, role, content
                     FROM messages 
                     WHERE user_id = ? AND conversation_id = ?
                     ORDER BY message_index
-                """,
+                    """,
                     (user_id, convo_id),
                 )
 
@@ -365,7 +378,12 @@ class SQLite(Store):
                 if not rows:
                     return None
 
-                messages = [{"role": row[0], "content": row[1]} for row in rows]
+                messages = []
+                for message_data, role, content in rows:
+                    if message_data:
+                        messages.append(json.loads(message_data))
+                    else:
+                        messages.append({"role": role, "content": content})
 
                 return Conversation(id=convo_id, messages=messages)
 
@@ -401,7 +419,7 @@ class SQLite(Store):
                     (user_id, conversation.id),
                 )
 
-                # Insert all messages
+                # Insert all messages with full JSON blob
                 for i, message in enumerate(conversation.messages):
                     content = message.get("content", "")
                     if not isinstance(content, str):
@@ -409,10 +427,17 @@ class SQLite(Store):
                     cursor.execute(
                         """
                         INSERT INTO messages 
-                        (user_id, conversation_id, message_index, role, content)
-                        VALUES (?, ?, ?, ?, ?)
-                    """,
-                        (user_id, conversation.id, i, message.get("role", ""), content),
+                        (user_id, conversation_id, message_index, role, content, message_data)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            user_id,
+                            conversation.id,
+                            i,
+                            message.get("role", ""),
+                            content,
+                            json.dumps(message),
+                        ),
                     )
 
                 conn.commit()

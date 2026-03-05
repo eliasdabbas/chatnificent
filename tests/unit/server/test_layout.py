@@ -14,11 +14,11 @@ import pytest
 
 dash = pytest.importorskip("dash", reason="Layout tests require the dash extra")
 
-from chatnificent.layout import Layout
+from chatnificent.layout import DashLayout, Layout
 
 
 class TestLayoutInterface:
-    """Test the Layout abstract base class interface."""
+    """Test the Layout and DashLayout abstract base class interfaces."""
 
     def test_layout_is_abstract(self):
         """Test that Layout cannot be instantiated directly."""
@@ -29,9 +29,9 @@ class TestLayoutInterface:
         assert "abstract" in error_message.lower()
 
     def test_layout_requires_all_methods(self):
-        """Test that Layout subclasses must implement all required methods."""
+        """Test that DashLayout subclasses must implement all required methods."""
 
-        class IncompleteLayout1(Layout):
+        class IncompleteLayout1(DashLayout):
             def build_messages(self, messages):
                 return []
 
@@ -45,7 +45,7 @@ class TestLayoutInterface:
         error_message = str(exc_info.value)
         assert "build_layout" in error_message
 
-        class IncompleteLayout2(Layout):
+        class IncompleteLayout2(DashLayout):
             def build_layout(self):
                 from dash import html
 
@@ -62,10 +62,10 @@ class TestLayoutInterface:
         assert "build_messages" in error_message
 
     def test_layout_subclass_with_all_methods_works(self):
-        """Test that complete Layout subclasses work correctly."""
+        """Test that complete DashLayout subclasses work correctly."""
         from dash import html
 
-        class MinimalLayout(Layout):
+        class MinimalLayout(DashLayout):
             def build_layout(self):
                 return html.Div(
                     [
@@ -89,6 +89,7 @@ class TestLayoutInterface:
 
         # Should work fine
         layout = MinimalLayout()
+        assert isinstance(layout, DashLayout)
         assert isinstance(layout, Layout)
 
         # Test basic functionality
@@ -100,7 +101,7 @@ class TestLayoutInterface:
         """Test that layout validation catches missing required component IDs."""
         from dash import html
 
-        class IncompleteIDLayout(Layout):
+        class IncompleteIDLayout(DashLayout):
             def build_layout(self):
                 return html.Div(
                     [
@@ -139,10 +140,10 @@ class TestLayoutUtilities:
     """Test Layout utility methods and helper functions."""
 
     def test_layout_base_utilities(self):
-        """Test base Layout utility methods."""
+        """Test DashLayout utility methods."""
         from dash import html
 
-        class TestLayout(Layout):
+        class TestLayout(DashLayout):
             def build_layout(self):
                 return html.Div(
                     [
@@ -210,31 +211,9 @@ class TestLayoutUtilities:
 
     def test_rtl_text_detection(self):
         """Test RTL (Right-To-Left) text detection utility."""
-        from dash import html
+        from chatnificent.layout import DefaultLayout
 
-        class TestLayout(Layout):
-            def build_layout(self):
-                return html.Div(
-                    [
-                        html.Div(id="sidebar"),
-                        html.Button(id="sidebar_toggle"),
-                        html.Ul(id="conversations_list"),
-                        html.Button(id="new_conversation_button"),
-                        html.Div(id="chat_area"),
-                        html.Div(id="messages_container"),
-                        html.Textarea(id="input_textarea"),
-                        html.Button(id="submit_button"),
-                        html.Div(id="status_indicator"),
-                    ]
-                )
-
-            def build_messages(self, messages):
-                return []
-
-            def get_external_stylesheets(self):
-                return []
-
-        layout = TestLayout()
+        layout = DefaultLayout()
 
         # Test cases for RTL detection
         test_cases = [
@@ -264,7 +243,7 @@ class TestLayoutMessageRendering:
         """Test that layout message rendering follows the contract."""
         from dash import html
 
-        class TestLayout(Layout):
+        class TestLayout(DashLayout):
             def build_layout(self):
                 return html.Div(
                     [
@@ -328,7 +307,7 @@ class TestLayoutMessageRendering:
         """Test message rendering with edge case content."""
         from dash import html
 
-        class TestLayout(Layout):
+        class TestLayout(DashLayout):
             def build_layout(self):
                 return html.Div(
                     [
@@ -390,7 +369,7 @@ class TestLayoutValidation:
             "status_indicator",
         }
 
-        class TestLayout(Layout):
+        class TestLayout(DashLayout):
             def __init__(self, missing_ids=None):
                 self.missing_ids = missing_ids or []
                 super().__init__()
@@ -433,7 +412,7 @@ class TestLayoutValidation:
         """Test that layout validation correctly traverses component trees."""
         from dash import html
 
-        class NestedLayout(Layout):
+        class NestedLayout(DashLayout):
             def build_layout(self):
                 return html.Div(
                     [
@@ -479,7 +458,7 @@ class TestLayoutValidation:
         """Test that layout validation handles None children gracefully."""
         from dash import html
 
-        class NoneChildrenLayout(Layout):
+        class NoneChildrenLayout(DashLayout):
             def build_layout(self):
                 return html.Div(
                     [
@@ -515,7 +494,7 @@ class TestLayoutThemes:
         """Test that layouts handle theme initialization."""
         from dash import html
 
-        class ThemeableLayout(Layout):
+        class ThemeableLayout(DashLayout):
             def __init__(self, theme=None):
                 super().__init__(theme)
 
@@ -571,7 +550,7 @@ class TestLayoutIntegration:
         """Test that layout provides what callbacks need."""
         from dash import html
 
-        class CallbackReadyLayout(Layout):
+        class CallbackReadyLayout(DashLayout):
             def build_layout(self):
                 return html.Div(
                     [
@@ -622,7 +601,7 @@ class TestLayoutIntegration:
         """Test that layout implements the complete pillar interface."""
         from dash import html
 
-        class CompliantLayout(Layout):
+        class CompliantLayout(DashLayout):
             def build_layout(self):
                 return html.Div(
                     [

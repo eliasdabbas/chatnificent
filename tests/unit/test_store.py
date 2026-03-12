@@ -244,6 +244,102 @@ class TestFile:
             assert conversations[0] == "003"  # Most recent
             assert conversations[-1] == "001"  # Oldest
 
+    class TestPathTraversal:
+        """File store must reject path traversal attacks in user_id and convo_id."""
+
+        def test_reject_dotdot_in_user_id(self):
+            with tempfile.TemporaryDirectory() as d:
+                store = File(d)
+                conv = Conversation(id="c1", messages=[{"role": "user", "content": "x"}])
+                with pytest.raises(ValueError, match="path traversal"):
+                    store.save_conversation("../etc", conv)
+
+        def test_reject_dotdot_in_convo_id(self):
+            with tempfile.TemporaryDirectory() as d:
+                store = File(d)
+                conv = Conversation(
+                    id="../../passwd", messages=[{"role": "user", "content": "x"}]
+                )
+                with pytest.raises(ValueError, match="path traversal"):
+                    store.save_conversation("user1", conv)
+
+        def test_reject_slash_in_ids(self):
+            with tempfile.TemporaryDirectory() as d:
+                store = File(d)
+                conv = Conversation(
+                    id="foo/bar", messages=[{"role": "user", "content": "x"}]
+                )
+                with pytest.raises(ValueError, match="path traversal"):
+                    store.save_conversation("user1", conv)
+
+        def test_reject_backslash_in_ids(self):
+            with tempfile.TemporaryDirectory() as d:
+                store = File(d)
+                conv = Conversation(
+                    id="foo\\bar", messages=[{"role": "user", "content": "x"}]
+                )
+                with pytest.raises(ValueError, match="path traversal"):
+                    store.save_conversation("user1", conv)
+
+        def test_reject_null_bytes(self):
+            with tempfile.TemporaryDirectory() as d:
+                store = File(d)
+                conv = Conversation(
+                    id="valid", messages=[{"role": "user", "content": "x"}]
+                )
+                with pytest.raises(ValueError, match="path traversal"):
+                    store.save_conversation("user\x00evil", conv)
+
+        def test_reject_traversal_on_load(self):
+            with tempfile.TemporaryDirectory() as d:
+                store = File(d)
+                with pytest.raises(ValueError, match="path traversal"):
+                    store.load_conversation("../etc", "shadow")
+
+        def test_reject_traversal_on_list(self):
+            with tempfile.TemporaryDirectory() as d:
+                store = File(d)
+                with pytest.raises(ValueError, match="path traversal"):
+                    store.list_conversations("../etc")
+
+        def test_normal_ids_still_work(self):
+            with tempfile.TemporaryDirectory() as d:
+                store = File(d)
+                conv = Conversation(
+                    id="a1b2c3d4", messages=[{"role": "user", "content": "hello"}]
+                )
+                store.save_conversation("user123", conv)
+                loaded = store.load_conversation("user123", "a1b2c3d4")
+                assert loaded is not None
+                assert loaded.id == "a1b2c3d4"
+
+        def test_uuid_style_ids_work(self):
+            with tempfile.TemporaryDirectory() as d:
+                store = File(d)
+                conv = Conversation(
+                    id="f8c781b3", messages=[{"role": "user", "content": "hello"}]
+                )
+                store.save_conversation("e4a9b2c1", conv)
+                loaded = store.load_conversation("e4a9b2c1", "f8c781b3")
+                assert loaded is not None
+
+        def test_reject_absolute_path_as_id(self):
+            with tempfile.TemporaryDirectory() as d:
+                store = File(d)
+                conv = Conversation(
+                    id="/etc/passwd", messages=[{"role": "user", "content": "x"}]
+                )
+                with pytest.raises(ValueError, match="path traversal"):
+                    store.save_conversation("user1", conv)
+
+        def test_resolved_path_must_stay_inside_base_dir(self):
+            """Defense in depth: even if segment validation is bypassed,
+            the resolved path must stay inside base_dir."""
+            with tempfile.TemporaryDirectory() as d:
+                store = File(d)
+                with pytest.raises(ValueError, match="path traversal"):
+                    store.save_conversation("..", Conversation(id="escape", messages=[]))
+
 
 class TestSQLite:
     """Test the SQLite store implementation specifically."""

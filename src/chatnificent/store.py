@@ -83,17 +83,39 @@ class File(Store):
         # Create base directory if it doesn't exist
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
+    def _validate_path_segment(self, segment: str, label: str) -> None:
+        """Reject path segments that could escape base_dir."""
+        if not segment or ".." in segment or "/" in segment or "\\" in segment or "\x00" in segment:
+            raise ValueError(
+                f"Unsafe {label} rejected (path traversal): {segment!r}"
+            )
+        if segment.startswith("/"):
+            raise ValueError(
+                f"Unsafe {label} rejected (path traversal): {segment!r}"
+            )
+
     def _get_user_dir(self, user_id: str) -> Path:
         """Get user directory path, create if needed."""
+        self._validate_path_segment(user_id, "user_id")
         user_dir = self.base_dir / user_id
+        resolved = user_dir.resolve()
+        if not str(resolved).startswith(str(self.base_dir.resolve())):
+            raise ValueError(
+                f"Unsafe user_id rejected (path traversal): {user_id!r}"
+            )
         user_dir.mkdir(exist_ok=True)
         return user_dir
 
     def _get_conversation_dir(self, user_id: str, convo_id: str) -> Path:
-        """
-        Gets the conversation directory path.
-        """
-        return self._get_user_dir(user_id) / convo_id
+        """Gets the conversation directory path."""
+        self._validate_path_segment(convo_id, "convo_id")
+        convo_dir = self._get_user_dir(user_id) / convo_id
+        resolved = convo_dir.resolve()
+        if not str(resolved).startswith(str(self.base_dir.resolve())):
+            raise ValueError(
+                f"Unsafe convo_id rejected (path traversal): {convo_id!r}"
+            )
+        return convo_dir
 
     def _get_write_lock(self, user_id: str, convo_id: str) -> Lock:
         """Get or create a write lock for a specific conversation."""
@@ -196,6 +218,7 @@ class File(Store):
 
     def list_conversations(self, user_id: str) -> List[str]:
         """List all conversation IDs for user by scanning directories."""
+        self._validate_path_segment(user_id, "user_id")
         with self._list_lock:  # Prevent concurrent directory reads
             try:
                 user_dir = self.base_dir / user_id

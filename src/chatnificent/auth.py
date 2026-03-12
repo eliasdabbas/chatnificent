@@ -46,19 +46,21 @@ class Anonymous(Auth):
     """
 
     def get_current_user_id(self, **kwargs) -> str:
-        """Generate a short unique user ID for anonymous sessions.
-
-        Returns the first segment of a UUID4 (8 characters) for clean URLs
-        like /a1b2c3d4/new instead of /a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6/new
+        """Generate or return a user ID for anonymous sessions.
 
         Parameters
         ----------
         **kwargs
-            May contain 'pathname' from URL routing
+            May contain 'session_id' from a cookie or other session mechanism.
+            When provided (and truthy), that value is returned directly for
+            session continuity.
 
         Returns
         -------
         str
-            A short UUID segment for user identification
+            The session_id if provided, otherwise a fresh short UUID segment.
         """
+        session_id = kwargs.get("session_id")
+        if session_id:
+            return session_id
         return str(uuid.uuid4()).split("-")[0]

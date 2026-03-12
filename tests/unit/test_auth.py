@@ -268,3 +268,63 @@ class TestAuthIntegration:
         # Should remain independent
         assert auth1.get_current_user_id(test="data") == "user_one"
         assert auth2.get_current_user_id(test="data") == "user_two"
+
+
+class TestAnonymous:
+    """Test the Anonymous auth implementation."""
+
+    def test_returns_string(self):
+        from chatnificent.auth import Anonymous
+
+        auth = Anonymous()
+        result = auth.get_current_user_id()
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_no_session_id_generates_new_id(self):
+        from chatnificent.auth import Anonymous
+
+        auth = Anonymous()
+        id1 = auth.get_current_user_id()
+        id2 = auth.get_current_user_id()
+        # Without session_id, each call generates a fresh UUID segment
+        assert id1 != id2
+
+    def test_session_id_is_returned_when_provided(self):
+        """When a session_id kwarg is passed, Anonymous should return it."""
+        from chatnificent.auth import Anonymous
+
+        auth = Anonymous()
+        result = auth.get_current_user_id(session_id="abc12345")
+        assert result == "abc12345"
+
+    def test_session_id_provides_consistency(self):
+        """Same session_id should always produce the same user_id."""
+        from chatnificent.auth import Anonymous
+
+        auth = Anonymous()
+        r1 = auth.get_current_user_id(session_id="stable-session")
+        r2 = auth.get_current_user_id(session_id="stable-session")
+        assert r1 == r2 == "stable-session"
+
+    def test_different_session_ids_produce_different_user_ids(self):
+        from chatnificent.auth import Anonymous
+
+        auth = Anonymous()
+        r1 = auth.get_current_user_id(session_id="session-a")
+        r2 = auth.get_current_user_id(session_id="session-b")
+        assert r1 != r2
+
+    def test_none_session_id_generates_new_id(self):
+        """Explicit session_id=None should behave like no session_id."""
+        from chatnificent.auth import Anonymous
+
+        auth = Anonymous()
+        result = auth.get_current_user_id(session_id=None)
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_single_user_ignores_session_id(self):
+        """SingleUser should still ignore session_id kwarg."""
+        auth = SingleUser(user_id="fixed")
+        assert auth.get_current_user_id(session_id="ignored") == "fixed"

@@ -606,7 +606,7 @@
             $("#new-chat-btn").addEventListener("click", function () {
                 convoId = null; msgs.innerHTML = "";
                 msgs.appendChild(welcome); welcome.style.display = "";
-                history.pushState(null, "", "/");
+                history.pushState({convoId: null}, "", "/");
                 refreshConvoList();
             });
 
@@ -688,7 +688,7 @@
                                 } else if (payload.event === "done") {
                                     if (payload.data && payload.data.conversation_id) {
                                         convoId = payload.data.conversation_id;
-                                        history.replaceState(null, "", "/" + convoId);
+                                        history.replaceState({convoId: convoId}, "", payload.data.path || "/" + convoId);
                                         refreshConvoList();
                                     }
                                     bubble.innerHTML = renderMarkdown(accumulated);
@@ -703,7 +703,7 @@
                         else {
                             addMsg("assistant", data.response);
                             convoId = data.conversation_id;
-                            history.replaceState(null, "", "/" + convoId);
+                            history.replaceState({convoId: convoId}, "", data.path || "/" + convoId);
                             refreshConvoList();
                         }
                     }
@@ -734,18 +734,18 @@
                     var r = await fetch("/api/conversations/" + id); var data = await r.json();
                     if (data.error) return;
                     convoId = id; msgs.innerHTML = "";
-                    history.pushState(null, "", "/" + id);
+                    history.pushState({convoId: id}, "", data.path || "/" + id);
                     (data.messages || []).forEach(function (m) { addMsg(m.role, m.content) });
                     refreshConvoList();
                 } catch (e) { }
             }
-            window.addEventListener("popstate", function () {
-                var p = location.pathname.replace(/^\//, "");
-                if (p) loadConvo(p); else { convoId = null; msgs.innerHTML = ""; msgs.appendChild(welcome); welcome.style.display = ""; refreshConvoList(); }
+            window.addEventListener("popstate", function (e) {
+                var cid = e.state && e.state.convoId;
+                if (cid) loadConvo(cid); else { convoId = null; msgs.innerHTML = ""; msgs.appendChild(welcome); welcome.style.display = ""; refreshConvoList(); }
             });
             (function initFromURL() {
-                var p = location.pathname.replace(/^\//, "");
-                if (p) loadConvo(p); else refreshConvoList();
+                var initConvo = window.__CHATNIFICENT_CONVO__;
+                if (initConvo) loadConvo(initConvo); else refreshConvoList();
             })();
             input.focus();
         })();

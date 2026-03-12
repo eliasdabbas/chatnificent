@@ -72,16 +72,22 @@ class _DevHandler(SimpleHTTPRequestHandler):
         super().__init__(*args, **kwargs)
 
     def _get_user_id(self):
-        """Get stable user identity from session cookie, creating one if needed."""
+        """Get user identity by delegating to the Auth pillar."""
         if self._session_id:
             return self._session_id
         cookie = SimpleCookie(self.headers.get("Cookie", ""))
+        cookie_value = None
         if "chatnificent_session" in cookie:
-            self._session_id = cookie["chatnificent_session"].value
-        else:
-            self._session_id = str(uuid.uuid4()).split("-")[0]
+            cookie_value = cookie["chatnificent_session"].value
+        self._session_id = self._app.auth.get_current_user_id(session_id=cookie_value)
+        if not cookie_value:
             self._new_session = True
         return self._session_id
+
+    def _has_session_cookie(self):
+        """Check if the request carries an existing session cookie."""
+        cookie = SimpleCookie(self.headers.get("Cookie", ""))
+        return "chatnificent_session" in cookie
 
     def do_GET(self):
         if self.path == "/api/conversations":
@@ -90,7 +96,16 @@ class _DevHandler(SimpleHTTPRequestHandler):
             convo_id = self.path.split("/api/conversations/", 1)[1].strip("/")
             self._handle_load_conversation(convo_id)
         elif not self.path.startswith("/api/"):
-            self._respond_html(self._app.layout.render_page())
+            url_parts = self._app.url.parse(self.path)
+            if url_parts.user_id and not self._has_session_cookie():
+                self._session_id = url_parts.user_id
+                self._new_session = True
+            html = self._app.layout.render_page()
+            if url_parts.convo_id:
+                safe_id = url_parts.convo_id.replace("\\", "\\\\").replace('"', '\\"')
+                tag = f'<script>window.__CHATNIFICENT_CONVO__="{safe_id}";</script>'
+                html = html.replace("</head>", tag + "</head>")
+            self._respond_html(html)
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
 
@@ -142,6 +157,9 @@ class _DevHandler(SimpleHTTPRequestHandler):
                 {
                     "response": last_response,
                     "conversation_id": conversation.id,
+                    "path": self._app.url.build_conversation_path(
+                        user_id, conversation.id
+                    ),
                 }
             )
         except Exception as e:
@@ -156,9 +174,7 @@ class _DevHandler(SimpleHTTPRequestHandler):
 
             message = body.get("message", "").strip()
             if not message:
-                self._respond_json(
-                    {"error": "Empty message"}, HTTPStatus.BAD_REQUEST
-                )
+                self._respond_json({"error": "Empty message"}, HTTPStatus.BAD_REQUEST)
                 return
 
             user_id = self._get_user_id()
@@ -174,6 +190,12 @@ class _DevHandler(SimpleHTTPRequestHandler):
             for event in self._app.engine.handle_message_stream(
                 message, user_id, convo_id
             ):
+                if event.get("event") == "done" and isinstance(event.get("data"), dict):
+                    cid = event["data"].get("conversation_id")
+                    if cid:
+                        event["data"]["path"] = self._app.url.build_conversation_path(
+                            user_id, cid
+                        )
                 line = f"data: {json.dumps(event)}\n\n"
                 self.wfile.write(line.encode("utf-8"))
                 self.wfile.flush()
@@ -181,12 +203,8 @@ class _DevHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             logger.exception("DevServer error in /api/chat (stream)")
             try:
-                error_event = json.dumps(
-                    {"event": "error", "data": str(e)}
-                )
-                self.wfile.write(
-                    f"data: {error_event}\n\n".encode("utf-8")
-                )
+                error_event = json.dumps({"event": "error", "data": str(e)})
+                self.wfile.write(f"data: {error_event}\n\n".encode("utf-8"))
                 self.wfile.flush()
             except Exception:
                 pass
@@ -229,7 +247,15 @@ class _DevHandler(SimpleHTTPRequestHandler):
                 for msg in conversation.messages
                 if msg.get("role") in (USER_ROLE, ASSISTANT_ROLE)
             ]
-            self._respond_json({"id": conversation.id, "messages": messages})
+            self._respond_json(
+                {
+                    "id": conversation.id,
+                    "messages": messages,
+                    "path": self._app.url.build_conversation_path(
+                        user_id, conversation.id
+                    ),
+                }
+            )
         except Exception as e:
             logger.exception("DevServer error loading conversation")
             self._respond_json({"error": str(e)}, HTTPStatus.INTERNAL_SERVER_ERROR)

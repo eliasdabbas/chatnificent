@@ -182,3 +182,184 @@ class TestDevHandler:
         """POST to unknown path returns 404."""
         response = self._make_handler(handler_class, "POST", "/unknown")
         assert "404" in response
+
+
+class TestDevHandlerAuthDelegation:
+    """DevServer must delegate identity to the Auth pillar, not manage it directly."""
+
+    @pytest.fixture
+    def app(self):
+        from chatnificent import Chatnificent
+        from chatnificent.llm import Echo
+        from chatnificent.store import InMemory
+
+        return Chatnificent(llm=Echo(stream=False), store=InMemory(), server=DevServer())
+
+    def _make_handler(self, app, method, path, body=None, cookie=None):
+        """Simulate an HTTP request with optional cookie, returning raw response."""
+        from chatnificent.server import _DevHandler
+
+        raw_body = json.dumps(body).encode("utf-8") if body is not None else b""
+        wfile = io.BytesIO()
+
+        with patch.object(_DevHandler, "__init__", lambda self, _app, *a, **kw: None):
+            h = _DevHandler.__new__(_DevHandler)
+            h._app = app
+            h._new_session = False
+            h._session_id = None
+            h.rfile = io.BytesIO(raw_body)
+            h.wfile = wfile
+            h.requestline = f"{method} {path} HTTP/1.1"
+            h.command = method
+            h.path = path
+            headers = {"Content-Length": str(len(raw_body)), "Host": "localhost"}
+            if cookie:
+                headers["Cookie"] = cookie
+            h.headers = headers
+            h.request_version = "HTTP/1.1"
+            h.close_connection = True
+
+            if method == "GET":
+                h.do_GET()
+            elif method == "POST":
+                h.rfile = io.BytesIO(raw_body)
+                h.do_POST()
+
+            wfile.seek(0)
+            return wfile.read().decode("utf-8", errors="replace")
+
+    def test_handler_calls_auth_pillar(self, app):
+        """_get_user_id should delegate to app.auth, not generate UUIDs directly."""
+        app.auth = Mock()
+        app.auth.get_current_user_id.return_value = "auth-decided-id"
+
+        self._make_handler(
+            app, "POST", "/api/chat", {"message": "hello"},
+            cookie="chatnificent_session=my-cookie-val"
+        )
+
+        app.auth.get_current_user_id.assert_called()
+        call_kwargs = app.auth.get_current_user_id.call_args
+        assert call_kwargs.kwargs.get("session_id") == "my-cookie-val"
+
+    def test_handler_passes_none_session_when_no_cookie(self, app):
+        """Without a cookie, session_id=None should be passed to auth."""
+        app.auth = Mock()
+        app.auth.get_current_user_id.return_value = "new-anon-id"
+
+        self._make_handler(app, "POST", "/api/chat", {"message": "hello"})
+
+        app.auth.get_current_user_id.assert_called()
+        call_kwargs = app.auth.get_current_user_id.call_args
+        assert call_kwargs.kwargs.get("session_id") is None
+
+
+class TestDevHandlerURLIntegration:
+    """DevServer API responses must include paths built by the URL pillar."""
+
+    @pytest.fixture
+    def app(self):
+        from chatnificent import Chatnificent
+        from chatnificent.llm import Echo
+        from chatnificent.store import InMemory
+
+        return Chatnificent(llm=Echo(stream=False), store=InMemory(), server=DevServer())
+
+    def _make_handler(self, app, method, path, body=None, cookie=None):
+        from chatnificent.server import _DevHandler
+
+        raw_body = json.dumps(body).encode("utf-8") if body is not None else b""
+        wfile = io.BytesIO()
+
+        with patch.object(_DevHandler, "__init__", lambda self, _app, *a, **kw: None):
+            h = _DevHandler.__new__(_DevHandler)
+            h._app = app
+            h._new_session = False
+            h._session_id = None
+            h.rfile = io.BytesIO(raw_body)
+            h.wfile = wfile
+            h.requestline = f"{method} {path} HTTP/1.1"
+            h.command = method
+            h.path = path
+            headers = {"Content-Length": str(len(raw_body)), "Host": "localhost"}
+            if cookie:
+                headers["Cookie"] = cookie
+            h.headers = headers
+            h.request_version = "HTTP/1.1"
+            h.close_connection = True
+
+            if method == "GET":
+                h.do_GET()
+            elif method == "POST":
+                h.rfile = io.BytesIO(raw_body)
+                h.do_POST()
+
+            wfile.seek(0)
+            return wfile.read().decode("utf-8", errors="replace")
+
+    def _extract_json(self, raw_response):
+        """Extract the JSON body from raw HTTP response text."""
+        body_start = raw_response.find("\r\n\r\n")
+        if body_start == -1:
+            return None
+        return json.loads(raw_response[body_start + 4:])
+
+    def test_chat_response_includes_path(self, app):
+        """POST /api/chat response must include 'path' built by URL pillar."""
+        response = self._make_handler(
+            app, "POST", "/api/chat",
+            {"message": "hi"},
+            cookie="chatnificent_session=user1"
+        )
+        data = self._extract_json(response)
+        assert "path" in data, "API response must include 'path' from URL pillar"
+        assert data["conversation_id"] in data["path"]
+
+    def test_chat_response_path_matches_url_pillar(self, app):
+        """The 'path' in response should match what url.build_conversation_path returns."""
+        app.auth = Mock()
+        app.auth.get_current_user_id.return_value = "testuser"
+
+        response = self._make_handler(
+            app, "POST", "/api/chat",
+            {"message": "hi"},
+            cookie="chatnificent_session=testuser"
+        )
+        data = self._extract_json(response)
+        expected_path = app.url.build_conversation_path("testuser", data["conversation_id"])
+        assert data["path"] == expected_path
+
+    def test_deep_link_adopts_url_user_id_without_cookie(self, app):
+        """Visiting /<user_id>/<convo_id> without a cookie should adopt the URL user_id."""
+        from chatnificent.models import Conversation
+
+        # Pre-populate a conversation for user "abc123"
+        convo = Conversation(id="conv001", messages=[
+            {"role": "user", "content": "hello"},
+        ])
+        app.store.save_conversation("abc123", convo)
+
+        # Page load with deep link — no cookie
+        self._make_handler(app, "GET", "/abc123/conv001")
+
+        # Now subsequent API call should use the adopted user_id
+        response = self._make_handler(
+            app, "GET", "/api/conversations/conv001",
+            cookie="chatnificent_session=abc123"
+        )
+        data = self._extract_json(response)
+        assert data.get("id") == "conv001"
+
+    def test_deep_link_sets_session_cookie(self, app):
+        """Deep link without cookie should set the session cookie to URL user_id."""
+        response = self._make_handler(app, "GET", "/myuser/someconvo")
+        assert "chatnificent_session=myuser" in response
+
+    def test_deep_link_does_not_override_existing_cookie(self, app):
+        """If cookie already exists, URL user_id should NOT override it."""
+        response = self._make_handler(
+            app, "GET", "/url_user/conv1",
+            cookie="chatnificent_session=cookie_user"
+        )
+        assert "chatnificent_session=cookie_user" not in response or \
+               "chatnificent_session=url_user" not in response

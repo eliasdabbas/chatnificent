@@ -298,8 +298,14 @@
             white-space: normal;
         }
 
-        .msg.assistant p { margin: 0 0 0.6em; }
-        .msg.assistant p:last-child { margin-bottom: 0; }
+        .msg.assistant p {
+            margin: 0 0 0.6em;
+        }
+
+        .msg.assistant p:last-child {
+            margin-bottom: 0;
+        }
+
         .msg.assistant pre {
             background: var(--bg);
             border: 1px solid var(--border);
@@ -309,37 +315,55 @@
             margin: 0.6em 0;
             font-size: 0.88em;
         }
+
         .msg.assistant code {
             font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
             font-size: 0.9em;
         }
-        .msg.assistant :not(pre) > code {
+
+        .msg.assistant :not(pre)>code {
             background: var(--accent-subtle);
             padding: 2px 6px;
             border-radius: 4px;
         }
-        .msg.assistant ul, .msg.assistant ol { padding-left: 1.4em; margin: 0.4em 0; }
+
+        .msg.assistant ul,
+        .msg.assistant ol {
+            padding-left: 1.4em;
+            margin: 0.4em 0;
+        }
+
         .msg.assistant blockquote {
             border-left: 3px solid var(--accent);
             margin: 0.6em 0;
             padding: 4px 12px;
             color: var(--text-secondary);
         }
-        .msg.assistant h1, .msg.assistant h2, .msg.assistant h3 {
+
+        .msg.assistant h1,
+        .msg.assistant h2,
+        .msg.assistant h3 {
             margin: 0.6em 0 0.3em;
             font-size: 1em;
             font-weight: 600;
         }
+
         .msg.assistant table {
             border-collapse: collapse;
             margin: 0.6em 0;
             font-size: 0.9em;
         }
-        .msg.assistant th, .msg.assistant td {
+
+        .msg.assistant th,
+        .msg.assistant td {
             border: 1px solid var(--border);
             padding: 6px 10px;
         }
-        .msg.assistant th { background: var(--bg); font-weight: 600; }
+
+        .msg.assistant th {
+            background: var(--bg);
+            font-weight: 600;
+        }
 
         .status-indicator {
             color: var(--text-secondary);
@@ -606,7 +630,7 @@
             $("#new-chat-btn").addEventListener("click", function () {
                 convoId = null; msgs.innerHTML = "";
                 msgs.appendChild(welcome); welcome.style.display = "";
-                history.pushState({convoId: null}, "", "/");
+                history.pushState({ convoId: null }, "", "/");
                 refreshConvoList();
             });
 
@@ -675,7 +699,7 @@
                                 var line = lines[i];
                                 if (line.indexOf("data: ") !== 0) continue;
                                 var payload;
-                                try { payload = JSON.parse(line.slice(6)); } catch(_) { continue; }
+                                try { payload = JSON.parse(line.slice(6)); } catch (_) { continue; }
                                 if (payload.event === "delta") {
                                     accumulated += payload.data;
                                     bubble.innerHTML = renderMarkdown(accumulated);
@@ -688,7 +712,7 @@
                                 } else if (payload.event === "done") {
                                     if (payload.data && payload.data.conversation_id) {
                                         convoId = payload.data.conversation_id;
-                                        history.replaceState({convoId: convoId}, "", payload.data.path || "/" + convoId);
+                                        history.replaceState({ convoId: convoId }, "", payload.data.path || "/" + convoId);
                                         refreshConvoList();
                                     }
                                     bubble.innerHTML = renderMarkdown(accumulated);
@@ -703,7 +727,7 @@
                         else {
                             addMsg("assistant", data.response);
                             convoId = data.conversation_id;
-                            history.replaceState({convoId: convoId}, "", data.path || "/" + convoId);
+                            history.replaceState({ convoId: convoId }, "", data.path || "/" + convoId);
                             refreshConvoList();
                         }
                     }
@@ -734,8 +758,11 @@
                     var r = await fetch("/api/conversations/" + id); var data = await r.json();
                     if (data.error) return;
                     convoId = id; msgs.innerHTML = "";
-                    history.pushState({convoId: id}, "", data.path || "/" + id);
-                    (data.messages || []).forEach(function (m) { addMsg(m.role, m.content) });
+                    history.pushState({ convoId: id }, "", data.path || "/" + id);
+                    (data.messages || []).forEach(function (m) {
+                        if (m.role === "tool" || m.tool_calls) return;
+                        addMsg(m.role, m.content);
+                    });
                     refreshConvoList();
                 } catch (e) { }
             }

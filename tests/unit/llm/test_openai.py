@@ -188,13 +188,12 @@ class TestExtractContent:
         result = openai_llm.extract_content(response)
         assert "content_filter" in result
 
-    def test_tool_call_response_shows_finish_reason(self, openai_llm):
-        """When model returns tool calls, content is null — shows finish_reason."""
+    def test_tool_call_response_returns_none(self, openai_llm):
+        """When model returns tool calls with no text, extract_content returns None."""
         response = make_openai_tool_response(
             [{"id": "call_1", "name": "fn", "arguments": "{}"}]
         )
-        result = openai_llm.extract_content(response)
-        assert "tool_calls" in result
+        assert openai_llm.extract_content(response) is None
 
 
 # ===== extract_content on different providers =====

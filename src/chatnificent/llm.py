@@ -223,6 +223,8 @@ class _OpenAICompatible(LLM):
         choice = response.choices[0]
         if choice.message.content:
             return choice.message.content
+        if hasattr(choice.message, "tool_calls") and choice.message.tool_calls:
+            return None
         finish_reason = getattr(choice, "finish_reason", "UNKNOWN")
         return f"Empty response from {self.model} — finish_reason: {finish_reason}"
 
@@ -784,6 +786,8 @@ class Gemini(LLM):
             ]
             if text_pieces:
                 return "".join(text_pieces)
+            if any(p.get("function_call") for p in parts):
+                return None
             finish_reason = candidate.get("finish_reason", "UNKNOWN")
             return f"Empty response from Gemini — finish_reason: {finish_reason}"
         except Exception:
@@ -878,6 +882,8 @@ class Ollama(LLM):
         content = response.get("message", {}).get("content")
         if content:
             return content
+        if response.get("message", {}).get("tool_calls"):
+            return None
         done_reason = response.get("done_reason", "UNKNOWN")
         return f"Empty response from {self.model} — done_reason: {done_reason}"
 

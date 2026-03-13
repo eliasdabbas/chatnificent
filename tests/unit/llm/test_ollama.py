@@ -73,6 +73,13 @@ class TestExtractContent:
         result = ollama_llm.extract_content(response)
         assert "stop" in result
 
+    def test_tool_call_response_returns_none(self, ollama_llm):
+        """When model returns tool calls with no text, extract_content returns None."""
+        response = make_ollama_tool_response(
+            [{"name": "get_weather", "arguments": {"city": "Tokyo"}}]
+        )
+        assert ollama_llm.extract_content(response) is None
+
     def test_missing_message_key(self, ollama_llm):
         """Graceful handling when 'message' key is missing."""
         response = {"done_reason": "stop"}

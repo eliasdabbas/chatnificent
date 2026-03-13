@@ -585,6 +585,13 @@ class TestExtractContent:
         """Graceful fallback when response is malformed."""
         assert gemini.extract_content("not a dict") is None
 
+    def test_function_call_only_returns_none(self, gemini):
+        """When response has only function_call parts (no text), returns None."""
+        response = _make_function_call_response(
+            [{"name": "get_weather", "args": {"city": "Tokyo"}}]
+        )
+        assert gemini.extract_content(response) is None
+
 
 # ===== parse_tool_calls tests =====
 

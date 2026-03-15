@@ -21,7 +21,7 @@ pip install chatnificent
 import chatnificent as chat
 
 app = chat.Chatnificent()
-app.run()  # http://127.0.0.1:8050
+app.run()  # http://127.0.0.1:7777
 ```
 
 No API keys, no extras, no configuration. You get a working chat UI with the built-in Echo LLM, a stdlib HTTP server, and an HTML/JS frontend — all with zero dependencies.

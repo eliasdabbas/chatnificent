@@ -64,10 +64,10 @@ class TestDevServer:
     """Test the DevServer implementation."""
 
     def test_default_host_and_port(self):
-        """DevServer defaults to 127.0.0.1:8050."""
+        """DevServer defaults to 127.0.0.1:7777."""
         srv = DevServer()
         assert srv._host == "127.0.0.1"
-        assert srv._port == 8050
+        assert srv._port == 7777
 
     def test_create_server_stores_config(self):
         """create_server() stores host/port without binding a socket."""

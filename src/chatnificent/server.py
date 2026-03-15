@@ -320,7 +320,7 @@ class DevServer(Server):
         super().__init__(app)
         self.httpd = None
         self._host = "127.0.0.1"
-        self._port = 8050
+        self._port = 7777
 
     def create_server(self, **kwargs) -> None:
         """Store configuration. The actual HTTPServer is created lazily in run()."""

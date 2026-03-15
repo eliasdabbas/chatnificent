@@ -10,7 +10,7 @@
 ```python
 import chatnificent as chat
 app = chat.Chatnificent()
-app.run()  # http://127.0.0.1:8050
+app.run()  # http://127.0.0.1:7777
 ```
 
 Run with: `uv run app.py`

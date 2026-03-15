@@ -913,3 +913,137 @@ class TestAgenticRoundTrip:
         assert gemini.is_tool_message(assistant_fc_msg) is True
         assert gemini.is_tool_message(tool_result_msg) is True
         assert gemini.is_tool_message(final_msg) is False
+
+
+# ===== Streaming tests =====
+
+
+class TestGeminiStreaming:
+    """Test Gemini streaming: default_params, generate_response branching,
+    and extract_stream_delta."""
+
+    def test_default_params_includes_stream(self):
+        """Constructor sets stream=True in default_params, matching all other providers."""
+        mock_genai = MagicMock()
+        mock_genai.Client.return_value = MagicMock()
+
+        with (
+            patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}),
+            patch.dict(
+                "sys.modules",
+                {
+                    "google": MagicMock(),
+                    "google.genai": mock_genai,
+                    "google.genai.types": MagicMock(),
+                },
+            ),
+        ):
+            from chatnificent.llm import Gemini
+
+            instance = Gemini(model="gemini-test")
+            assert instance.default_params.get("stream") is True
+
+    def test_default_params_user_can_override_stream(self):
+        """User can set stream=False and it's respected."""
+        mock_genai = MagicMock()
+        mock_genai.Client.return_value = MagicMock()
+
+        with (
+            patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}),
+            patch.dict(
+                "sys.modules",
+                {
+                    "google": MagicMock(),
+                    "google.genai": mock_genai,
+                    "google.genai.types": MagicMock(),
+                },
+            ),
+        ):
+            from chatnificent.llm import Gemini
+
+            instance = Gemini(model="gemini-test", stream=False)
+            assert instance.default_params.get("stream") is False
+
+    def test_generate_response_calls_stream_method(self, gemini):
+        """When stream=True, generate_response calls generate_content_stream."""
+        gemini.default_params = {"stream": True}
+        gemini.client.models.generate_content_stream.return_value = iter(["chunk"])
+
+        messages = [{"role": "user", "content": "Hi"}]
+        gemini.generate_response(messages)
+
+        gemini.client.models.generate_content_stream.assert_called_once()
+        gemini.client.models.generate_content.assert_not_called()
+
+    def test_generate_response_calls_non_stream_method(self, gemini):
+        """When stream=False, generate_response calls generate_content."""
+        gemini.default_params = {"stream": False}
+        mock_response = MagicMock()
+        mock_response.model_dump.return_value = _make_text_response("Hi back")
+        gemini.client.models.generate_content.return_value = mock_response
+
+        messages = [{"role": "user", "content": "Hi"}]
+        gemini.generate_response(messages)
+
+        gemini.client.models.generate_content.assert_called_once()
+        gemini.client.models.generate_content_stream.assert_not_called()
+
+    def test_stream_kwarg_overrides_default(self, gemini):
+        """Call-time stream=False overrides default_params stream=True."""
+        gemini.default_params = {"stream": True}
+        mock_response = MagicMock()
+        mock_response.model_dump.return_value = _make_text_response("Hi")
+        gemini.client.models.generate_content.return_value = mock_response
+
+        messages = [{"role": "user", "content": "Hi"}]
+        gemini.generate_response(messages, stream=False)
+
+        gemini.client.models.generate_content.assert_called_once()
+        gemini.client.models.generate_content_stream.assert_not_called()
+
+    def test_stream_not_passed_to_config(self, gemini):
+        """stream is popped before reaching GenerateContentConfig."""
+        gemini.default_params = {"stream": True, "temperature": 0.5}
+        gemini.client.models.generate_content_stream.return_value = iter([])
+
+        config_spy = MagicMock(side_effect=lambda **kw: kw)
+        gemini._genai_types.GenerateContentConfig = config_spy
+
+        messages = [{"role": "user", "content": "Hi"}]
+        gemini.generate_response(messages)
+
+        config_kwargs = config_spy.call_args[1]
+        assert "stream" not in config_kwargs
+        assert config_kwargs["temperature"] == 0.5
+
+    def test_extract_stream_delta_text(self, gemini):
+        """extract_stream_delta returns text from a streaming chunk."""
+        mock_part = SimpleNamespace(text="Hello ")
+        mock_content = SimpleNamespace(parts=[mock_part])
+        mock_candidate = SimpleNamespace(content=mock_content)
+        chunk = SimpleNamespace(candidates=[mock_candidate])
+
+        assert gemini.extract_stream_delta(chunk) == "Hello "
+
+    def test_extract_stream_delta_empty_candidates(self, gemini):
+        """extract_stream_delta returns None for empty candidates."""
+        chunk = SimpleNamespace(candidates=[])
+        assert gemini.extract_stream_delta(chunk) is None
+
+    def test_extract_stream_delta_no_text(self, gemini):
+        """extract_stream_delta returns None when parts have no text."""
+        mock_part = SimpleNamespace(text=None)
+        mock_content = SimpleNamespace(parts=[mock_part])
+        mock_candidate = SimpleNamespace(content=mock_content)
+        chunk = SimpleNamespace(candidates=[mock_candidate])
+
+        assert gemini.extract_stream_delta(chunk) is None
+
+    def test_extract_stream_delta_multiple_parts(self, gemini):
+        """extract_stream_delta concatenates text from multiple parts."""
+        parts = [SimpleNamespace(text="Hello "), SimpleNamespace(text="world")]
+        mock_content = SimpleNamespace(parts=parts)
+        mock_candidate = SimpleNamespace(content=mock_content)
+        chunk = SimpleNamespace(candidates=[mock_candidate])
+
+        assert gemini.extract_stream_delta(chunk) == "Hello world"

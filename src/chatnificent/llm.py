@@ -637,7 +637,7 @@ class Gemini(LLM):
 
         self.client = genai.Client(**client_kwargs)
         self.model = model
-        self.default_params = generation_kwargs
+        self.default_params = {"stream": True, **generation_kwargs}
 
     def _translate_request(self, messages: List[Dict[str, Any]]) -> tuple:
         """Translate stored message dicts to google-genai Content objects.
@@ -747,6 +747,10 @@ class Gemini(LLM):
         types = self._genai_types
         config_dict: Dict[str, Any] = {**self.default_params, **kwargs}
 
+        # Gemini doesn't use a `stream` config param — streaming is controlled
+        # by calling generate_content_stream() vs generate_content().
+        is_streaming = config_dict.pop("stream", False)
+
         contents, system_instruction = self._translate_request(messages)
 
         if system_instruction is not None:
@@ -764,6 +768,13 @@ class Gemini(LLM):
             "messages": messages,
             "config": config_dict,
         }
+
+        if is_streaming:
+            return self.client.models.generate_content_stream(
+                model=model or self.model,
+                contents=contents,
+                config=config,
+            )
 
         response = self.client.models.generate_content(
             model=model or self.model,
@@ -856,6 +867,17 @@ class Gemini(LLM):
                 for item in message["content"]
             )
         return False
+
+    def extract_stream_delta(self, chunk: Any) -> Optional[str]:
+        try:
+            candidates = chunk.candidates or []
+            if not candidates:
+                return None
+            parts = candidates[0].content.parts or []
+            text_pieces = [p.text for p in parts if p.text is not None]
+            return "".join(text_pieces) if text_pieces else None
+        except Exception:
+            return None
 
 
 class Ollama(LLM):

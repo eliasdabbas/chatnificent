@@ -328,3 +328,88 @@ class TestEngineLazyBinding:
         result = engine.handle_message("Test", "user123", None)
         assert isinstance(result, Conversation)
         assert any("error" in msg.get("content", "").lower() for msg in result.messages)
+
+
+class TestHandleMessageStream:
+    """Test handle_message_stream — raw_chunks scoping and streaming path."""
+
+    @pytest.fixture
+    def mock_app(self):
+        """Create a mock Chatnificent app with all required components."""
+        app = Mock()
+        app.llm = Mock()
+        app.llm.extract_content = Mock(return_value="Final answer")
+        app.llm.parse_tool_calls = Mock(return_value=None)
+        app.llm.create_assistant_message = Mock(
+            return_value={"role": ASSISTANT_ROLE, "content": "Final answer"}
+        )
+        app.llm.extract_stream_delta = Mock(return_value=None)
+        app.store = Mock()
+        app.store.load_conversation = Mock(return_value=None)
+        app.store.save_conversation = Mock()
+        app.retrieval = Mock()
+        app.retrieval.retrieve = Mock(return_value=None)
+        app.tools = Mock()
+        app.tools.get_tools = Mock(return_value=None)
+        return app
+
+    @pytest.fixture
+    def engine(self, mock_app):
+        return Orchestrator(mock_app)
+
+    def test_streaming_with_tools_does_not_crash(self, engine, mock_app):
+        """raw_chunks is defined before the loop so tools path doesn't NameError."""
+        mock_app.tools.get_tools.return_value = [{"type": "function", "function": {"name": "dice"}}]
+        mock_app.llm.generate_response.return_value = Mock()
+        mock_app.llm.parse_tool_calls.return_value = None
+        mock_app.llm.extract_content.return_value = "Rolled a 4"
+
+        events = list(
+            engine.handle_message_stream("roll dice", "user1", None)
+        )
+
+        event_types = [e["event"] for e in events]
+        assert "done" in event_types
+        assert mock_app.store.save_conversation.called
+
+    def test_streaming_no_tools_collects_chunks(self, engine, mock_app):
+        """Streaming path collects raw_chunks and passes them to save."""
+        chunk1 = Mock()
+        chunk1.model_dump.return_value = {"text": "Hello"}
+        chunk2 = Mock()
+        chunk2.model_dump.return_value = {"text": " world"}
+        mock_app.llm.generate_response.return_value = iter([chunk1, chunk2])
+        mock_app.llm.extract_stream_delta.side_effect = ["Hello", " world"]
+
+        # Remove save_raw_api_response so _save_raw_exchange exercises the list path
+        mock_app.store.save_raw_api_response = Mock()
+        mock_app.store.save_raw_api_request = Mock()
+        mock_app.llm.get_last_request_payload = Mock(return_value={"model": "test"})
+
+        events = list(
+            engine.handle_message_stream("Hi", "user1", None)
+        )
+
+        deltas = [e["data"] for e in events if e["event"] == "delta"]
+        assert deltas == ["Hello", " world"]
+        assert "done" in [e["event"] for e in events]
+
+        # Verify raw response was saved with the chunk list
+        mock_app.store.save_raw_api_response.assert_called_once()
+        saved_response = mock_app.store.save_raw_api_response.call_args[0][2]
+        assert isinstance(saved_response, list)
+        assert len(saved_response) == 2
+
+    def test_streaming_chunks_serialized_with_json_mode(self, engine, mock_app):
+        """model_dump(mode='json') is used so bytes/datetime are JSON-safe."""
+        chunk = Mock()
+        chunk.model_dump.return_value = {"text": "Hi"}
+        mock_app.llm.generate_response.return_value = iter([chunk])
+        mock_app.llm.extract_stream_delta.return_value = "Hi"
+        mock_app.store.save_raw_api_response = Mock()
+        mock_app.store.save_raw_api_request = Mock()
+        mock_app.llm.get_last_request_payload = Mock(return_value={"model": "test"})
+
+        list(engine.handle_message_stream("Hi", "user1", None))
+
+        chunk.model_dump.assert_called_once_with(mode="json")

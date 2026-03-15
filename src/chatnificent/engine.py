@@ -164,8 +164,8 @@ class Orchestrator(Engine):
                 self._before_llm_call(conversation)
                 llm_payload = self._prepare_llm_payload(conversation, retrieval_context)
 
-                # Generation
-                llm_response = self._generate_response(llm_payload)
+                # Generation — force non-streaming since this is the sync path
+                llm_response = self._generate_response(llm_payload, stream=False)
                 self._after_llm_call(llm_response)
 
                 # Persist raw request/response pair for this turn
@@ -235,6 +235,7 @@ class Orchestrator(Engine):
             llm_response = None
             tool_calls = None
             accumulated_text = ""
+            raw_chunks = []
 
             for _turn in range(self.max_agentic_turns):
                 self._before_llm_call(conversation)
@@ -291,6 +292,7 @@ class Orchestrator(Engine):
                     # No tools — stream the response token-by-token
                     stream = self._generate_response(llm_payload)
                     for chunk in stream:
+                        raw_chunks.append(chunk)
                         delta = self.app.llm.extract_stream_delta(chunk)
                         if delta:
                             accumulated_text += delta
@@ -318,7 +320,7 @@ class Orchestrator(Engine):
                 conversation.messages.append(assistant_message)
 
             # Save raw exchange for the streaming path
-            self._save_raw_exchange(user_id, conversation.id, None)
+            self._save_raw_exchange(user_id, conversation.id, raw_chunks)
 
             # 5. Persistence
             self._before_save(conversation)
@@ -424,7 +426,15 @@ class Orchestrator(Engine):
 
         if hasattr(self.app.store, "save_raw_api_response") and llm_response:
             try:
-                response_to_save = llm_response.model_dump()
+                if isinstance(llm_response, list):
+                    response_to_save = []
+                    for chunk in llm_response:
+                        try:
+                            response_to_save.append(chunk.model_dump(mode="json"))
+                        except (AttributeError, TypeError):
+                            response_to_save.append(chunk)
+                else:
+                    response_to_save = llm_response.model_dump(mode="json")
             except (AttributeError, TypeError):
                 response_to_save = llm_response
 

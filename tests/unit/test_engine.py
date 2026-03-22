@@ -359,14 +359,14 @@ class TestHandleMessageStream:
 
     def test_streaming_with_tools_does_not_crash(self, engine, mock_app):
         """raw_chunks is defined before the loop so tools path doesn't NameError."""
-        mock_app.tools.get_tools.return_value = [{"type": "function", "function": {"name": "dice"}}]
+        mock_app.tools.get_tools.return_value = [
+            {"type": "function", "function": {"name": "dice"}}
+        ]
         mock_app.llm.generate_response.return_value = Mock()
         mock_app.llm.parse_tool_calls.return_value = None
         mock_app.llm.extract_content.return_value = "Rolled a 4"
 
-        events = list(
-            engine.handle_message_stream("roll dice", "user1", None)
-        )
+        events = list(engine.handle_message_stream("roll dice", "user1", None))
 
         event_types = [e["event"] for e in events]
         assert "done" in event_types
@@ -386,9 +386,7 @@ class TestHandleMessageStream:
         mock_app.store.save_raw_api_request = Mock()
         mock_app.llm.get_last_request_payload = Mock(return_value={"model": "test"})
 
-        events = list(
-            engine.handle_message_stream("Hi", "user1", None)
-        )
+        events = list(engine.handle_message_stream("Hi", "user1", None))
 
         deltas = [e["data"] for e in events if e["event"] == "delta"]
         assert deltas == ["Hello", " world"]

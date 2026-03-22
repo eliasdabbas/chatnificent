@@ -14,7 +14,9 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-pytest.importorskip("google.genai", reason="Gemini tests require the google-genai package")
+pytest.importorskip(
+    "google.genai", reason="Gemini tests require the google-genai package"
+)
 
 from chatnificent.models import (
     ASSISTANT_ROLE,
@@ -904,9 +906,7 @@ class TestAgenticRoundTrip:
                 {"function_call": {"name": "get_weather", "args": {"loc": "NYC"}}}
             ],
         }
-        tool_result_msg = {
-            "role": TOOL_ROLE, "name": "get_weather", "content": "sunny"
-        }
+        tool_result_msg = {"role": TOOL_ROLE, "name": "get_weather", "content": "sunny"}
         final_msg = {"role": ASSISTANT_ROLE, "content": "It's sunny in NYC!"}
 
         assert gemini.is_tool_message(user_msg) is False

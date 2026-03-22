@@ -68,7 +68,7 @@ class Chatnificent:
 
         >>> app = Chatnificent(
         ...     llm=llm.Anthropic(api_key="your-key"),
-        ...     store=store.File(directory="./conversations"),
+        ...     store=store.File(base_dir="./conversations"),
         ... )
         """
         if layout:

@@ -46,3 +46,16 @@ Extend the framework: custom engines, hooks, auth.
 |---|---------|---------|--------------|
 | 9 | [single_user.py](single_user.py) | SingleUser auth + SQLite — personal chat with history | `chatnificent[openai]` |
 | 10 | [auto_title.py](auto_title.py) | Auto-name conversations from the first exchange via `_before_save` hook | `chatnificent[openai]` |
+
+## Tier 4 — Display Enrichment
+
+Keep canonical history clean while enriching what the UI shows.
+
+| # | Example | Purpose | Dependencies |
+|---|---------|---------|--------------|
+| 11 | [usage_display.py](usage_display.py) | Minimal OpenAI-only example: read raw API responses and append token usage in the transcript | `chatnificent[openai]` |
+| 12 | [usage_display_multi_provider.py](usage_display_multi_provider.py) | Production-style version: support OpenAI, Anthropic, and Gemini usage payloads | `chatnificent[openai,anthropic,gemini]` |
+| 13 | [conversation_title.py](conversation_title.py) | Generate `conversation_title.txt` with a real LLM in `_after_save` and render it in the sidebar | `chatnificent[openai,anthropic,gemini]` |
+| 14 | [conversation_summary.py](conversation_summary.py) | Append summaries to `summaries.md` in `_after_save` and render the latest one above the transcript | `chatnificent[openai,anthropic,gemini]` |
+| 15 | [web_search.py](web_search.py) | Use Gemini web search, read raw API responses in `render_messages()`, and render sources as a simple Markdown list under the answer | `chatnificent[gemini]` |
+| 16 | [display_redaction.py](display_redaction.py) | Use built-in regex rules to mask emails, phones, and card numbers in the visible transcript only | `chatnificent[anthropic]` |

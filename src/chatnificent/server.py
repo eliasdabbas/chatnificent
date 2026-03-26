@@ -127,6 +127,22 @@ class _DevHandler(SimpleHTTPRequestHandler):
             return True
         return False
 
+    def _render_messages_for_display(self, user_id, conversation):
+        """Delegate visible transcript shaping to the Layout pillar."""
+        return self._app.layout.render_messages(
+            conversation.messages,
+            user_id=user_id,
+            convo_id=conversation.id,
+            conversation=conversation,
+        )
+
+    def _render_conversations_for_display(self, user_id, conversations):
+        """Delegate conversation-list shaping to the Layout pillar."""
+        return self._app.layout.render_conversations(
+            conversations,
+            user_id=user_id,
+        )
+
     def _handle_chat(self):
         try:
             body = self._read_json_body()
@@ -142,20 +158,22 @@ class _DevHandler(SimpleHTTPRequestHandler):
             convo_id = body.get("conversation_id")
 
             conversation = self._app.engine.handle_message(message, user_id, convo_id)
-
-            display_messages = [
+            display_messages = self._render_messages_for_display(user_id, conversation)
+            assistant_messages = [
                 msg
-                for msg in conversation.messages
+                for msg in display_messages
                 if msg.get("role") == ASSISTANT_ROLE
                 and msg.get("content") is not None
                 and str(msg.get("content", "")).strip() != ""
             ]
-
-            last_response = display_messages[-1]["content"] if display_messages else ""
+            last_response = (
+                assistant_messages[-1]["content"] if assistant_messages else ""
+            )
 
             self._respond_json(
                 {
                     "response": last_response,
+                    "messages": display_messages,
                     "conversation_id": conversation.id,
                     "path": self._app.url.build_conversation_path(
                         user_id, conversation.id
@@ -227,6 +245,9 @@ class _DevHandler(SimpleHTTPRequestHandler):
                         if isinstance(content, str) and content.strip():
                             title = content.strip()[:30]
                 conversations.append({"id": cid, "title": title})
+            conversations = self._render_conversations_for_display(
+                user_id, conversations
+            )
             self._respond_json({"conversations": conversations})
         except Exception as e:
             logger.exception("DevServer error in /api/conversations")
@@ -242,11 +263,7 @@ class _DevHandler(SimpleHTTPRequestHandler):
                 )
                 return
 
-            messages = [
-                {"role": msg["role"], "content": msg.get("content", "")}
-                for msg in conversation.messages
-                if msg.get("role") in (USER_ROLE, ASSISTANT_ROLE)
-            ]
+            messages = self._render_messages_for_display(user_id, conversation)
             self._respond_json(
                 {
                     "id": conversation.id,

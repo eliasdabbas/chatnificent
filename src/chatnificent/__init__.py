@@ -77,6 +77,7 @@ class Chatnificent:
             from .layout import DefaultLayout
 
             self.layout = DefaultLayout()
+        self.layout.app = self
 
         if llm:
             self.llm = llm

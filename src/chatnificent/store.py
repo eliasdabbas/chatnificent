@@ -6,9 +6,10 @@ import os
 import sqlite3
 import tempfile
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from pathlib import Path
 from threading import Lock
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from .models import Conversation
 
@@ -33,6 +34,88 @@ class Store(ABC):
         """Lists all conversation IDs for a given user."""
         pass
 
+    def save_file(
+        self,
+        user_id: str,
+        convo_id: str,
+        filename: str,
+        data: bytes,
+        **kwargs: Any,
+    ) -> None:
+        """Save a conversation-scoped file.
+
+        Parameters
+        ----------
+        user_id : str
+            User namespace.
+        convo_id : str
+            Conversation namespace.
+        filename : str
+            Logical filename within the conversation scope.
+        data : bytes
+            File content to persist.
+        **kwargs : Any
+            Backend-specific options such as ``append=True``.
+        """
+        return None
+
+    def load_file(
+        self, user_id: str, convo_id: str, filename: str, **kwargs: Any
+    ) -> Optional[bytes]:
+        """Load a conversation-scoped file."""
+        return None
+
+    def list_files(self, user_id: str, convo_id: str) -> List[str]:
+        """List conversation-scoped filenames."""
+        return []
+
+    def save_raw_api_request(
+        self, user_id: str, convo_id: str, raw_request: Dict[str, Any]
+    ) -> None:
+        """Persist a raw request payload in JSONL format when supported."""
+        self.save_file(
+            user_id,
+            convo_id,
+            "raw_api_requests.jsonl",
+            (json.dumps(raw_request) + "\n").encode("utf-8"),
+            append=True,
+        )
+
+    def save_raw_api_response(
+        self, user_id: str, convo_id: str, raw_response: Dict[str, Any] | List[Any]
+    ) -> None:
+        """Persist a raw response payload in JSONL format when supported."""
+        self.save_file(
+            user_id,
+            convo_id,
+            "raw_api_responses.jsonl",
+            (json.dumps(raw_response) + "\n").encode("utf-8"),
+            append=True,
+        )
+
+    def load_raw_api_requests(self, user_id: str, convo_id: str) -> List[Any]:
+        """Load raw request payloads from the conversation scope."""
+        return self._load_jsonl_file(user_id, convo_id, "raw_api_requests.jsonl")
+
+    def load_raw_api_responses(self, user_id: str, convo_id: str) -> List[Any]:
+        """Load raw response payloads from the conversation scope."""
+        return self._load_jsonl_file(user_id, convo_id, "raw_api_responses.jsonl")
+
+    def _load_jsonl_file(self, user_id: str, convo_id: str, filename: str) -> List[Any]:
+        payload = self.load_file(user_id, convo_id, filename)
+        if not payload:
+            return []
+
+        items = []
+        for line in payload.decode("utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                items.append(json.loads(line))
+            except json.JSONDecodeError:
+                logger.warning("Skipping invalid JSONL line in %s", filename)
+        return items
+
 
 class InMemory(Store):
     """In-memory conversation storage with proper user isolation.
@@ -51,6 +134,7 @@ class InMemory(Store):
 
     def __init__(self):
         self._store: Dict[str, Dict[str, Conversation]] = {}
+        self._files: Dict[str, Dict[str, Dict[str, bytes]]] = {}
 
     def load_conversation(self, user_id: str, convo_id: str) -> Optional[Conversation]:
         """Load a conversation. Returns None if user or conversation doesn't exist."""
@@ -65,6 +149,29 @@ class InMemory(Store):
         """Lists all conversation IDs for a given user. Returns empty list if user doesn't exist."""
         user_conversations = self._store.get(user_id, {})
         return list(user_conversations.keys())
+
+    def save_file(
+        self,
+        user_id: str,
+        convo_id: str,
+        filename: str,
+        data: bytes,
+        **kwargs: Any,
+    ) -> None:
+        user_files = self._files.setdefault(user_id, {})
+        convo_files = user_files.setdefault(convo_id, {})
+        if kwargs.get("append"):
+            convo_files[filename] = convo_files.get(filename, b"") + data
+        else:
+            convo_files[filename] = bytes(data)
+
+    def load_file(
+        self, user_id: str, convo_id: str, filename: str, **kwargs: Any
+    ) -> Optional[bytes]:
+        return self._files.get(user_id, {}).get(convo_id, {}).get(filename)
+
+    def list_files(self, user_id: str, convo_id: str) -> List[str]:
+        return sorted(self._files.get(user_id, {}).get(convo_id, {}).keys())
 
 
 class File(Store):
@@ -116,6 +223,11 @@ class File(Store):
         if not str(resolved).startswith(str(self.base_dir.resolve())):
             raise ValueError(f"Unsafe convo_id rejected (path traversal): {convo_id!r}")
         return convo_dir
+
+    def _get_file_path(self, user_id: str, convo_id: str, filename: str) -> Path:
+        """Get a validated file path inside the conversation directory."""
+        self._validate_path_segment(filename, "filename")
+        return self._get_conversation_dir(user_id, convo_id) / filename
 
     def _get_write_lock(self, user_id: str, convo_id: str) -> Lock:
         """Get or create a write lock for a specific conversation."""
@@ -240,6 +352,54 @@ class File(Store):
             except (PermissionError, OSError):
                 return []
 
+    def save_file(
+        self,
+        user_id: str,
+        convo_id: str,
+        filename: str,
+        data: bytes,
+        **kwargs: Any,
+    ) -> None:
+        """Save raw bytes into the conversation directory."""
+        lock = self._get_write_lock(user_id, convo_id)
+
+        with lock:
+            try:
+                convo_dir = self._get_conversation_dir(user_id, convo_id)
+                convo_dir.mkdir(exist_ok=True)
+                file_path = self._get_file_path(user_id, convo_id, filename)
+                mode = "ab" if kwargs.get("append") else "wb"
+                with open(file_path, mode) as f:
+                    f.write(data)
+            except (PermissionError, OSError) as e:
+                raise RuntimeError(f"Failed to save file {filename} for {convo_id}: {e}")
+
+    def load_file(
+        self, user_id: str, convo_id: str, filename: str, **kwargs: Any
+    ) -> Optional[bytes]:
+        """Load raw bytes from the conversation directory."""
+        try:
+            file_path = self._get_file_path(user_id, convo_id, filename)
+            if not file_path.exists():
+                return None
+            return file_path.read_bytes()
+        except (FileNotFoundError, PermissionError):
+            return None
+
+    def list_files(self, user_id: str, convo_id: str) -> List[str]:
+        """List auxiliary files stored alongside the canonical conversation."""
+        try:
+            convo_dir = self._get_conversation_dir(user_id, convo_id)
+            if not convo_dir.exists():
+                return []
+            return sorted(
+                item.name
+                for item in convo_dir.iterdir()
+                if item.is_file() and item.name != "messages.json"
+            )
+        except (PermissionError, OSError):
+            return []
+
 
 class SQLite(Store):
     """Saves and loads conversations using SQLite database."""
@@ -255,9 +415,19 @@ class SQLite(Store):
         self.db_path = db_path
         self._init_database()
 
+    @contextmanager
+    def _connect(self):
+        """Context manager that commits/rolls back AND closes the connection."""
+        conn = sqlite3.connect(self.db_path)
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
     def _init_database(self):
         """Initialize database and create tables if they don't exist."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
 
             # Enable foreign keys
@@ -325,11 +495,23 @@ class SQLite(Store):
                 )
             """)
 
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS files (
+                    user_id TEXT,
+                    conversation_id TEXT,
+                    filename TEXT,
+                    data BLOB,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (user_id, conversation_id, filename)
+                )
+            """)
+
             conn.commit()
 
     def _ensure_user_exists(self, user_id: str):
         """Ensure user exists in database."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,)
@@ -344,7 +526,7 @@ class SQLite(Store):
         before the migration.
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 cursor = conn.cursor()
 
                 cursor.execute(
@@ -376,7 +558,7 @@ class SQLite(Store):
     def save_conversation(self, user_id: str, conversation: Conversation):
         """Save conversation to database."""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 cursor = conn.cursor()
 
                 # Ensure user exists
@@ -431,7 +613,7 @@ class SQLite(Store):
     def save_raw_api_response(self, user_id: str, convo_id: str, raw_response: dict):
         """Save raw API response to database."""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 cursor = conn.cursor()
 
                 cursor.execute(
@@ -452,7 +634,7 @@ class SQLite(Store):
     def save_raw_api_request(self, user_id: str, convo_id: str, raw_request: dict):
         """Save raw API request to database."""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 cursor = conn.cursor()
 
                 cursor.execute(
@@ -472,7 +654,7 @@ class SQLite(Store):
     def list_conversations(self, user_id: str) -> List[str]:
         """List all conversation IDs for user from database."""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 cursor = conn.cursor()
 
                 cursor.execute(
@@ -488,4 +670,132 @@ class SQLite(Store):
                 return [row[0] for row in cursor.fetchall()]
 
         except sqlite3.Error:
+            return []
+
+    def save_file(
+        self,
+        user_id: str,
+        convo_id: str,
+        filename: str,
+        data: bytes,
+        **kwargs: Any,
+    ) -> None:
+        """Save a conversation-scoped file as a BLOB."""
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+
+                self._ensure_user_exists(user_id)
+                cursor.execute(
+                    """
+                    INSERT INTO conversations (user_id, conversation_id, created_at, updated_at)
+                    VALUES (?, ?, datetime('now', 'subsec'), datetime('now', 'subsec'))
+                    ON CONFLICT(user_id, conversation_id)
+                    DO UPDATE SET updated_at = datetime('now', 'subsec')
+                    """,
+                    (user_id, convo_id),
+                )
+
+                blob = data
+                if kwargs.get("append"):
+                    cursor.execute(
+                        """
+                        SELECT data
+                        FROM files
+                        WHERE user_id = ? AND conversation_id = ? AND filename = ?
+                        """,
+                        (user_id, convo_id, filename),
+                    )
+                    row = cursor.fetchone()
+                    if row and row[0]:
+                        blob = row[0] + data
+
+                cursor.execute(
+                    """
+                    INSERT INTO files (user_id, conversation_id, filename, data, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, datetime('now', 'subsec'), datetime('now', 'subsec'))
+                    ON CONFLICT(user_id, conversation_id, filename)
+                    DO UPDATE SET data = excluded.data, updated_at = datetime('now', 'subsec')
+                    """,
+                    (user_id, convo_id, filename, blob),
+                )
+
+                conn.commit()
+        except sqlite3.Error as e:
+            raise RuntimeError(f"Failed to save file {filename} for {convo_id}: {e}")
+
+    def load_file(
+        self, user_id: str, convo_id: str, filename: str, **kwargs: Any
+    ) -> Optional[bytes]:
+        """Load a conversation-scoped file from SQLite."""
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT data
+                    FROM files
+                    WHERE user_id = ? AND conversation_id = ? AND filename = ?
+                    """,
+                    (user_id, convo_id, filename),
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                return row[0]
+        except sqlite3.Error:
+            return None
+
+    def list_files(self, user_id: str, convo_id: str) -> List[str]:
+        """List conversation-scoped filenames stored in SQLite."""
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT filename
+                    FROM files
+                    WHERE user_id = ? AND conversation_id = ?
+                    ORDER BY filename
+                    """,
+                    (user_id, convo_id),
+                )
+                return [row[0] for row in cursor.fetchall()]
+        except sqlite3.Error:
+            return []
+
+    def load_raw_api_requests(self, user_id: str, convo_id: str) -> List[Any]:
+        """Load raw API requests from the dedicated SQLite table."""
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT request_data
+                    FROM raw_api_requests
+                    WHERE user_id = ? AND conversation_id = ?
+                    ORDER BY created_at
+                    """,
+                    (user_id, convo_id),
+                )
+                return [json.loads(row[0]) for row in cursor.fetchall()]
+        except (sqlite3.Error, json.JSONDecodeError):
+            return []
+
+    def load_raw_api_responses(self, user_id: str, convo_id: str) -> List[Any]:
+        """Load raw API responses from the dedicated SQLite table."""
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT response_data
+                    FROM raw_api_responses
+                    WHERE user_id = ? AND conversation_id = ?
+                    ORDER BY created_at
+                    """,
+                    (user_id, convo_id),
+                )
+                return [json.loads(row[0]) for row in cursor.fetchall()]
+        except (sqlite3.Error, json.JSONDecodeError):
             return []

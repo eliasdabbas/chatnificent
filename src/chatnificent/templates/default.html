@@ -657,6 +657,18 @@
                 msgs.appendChild(d); msgs.scrollTop = msgs.scrollHeight;
                 return d;
             }
+            function renderMessageList(messages) {
+                msgs.innerHTML = "";
+                if (!messages || !messages.length) {
+                    msgs.appendChild(welcome);
+                    welcome.style.display = "";
+                    return;
+                }
+                welcome.style.display = "none";
+                messages.forEach(function (m) {
+                    addMsg(m.role, m.content || "");
+                });
+            }
             function showLoading() {
                 var el = document.createElement("div");
                 el.id = "loading"; el.className = "visible";
@@ -714,6 +726,7 @@
                                         convoId = payload.data.conversation_id;
                                         history.replaceState({ convoId: convoId }, "", payload.data.path || "/" + convoId);
                                         refreshConvoList();
+                                        loadConvo(convoId, true);
                                     }
                                     bubble.innerHTML = renderMarkdown(accumulated);
                                 } else if (payload.event === "error") {
@@ -725,7 +738,7 @@
                         var data = await r.json(); hideLoading();
                         if (data.error) addMsg("assistant", "Error: " + data.error);
                         else {
-                            addMsg("assistant", data.response);
+                            renderMessageList(data.messages || []);
                             convoId = data.conversation_id;
                             history.replaceState({ convoId: convoId }, "", data.path || "/" + convoId);
                             refreshConvoList();
@@ -753,16 +766,14 @@
                     });
                 } catch (e) { }
             }
-            async function loadConvo(id) {
+            async function loadConvo(id, replaceHistory) {
                 try {
                     var r = await fetch("/api/conversations/" + id); var data = await r.json();
                     if (data.error) return;
-                    convoId = id; msgs.innerHTML = "";
-                    history.pushState({ convoId: id }, "", data.path || "/" + id);
-                    (data.messages || []).forEach(function (m) {
-                        if (m.role === "tool" || m.tool_calls) return;
-                        addMsg(m.role, m.content);
-                    });
+                    convoId = id;
+                    if (replaceHistory) history.replaceState({ convoId: id }, "", data.path || "/" + id);
+                    else history.pushState({ convoId: id }, "", data.path || "/" + id);
+                    renderMessageList(data.messages || []);
                     refreshConvoList();
                 } catch (e) { }
             }

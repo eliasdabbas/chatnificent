@@ -2,6 +2,7 @@
 Defines the core orchestration logic for the Chatnificent application.
 """
 
+import json
 import logging
 import uuid
 from abc import ABC, abstractmethod
@@ -205,6 +206,7 @@ class Orchestrator(Engine):
             # 5. Persistence
             self._before_save(conversation)
             self._save_conversation(conversation, user_id)
+            self._after_save(conversation, user_id)
 
             return conversation
 
@@ -305,6 +307,7 @@ class Orchestrator(Engine):
                 self._handle_max_turns(conversation)
                 self._before_save(conversation)
                 self._save_conversation(conversation, user_id)
+                self._after_save(conversation, user_id)
                 yield {
                     "event": "done",
                     "data": {"conversation_id": conversation.id},
@@ -325,6 +328,7 @@ class Orchestrator(Engine):
             # 5. Persistence
             self._before_save(conversation)
             self._save_conversation(conversation, user_id)
+            self._after_save(conversation, user_id)
 
             yield {"event": "done", "data": {"conversation_id": conversation.id}}
 
@@ -340,6 +344,7 @@ class Orchestrator(Engine):
                 conversation.messages.append(error_response)
                 try:
                     self._save_conversation(conversation, user_id)
+                    self._after_save(conversation, user_id)
                 except Exception:
                     logger.exception("Failed to save error conversation")
 
@@ -416,29 +421,47 @@ class Orchestrator(Engine):
     def _save_conversation(self, conversation: Conversation, user_id: str) -> None:
         self.app.store.save_conversation(user_id, conversation)
 
+    def _normalize_raw_payload(self, payload: Any) -> Optional[Dict[str, Any] | List[Any]]:
+        """Return a JSON-safe dict/list payload when possible."""
+        if not payload:
+            return None
+
+        try:
+            if isinstance(payload, list):
+                normalized_payload = []
+                for item in payload:
+                    try:
+                        normalized_payload.append(item.model_dump(mode="json"))
+                    except (AttributeError, TypeError):
+                        normalized_payload.append(item)
+            else:
+                normalized_payload = payload.model_dump(mode="json")
+        except (AttributeError, TypeError):
+            normalized_payload = payload
+
+        if not isinstance(normalized_payload, (dict, list)):
+            return None
+
+        try:
+            json.dumps(normalized_payload)
+        except (TypeError, ValueError):
+            return None
+
+        return normalized_payload
+
     def _save_raw_exchange(
         self, user_id: str, convo_id: str, llm_response: Any
     ) -> None:
         """[Seam] Persist the raw API request/response pair for one LLM call."""
-        request_payload = self.app.llm.get_last_request_payload()
+        request_payload = self._normalize_raw_payload(
+            self.app.llm.get_last_request_payload()
+        )
         if hasattr(self.app.store, "save_raw_api_request") and request_payload:
             self.app.store.save_raw_api_request(user_id, convo_id, request_payload)
 
         if hasattr(self.app.store, "save_raw_api_response") and llm_response:
-            try:
-                if isinstance(llm_response, list):
-                    response_to_save = []
-                    for chunk in llm_response:
-                        try:
-                            response_to_save.append(chunk.model_dump(mode="json"))
-                        except (AttributeError, TypeError):
-                            response_to_save.append(chunk)
-                else:
-                    response_to_save = llm_response.model_dump(mode="json")
-            except (AttributeError, TypeError):
-                response_to_save = llm_response
-
-            if isinstance(response_to_save, (dict, list)):
+            response_to_save = self._normalize_raw_payload(llm_response)
+            if response_to_save is not None:
                 self.app.store.save_raw_api_response(
                     user_id, convo_id, response_to_save
                 )
@@ -460,6 +483,9 @@ class Orchestrator(Engine):
         pass
 
     def _before_save(self, conversation: Conversation) -> None:
+        pass
+
+    def _after_save(self, conversation: Conversation, user_id: str) -> None:
         pass
 
     def _on_stream_delta(self, delta: str, accumulated: str) -> None:
@@ -489,6 +515,7 @@ class Orchestrator(Engine):
         if conversation.id:
             try:
                 self._save_conversation(conversation, user_id)
+                self._after_save(conversation, user_id)
             except Exception:
                 logger.exception("Failed to save error conversation")
 

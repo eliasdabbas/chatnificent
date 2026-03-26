@@ -4,12 +4,13 @@ Provides a thin Layout ABC for HTML-based servers and a DashLayout ABC
 for Dash-based servers. Each server type uses the appropriate interface.
 """
 
+import json
 import unicodedata
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
 
-from .models import USER_ROLE
+from .models import SYSTEM_ROLE
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 
@@ -34,16 +35,52 @@ class Layout(ABC):
         the initial page load.
         """
 
-    def render_messages(self, messages: List[Dict[str, Any]]) -> str:
-        """Return an HTML fragment for the given messages.
+    def render_messages(
+        self, messages: List[Dict[str, Any]], **kwargs: Any
+    ) -> List[Dict[str, Any]]:
+        """Return display-ready messages for DevServer.
 
-        Used by SSR servers (e.g. Starlette + htmx) for server-side
-        message rendering. Not required for client-rendered UIs.
+        Parameters
+        ----------
+        messages : List[Dict[str, Any]]
+            Canonical provider-native conversation messages.
+        **kwargs : Any
+            Optional context such as ``user_id``, ``convo_id``, and the
+            canonical ``conversation`` object. Custom layouts can use these to
+            load additional files and enrich the display without mutating the
+            stored conversation history.
         """
-        raise NotImplementedError(
-            f"{type(self).__name__} does not implement render_messages(). "
-            "Override this method for server-side rendered layouts."
-        )
+        llm = getattr(getattr(self, "app", None), "llm", None)
+        rendered = []
+
+        for message in messages:
+            if message.get("role") == SYSTEM_ROLE:
+                continue
+            if llm and llm.is_tool_message(message):
+                continue
+
+            rendered_message = dict(message)
+            content = rendered_message.get("content")
+            if content is None:
+                continue
+
+            if isinstance(content, str):
+                if not content.strip():
+                    continue
+            else:
+                rendered_message["content"] = json.dumps(
+                    content, ensure_ascii=False, default=str
+                )
+
+            rendered.append(rendered_message)
+
+        return rendered
+
+    def render_conversations(
+        self, conversations: List[Dict[str, Any]], **kwargs: Any
+    ) -> List[Dict[str, Any]]:
+        """Return display-ready conversation list items for DevServer."""
+        return [dict(conversation) for conversation in conversations]
 
     def _is_rtl(self, text: str) -> bool:
         """Check if text requires right-to-left rendering."""

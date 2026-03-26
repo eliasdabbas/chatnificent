@@ -126,6 +126,47 @@ app = chat.Chatnificent(store=MongoStore())
 
 Every pillar works the same way: subclass the ABC, implement the required methods, pass it in.
 
+## Can't Wait? Try It Right Now
+
+No cloning, no installing — just [install uv](https://docs.astral.sh/uv/getting-started/installation/) and run any example directly from GitHub:
+
+> **Note:** Most examples require LLM provider API keys. Set the ones you need before running:
+> ```bash
+> export OPENAI_API_KEY="sk-..."
+> export ANTHROPIC_API_KEY="sk-ant-..."
+> export GOOGLE_API_KEY="AI..."
+> export OPENROUTER_API_KEY="sk-or-v1-..."
+> ```
+> `quickstart.py` and `persistent_storage.py` work with zero keys (Echo LLM).
+
+```bash
+# Zero-dep — works immediately
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/quickstart.py
+
+# LLM providers
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/llm_providers.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/ollama_local.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/openrouter_models.py
+
+# Features
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/persistent_storage.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/tool_calling.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/system_prompt.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/multi_tool_agent.py
+
+# Customization
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/single_user.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/auto_title.py
+
+# Display enrichment
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/usage_display.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/usage_display_multi_provider.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/conversation_title.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/conversation_summary.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/display_redaction.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/web_search.py
+```
+
 ## Examples
 
 The [`examples/`](examples/) directory has 15+ standalone scripts covering basics, tool calling, display enrichment, web search, and more — each runnable with a single command:

@@ -125,3 +125,13 @@ app = chat.Chatnificent(store=MongoStore())
 ```
 
 Every pillar works the same way: subclass the ABC, implement the required methods, pass it in.
+
+## Examples
+
+The [`examples/`](examples/) directory has 15+ standalone scripts covering basics, tool calling, display enrichment, web search, and more — each runnable with a single command:
+
+```bash
+uv run --script examples/quickstart.py
+```
+
+See the [examples README](examples/README.md) for the full list.

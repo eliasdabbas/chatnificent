@@ -44,9 +44,33 @@ def _mock_genai_types():
     def _from_function_response(name, response):
         return {"function_response": {"name": name, "response": response}}
 
-    types.Part.from_text = _from_text
-    types.Part.from_function_call = _from_function_call
-    types.Part.from_function_response = _from_function_response
+    class _Part:
+        """Mock Part that supports both construction and factory methods."""
+
+        def __init__(self, **kwargs):
+            self._data = {k: v for k, v in kwargs.items() if v is not None}
+
+        def __eq__(self, other):
+            if isinstance(other, dict):
+                return self._data == other
+            return NotImplemented
+
+        def __repr__(self):
+            return f"Part({self._data!r})"
+
+        @staticmethod
+        def from_text(text):
+            return _from_text(text)
+
+        @staticmethod
+        def from_function_call(name, args):
+            return _from_function_call(name, args)
+
+        @staticmethod
+        def from_function_response(name, response):
+            return _from_function_response(name, response)
+
+    types.Part = _Part
 
     # Content stores (role, parts) for easy inspection
     class _Content:
@@ -447,6 +471,40 @@ class TestBuildParts:
             [{"function_call": {"name": "foo", "args": {"x": 1}}}]
         )
         assert parts == [{"function_call": {"name": "foo", "args": {"x": 1}}}]
+
+    def test_function_call_with_thought_signature(self, gemini):
+        """thought_signature must round-trip through _build_parts for Gemini API."""
+        parts = gemini._build_parts(
+            [
+                {
+                    "function_call": {"name": "roll_dice", "args": {"sides": 6}},
+                    "thought_signature": "abc123sig",
+                }
+            ]
+        )
+        assert len(parts) == 1
+        assert parts[0] == {
+            "function_call": {"name": "roll_dice", "args": {"sides": 6}},
+            "thought_signature": "abc123sig",
+        }
+
+    def test_thought_parts_preserved(self, gemini):
+        """Thought parts (thought=True) must be preserved for API replay."""
+        parts = gemini._build_parts(
+            [
+                {"thought": True, "text": "Let me think about this..."},
+                {
+                    "function_call": {"name": "get_weather", "args": {}},
+                    "thought_signature": "sig456",
+                },
+            ]
+        )
+        assert len(parts) == 2
+        assert parts[0] == {"thought": True, "text": "Let me think about this..."}
+        assert parts[1] == {
+            "function_call": {"name": "get_weather", "args": {}},
+            "thought_signature": "sig456",
+        }
 
     def test_list_with_function_response(self, gemini):
         parts = gemini._build_parts(
@@ -895,6 +953,71 @@ class TestAgenticRoundTrip:
             "function_response" in p if isinstance(p, dict) else False
             for p in contents[2].parts
         )
+
+    def test_tool_call_round_trip_with_thought_signature(self, gemini):
+        """Thought signatures from Gemini API must survive the full round-trip.
+
+        Flow: API response → create_assistant_message → store → _translate_request
+        The thought_signature on functionCall parts and thought=True text parts
+        must be preserved so the Gemini API doesn't reject the replay with 400.
+        """
+        # Gemini API response with thought + thought_signature
+        fc_response = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {"thought": True, "text": "I need to check the weather."},
+                            {
+                                "function_call": {
+                                    "name": "get_weather",
+                                    "args": {"location": "Boston"},
+                                },
+                                "thought_signature": "sig_xyz_123",
+                            },
+                        ],
+                        "role": "model",
+                    },
+                    "finish_reason": "STOP",
+                }
+            ]
+        }
+
+        # Step 1: create_assistant_message preserves all fields
+        assistant_msg = gemini.create_assistant_message(fc_response)
+        assert assistant_msg["role"] == MODEL_ROLE
+        assert isinstance(assistant_msg["content"], list)
+        assert len(assistant_msg["content"]) == 2
+        # Thought part preserved
+        assert assistant_msg["content"][0].get("thought") is True
+        # thought_signature preserved
+        assert assistant_msg["content"][1].get("thought_signature") == "sig_xyz_123"
+
+        # Step 2: Full conversation replay via _translate_request
+        messages = [
+            {"role": "user", "content": "Weather in Boston?"},
+            assistant_msg,
+            {"role": "tool", "name": "get_weather", "content": "sunny, 72°F"},
+        ]
+        contents, _ = gemini._translate_request(messages)
+
+        # The model turn must preserve thought + thought_signature parts
+        model_turn = contents[1]
+        assert model_turn.role == "model"
+        assert len(model_turn.parts) == 2
+        # Thought part must be included (not skipped)
+        assert model_turn.parts[0] == {
+            "thought": True,
+            "text": "I need to check the weather.",
+        }
+        # Function call part must include thought_signature
+        assert model_turn.parts[1] == {
+            "function_call": {
+                "name": "get_weather",
+                "args": {"location": "Boston"},
+            },
+            "thought_signature": "sig_xyz_123",
+        }
 
     def test_is_tool_message_filters_correctly(self, gemini):
         """Verify is_tool_message correctly identifies tool-related messages

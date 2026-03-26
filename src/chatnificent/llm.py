@@ -697,15 +697,28 @@ class Gemini(LLM):
                     parts.append(types.Part.from_text(text=item))
                 elif isinstance(item, dict):
                     if item.get("thought"):
-                        continue
-                    if item.get("function_call"):
-                        fc = item["function_call"]
                         parts.append(
-                            types.Part.from_function_call(
-                                name=fc.get("name", ""),
-                                args=fc.get("args", {}),
-                            )
+                            types.Part(thought=True, text=item.get("text", ""))
                         )
+                    elif item.get("function_call"):
+                        fc = item["function_call"]
+                        if item.get("thought_signature") is not None:
+                            parts.append(
+                                types.Part(
+                                    function_call={
+                                        "name": fc.get("name", ""),
+                                        "args": fc.get("args", {}),
+                                    },
+                                    thought_signature=item["thought_signature"],
+                                )
+                            )
+                        else:
+                            parts.append(
+                                types.Part.from_function_call(
+                                    name=fc.get("name", ""),
+                                    args=fc.get("args", {}),
+                                )
+                            )
                     elif item.get("function_response"):
                         fr = item["function_response"]
                         parts.append(

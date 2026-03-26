@@ -372,7 +372,9 @@ class File(Store):
                 with open(file_path, mode) as f:
                     f.write(data)
             except (PermissionError, OSError) as e:
-                raise RuntimeError(f"Failed to save file {filename} for {convo_id}: {e}")
+                raise RuntimeError(
+                    f"Failed to save file {filename} for {convo_id}: {e}"
+                )
 
     def load_file(
         self, user_id: str, convo_id: str, filename: str, **kwargs: Any

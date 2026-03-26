@@ -141,9 +141,7 @@ class WebSearchLayout(chat.layout.DefaultLayout):
             "---\n\n"
             "<details>\n"
             f"<summary>🔍 Sources ({len(cards)})</summary>\n"
-            "<br>\n\n"
-            + "\n\n---\n\n".join(cards)
-            + "\n\n</details>"
+            "<br>\n\n" + "\n\n---\n\n".join(cards) + "\n\n</details>"
         )
 
     def render_messages(self, messages, **kwargs):

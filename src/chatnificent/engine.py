@@ -421,7 +421,9 @@ class Orchestrator(Engine):
     def _save_conversation(self, conversation: Conversation, user_id: str) -> None:
         self.app.store.save_conversation(user_id, conversation)
 
-    def _normalize_raw_payload(self, payload: Any) -> Optional[Dict[str, Any] | List[Any]]:
+    def _normalize_raw_payload(
+        self, payload: Any
+    ) -> Optional[Dict[str, Any] | List[Any]]:
         """Return a JSON-safe dict/list payload when possible."""
         if not payload:
             return None

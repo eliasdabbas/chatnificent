@@ -62,6 +62,7 @@ What to Explore Next
 """
 
 import chatnificent as chat
+
 TITLE_PROMPT = (
     "Create a concise conversation title based on this message. "
     "Return only the final title text, ready for display, with normal "
@@ -100,7 +101,9 @@ class ConversationTitleEngine(chat.engine.Orchestrator):
             ],
             stream=False,
         )
-        title = (self.app.llm.extract_content(response) or "Untitled Conversation").strip()
+        title = (
+            self.app.llm.extract_content(response) or "Untitled Conversation"
+        ).strip()
         title = title.splitlines()[0].strip("\"'`*_#-: ")
         if len(title) > 40:
             title = title[:37].rstrip() + "..."

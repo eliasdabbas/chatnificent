@@ -35,7 +35,7 @@ Layout layer, you get a few nice properties for free:
 This example intentionally keeps Anthropic streaming enabled, and it also
 overrides the page rendering slightly so the first streamed bubble stays raw.
 The page does not auto-reload the conversation after that first response. Once
-you manually refresh the page, or reopen the conversation later, 
+you manually refresh the page, or reopen the conversation later,
 ``render_messages(...)`` applies the display redaction and the transcript
 becomes masked. That makes the example very clearly a Layout concern.
 

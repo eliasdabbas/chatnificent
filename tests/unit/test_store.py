@@ -112,6 +112,31 @@ class TestStoreInterface:
         conversations = store.list_conversations("user1")
         assert "test_conv" in conversations
 
+    def test_store_optional_file_methods_default_to_noop(self):
+        """Optional file helpers should not force custom stores to implement them."""
+
+        class CustomStore(Store):
+            def load_conversation(
+                self, user_id: str, convo_id: str
+            ) -> Optional[Conversation]:
+                return None
+
+            def save_conversation(self, user_id: str, conversation: Conversation):
+                pass
+
+            def list_conversations(self, user_id: str):
+                return []
+
+        store = CustomStore()
+
+        assert store.load_file("user1", "conv1", "notes.txt") is None
+        assert store.list_files("user1", "conv1") == []
+        assert store.load_raw_api_requests("user1", "conv1") == []
+        assert store.load_raw_api_responses("user1", "conv1") == []
+        assert store.save_file("user1", "conv1", "notes.txt", b"hello") is None
+        assert store.save_raw_api_request("user1", "conv1", {"hello": "world"}) is None
+        assert store.save_raw_api_response("user1", "conv1", {"hello": "world"}) is None
+
 
 class TestFile:
     """Test the File store implementation specifically."""
@@ -244,13 +269,52 @@ class TestFile:
             assert conversations[0] == "003"  # Most recent
             assert conversations[-1] == "001"  # Oldest
 
+    def test_file_save_load_and_list_files(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = File(temp_dir)
+
+            store.save_file("user1", "conv_001", "notes.txt", b"hello")
+
+            assert store.load_file("user1", "conv_001", "notes.txt") == b"hello"
+            assert store.list_files("user1", "conv_001") == ["notes.txt"]
+
+    def test_file_append_file_data(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = File(temp_dir)
+
+            store.save_file("user1", "conv_001", "notes.txt", b"hello")
+            store.save_file(
+                "user1",
+                "conv_001",
+                "notes.txt",
+                b" world",
+                append=True,
+            )
+
+            assert store.load_file("user1", "conv_001", "notes.txt") == b"hello world"
+
+    def test_file_list_files_excludes_messages_json(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = File(temp_dir)
+            conversation = Conversation(
+                id="conv_001",
+                messages=[{"role": "user", "content": "Hello"}],
+            )
+
+            store.save_conversation("user1", conversation)
+            store.save_file("user1", "conv_001", "notes.txt", b"hello")
+
+            assert store.list_files("user1", "conv_001") == ["notes.txt"]
+
     class TestPathTraversal:
         """File store must reject path traversal attacks in user_id and convo_id."""
 
         def test_reject_dotdot_in_user_id(self):
             with tempfile.TemporaryDirectory() as d:
                 store = File(d)
-                conv = Conversation(id="c1", messages=[{"role": "user", "content": "x"}])
+                conv = Conversation(
+                    id="c1", messages=[{"role": "user", "content": "x"}]
+                )
                 with pytest.raises(ValueError, match="path traversal"):
                     store.save_conversation("../etc", conv)
 
@@ -302,6 +366,12 @@ class TestFile:
                 with pytest.raises(ValueError, match="path traversal"):
                     store.list_conversations("../etc")
 
+        def test_reject_traversal_in_filename(self):
+            with tempfile.TemporaryDirectory() as d:
+                store = File(d)
+                with pytest.raises(ValueError, match="path traversal"):
+                    store.save_file("user1", "conv1", "../notes.txt", b"x")
+
         def test_normal_ids_still_work(self):
             with tempfile.TemporaryDirectory() as d:
                 store = File(d)
@@ -338,7 +408,9 @@ class TestFile:
             with tempfile.TemporaryDirectory() as d:
                 store = File(d)
                 with pytest.raises(ValueError, match="path traversal"):
-                    store.save_conversation("..", Conversation(id="escape", messages=[]))
+                    store.save_conversation(
+                        "..", Conversation(id="escape", messages=[])
+                    )
 
 
 class TestSQLite:
@@ -367,7 +439,8 @@ class TestSQLite:
             store = SQLite(temp_db_path)
 
             # Check that tables were created
-            with sqlite3.connect(temp_db_path) as conn:
+            conn = sqlite3.connect(temp_db_path)
+            try:
                 cursor = conn.cursor()
 
                 # Check users table
@@ -393,6 +466,13 @@ class TestSQLite:
                     "SELECT name FROM sqlite_master WHERE type='table' AND name='raw_api_responses'"
                 )
                 assert cursor.fetchone() is not None
+
+                cursor.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='files'"
+                )
+                assert cursor.fetchone() is not None
+            finally:
+                conn.close()
         finally:
             Path(temp_db_path).unlink(missing_ok=True)
 
@@ -530,7 +610,8 @@ class TestSQLite:
                 store.save_conversation("user1", conv)
 
             # Check what's actually in the database
-            with sqlite3.connect(temp_db_path) as conn:
+            conn = sqlite3.connect(temp_db_path)
+            try:
                 cursor = conn.cursor()
                 cursor.execute("""
                     SELECT conversation_id, created_at, updated_at 
@@ -542,6 +623,8 @@ class TestSQLite:
                 print(f"\nDatabase contents (ordered by updated_at DESC):")
                 for row in rows:
                     print(f"  {row}")
+            finally:
+                conn.close()
 
             # Get the order from list_conversations
             conversations = store.list_conversations("user1")
@@ -549,6 +632,40 @@ class TestSQLite:
 
             assert len(conversations) == 3
             assert set(conversations) == {"001", "002", "003"}
+        finally:
+            Path(temp_db_path).unlink(missing_ok=True)
+
+    def test_sqlite_save_load_and_list_files(self):
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_db:
+            temp_db_path = temp_db.name
+
+        try:
+            store = SQLite(temp_db_path)
+
+            store.save_file("user1", "conv_001", "notes.txt", b"hello")
+
+            assert store.load_file("user1", "conv_001", "notes.txt") == b"hello"
+            assert store.list_files("user1", "conv_001") == ["notes.txt"]
+        finally:
+            Path(temp_db_path).unlink(missing_ok=True)
+
+    def test_sqlite_append_file_data(self):
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_db:
+            temp_db_path = temp_db.name
+
+        try:
+            store = SQLite(temp_db_path)
+
+            store.save_file("user1", "conv_001", "notes.txt", b"hello")
+            store.save_file(
+                "user1",
+                "conv_001",
+                "notes.txt",
+                b" world",
+                append=True,
+            )
+
+            assert store.load_file("user1", "conv_001", "notes.txt") == b"hello world"
         finally:
             Path(temp_db_path).unlink(missing_ok=True)
 
@@ -606,11 +723,19 @@ class TestSQLite:
                     {
                         "id": "call_abc",
                         "type": "function",
-                        "function": {"name": "calculator", "arguments": '{"expr":"2+2"}'},
+                        "function": {
+                            "name": "calculator",
+                            "arguments": '{"expr":"2+2"}',
+                        },
                     }
                 ],
             },
-            {"role": "tool", "tool_call_id": "call_abc", "name": "calculator", "content": "4"},
+            {
+                "role": "tool",
+                "tool_call_id": "call_abc",
+                "name": "calculator",
+                "content": "4",
+            },
             {"role": "assistant", "content": "2 + 2 = 4"},
         ]
         convo = Conversation(id="round", messages=messages)
@@ -766,6 +891,22 @@ class TestInMemory:
 
         conversations = store.list_conversations("user1")
         assert set(conversations) == {"abc", "def", "ghi"}
+
+    def test_inmemory_save_load_and_list_files(self):
+        store = InMemory()
+
+        store.save_file("user1", "conv_001", "notes.txt", b"hello")
+
+        assert store.load_file("user1", "conv_001", "notes.txt") == b"hello"
+        assert store.list_files("user1", "conv_001") == ["notes.txt"]
+
+    def test_inmemory_append_file_data(self):
+        store = InMemory()
+
+        store.save_file("user1", "conv_001", "notes.txt", b"hello")
+        store.save_file("user1", "conv_001", "notes.txt", b" world", append=True)
+
+        assert store.load_file("user1", "conv_001", "notes.txt") == b"hello world"
 
     def test_inmemory_update_existing_conversation(self):
         """Test updating an existing conversation."""

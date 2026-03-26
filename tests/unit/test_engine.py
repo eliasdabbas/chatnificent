@@ -194,6 +194,17 @@ class TestOrchestratorEngine:
         assert len(conversation.id) == 8
         assert len(conversation.messages) >= 1
 
+    def test_non_serializable_request_payload_is_not_saved(self, engine, mock_app):
+        """Only dict/list raw request payloads should be persisted."""
+        mock_app.llm.get_last_request_payload = Mock(return_value=Mock())
+        mock_app.store.save_raw_api_request = Mock()
+
+        engine.handle_message("Hello", "user123", None)
+
+        mock_app.store.save_raw_api_request.assert_not_called()
+        mock_app.llm.extract_content.assert_called_once()
+        mock_app.store.save_conversation.assert_called_once()
+
     def test_existing_conversation_load(self, engine, mock_app):
         """Test loading existing conversation."""
         existing_convo = Conversation(
@@ -281,11 +292,20 @@ class TestEngineHooks:
                 self.call_log.append("before_save")
                 super()._before_save(conversation)
 
+            def _after_save(self, conversation, user_id):
+                self.call_log.append("after_save")
+                super()._after_save(conversation, user_id)
+
         engine = TrackedEngine(mock_app)
         result = engine.handle_message("Test", "user123", None)
 
         # Verify hooks were called in order
-        assert engine.call_log == ["before_llm", "after_llm", "before_save"]
+        assert engine.call_log == [
+            "before_llm",
+            "after_llm",
+            "before_save",
+            "after_save",
+        ]
 
     def test_hook_can_modify_conversation(self):
         """Test that hooks can modify the conversation."""
@@ -411,3 +431,27 @@ class TestHandleMessageStream:
         list(engine.handle_message_stream("Hi", "user1", None))
 
         chunk.model_dump.assert_called_once_with(mode="json")
+
+    def test_streaming_calls_after_save(self, mock_app):
+        class TrackedEngine(Orchestrator):
+            def __init__(self, app):
+                super().__init__(app)
+                self.after_save_calls = []
+
+            def _after_save(self, conversation, user_id):
+                self.after_save_calls.append((conversation.id, user_id))
+                super()._after_save(conversation, user_id)
+
+        engine = TrackedEngine(mock_app)
+        chunk = Mock()
+        chunk.model_dump.return_value = {"text": "Hi"}
+        mock_app.llm.generate_response.return_value = iter([chunk])
+        mock_app.llm.extract_stream_delta.return_value = "Hi"
+        mock_app.store.save_raw_api_response = Mock()
+        mock_app.store.save_raw_api_request = Mock()
+        mock_app.llm.get_last_request_payload = Mock(return_value={"model": "test"})
+
+        list(engine.handle_message_stream("Hi", "user1", None))
+
+        assert len(engine.after_save_calls) == 1
+        assert engine.after_save_calls[0][1] == "user1"

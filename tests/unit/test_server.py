@@ -170,6 +170,7 @@ class TestDevHandler:
         assert "200" in response
         assert "conversation_id" in response
         assert "response" in response
+        assert "messages" in response
 
     def test_post_chat_empty_message(self, handler_class):
         """POST /api/chat with empty message returns 400."""
@@ -363,3 +364,122 @@ class TestDevHandlerURLIntegration:
         )
         assert "chatnificent_session=cookie_user" not in response or \
                "chatnificent_session=url_user" not in response
+
+
+class TestDevHandlerLayoutIntegration:
+    @pytest.fixture
+    def app(self):
+        from chatnificent import Chatnificent
+        from chatnificent.llm import Echo
+        from chatnificent.store import InMemory
+
+        app = Chatnificent(
+            llm=Echo(stream=False),
+            store=InMemory(),
+            server=DevServer(),
+        )
+        app.layout.render_messages = Mock(
+            return_value=[{"role": "assistant", "content": "Rendered"}]
+        )
+        app.layout.render_conversations = Mock(
+            side_effect=lambda conversations, **kwargs: conversations
+        )
+        return app
+
+    def _make_handler(self, app, method, path, body=None, cookie=None):
+        from chatnificent.server import _DevHandler
+
+        raw_body = json.dumps(body).encode("utf-8") if body is not None else b""
+        wfile = io.BytesIO()
+
+        with patch.object(_DevHandler, "__init__", lambda self, _app, *a, **kw: None):
+            h = _DevHandler.__new__(_DevHandler)
+            h._app = app
+            h._new_session = False
+            h._session_id = None
+            h.rfile = io.BytesIO(raw_body)
+            h.wfile = wfile
+            h.requestline = f"{method} {path} HTTP/1.1"
+            h.command = method
+            h.path = path
+            headers = {"Content-Length": str(len(raw_body)), "Host": "localhost"}
+            if cookie:
+                headers["Cookie"] = cookie
+            h.headers = headers
+            h.request_version = "HTTP/1.1"
+            h.close_connection = True
+
+            if method == "GET":
+                h.do_GET()
+            elif method == "POST":
+                h.rfile = io.BytesIO(raw_body)
+                h.do_POST()
+
+            wfile.seek(0)
+            return wfile.read().decode("utf-8", errors="replace")
+
+    def _extract_json(self, raw_response):
+        body_start = raw_response.find("\r\n\r\n")
+        if body_start == -1:
+            return None
+        return json.loads(raw_response[body_start + 4:])
+
+    def test_post_chat_uses_layout_render_messages(self, app):
+        response = self._make_handler(
+            app,
+            "POST",
+            "/api/chat",
+            {"message": "hello"},
+            cookie="chatnificent_session=user1",
+        )
+
+        data = self._extract_json(response)
+
+        app.layout.render_messages.assert_called_once()
+        assert data["messages"] == [{"role": "assistant", "content": "Rendered"}]
+        assert data["response"] == "Rendered"
+
+    def test_load_conversation_uses_layout_render_messages(self, app):
+        from chatnificent.models import Conversation
+
+        app.store.save_conversation(
+            "user1",
+            Conversation(
+                id="conv1",
+                messages=[
+                    {"role": "user", "content": "hello"},
+                    {"role": "assistant", "content": "world"},
+                ],
+            ),
+        )
+
+        response = self._make_handler(
+            app,
+            "GET",
+            "/api/conversations/conv1",
+            cookie="chatnificent_session=user1",
+        )
+        data = self._extract_json(response)
+
+        app.layout.render_messages.assert_called_once()
+        assert data["messages"] == [{"role": "assistant", "content": "Rendered"}]
+
+    def test_list_conversations_uses_layout_render_conversations(self, app):
+        from chatnificent.models import Conversation
+
+        app.store.save_conversation(
+            "user1",
+            Conversation(
+                id="conv1",
+                messages=[{"role": "user", "content": "first title"}],
+            ),
+        )
+
+        self._make_handler(
+            app,
+            "GET",
+            "/api/conversations",
+            cookie="chatnificent_session=user1",
+        )
+
+        app.layout.render_conversations.assert_called_once()

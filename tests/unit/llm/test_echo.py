@@ -118,3 +118,45 @@ class TestDefaultMethods:
         msg = echo_llm.create_assistant_message(response)
         assert msg["role"] == ASSISTANT_ROLE
         assert msg["content"] == "echoed"
+
+
+# ===== build_request_payload tests =====
+
+
+class TestBuildRequestPayload:
+    def test_returns_dict_with_model_and_messages(self, echo_llm):
+        messages = [{"role": "user", "content": "Hello"}]
+        payload = echo_llm.build_request_payload(messages)
+        assert isinstance(payload, dict)
+        assert payload["model"] == "echo-v1"
+        assert payload["messages"] == messages
+
+    def test_model_override(self, echo_llm):
+        messages = [{"role": "user", "content": "Hi"}]
+        payload = echo_llm.build_request_payload(messages, model="custom-echo")
+        assert payload["model"] == "custom-echo"
+
+    def test_default_model_when_none(self, echo_llm):
+        messages = [{"role": "user", "content": "Hi"}]
+        payload = echo_llm.build_request_payload(messages, model=None)
+        assert payload["model"] == "echo-v1"
+
+
+# ===== LLM ABC cleanup tests =====
+
+
+class TestLLMABCCleanup:
+    """Verify removal of mutable state from LLM base class."""
+
+    def test_no_last_request_payload_attribute(self, echo_llm):
+        assert not hasattr(echo_llm, "_last_request_payload")
+
+    def test_no_get_last_request_payload_method(self):
+        from chatnificent.llm import LLM
+
+        assert not hasattr(LLM, "get_last_request_payload")
+
+    def test_llm_has_no_init(self):
+        from chatnificent.llm import LLM
+
+        assert "__init__" not in LLM.__dict__

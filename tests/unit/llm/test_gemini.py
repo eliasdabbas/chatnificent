@@ -1170,3 +1170,48 @@ class TestGeminiStreaming:
         chunk = SimpleNamespace(candidates=[mock_candidate])
 
         assert gemini.extract_stream_delta(chunk) == "Hello world"
+
+
+# ===== build_request_payload tests =====
+
+
+class TestBuildRequestPayload:
+    def test_returns_dict(self, gemini):
+        messages = [{"role": "user", "content": "Hello"}]
+        payload = gemini.build_request_payload(messages)
+        assert isinstance(payload, dict)
+
+    def test_includes_model(self, gemini):
+        messages = [{"role": "user", "content": "Hello"}]
+        payload = gemini.build_request_payload(messages)
+        assert payload["model"] == "gemini-3.1-pro-preview"
+
+    def test_model_override(self, gemini):
+        messages = [{"role": "user", "content": "Hi"}]
+        payload = gemini.build_request_payload(messages, model="gemini-3-flash")
+        assert payload["model"] == "gemini-3-flash"
+
+    def test_includes_contents(self, gemini):
+        messages = [{"role": "user", "content": "Hello"}]
+        payload = gemini.build_request_payload(messages)
+        assert "contents" in payload
+        assert isinstance(payload["contents"], list)
+        assert len(payload["contents"]) == 1
+
+    def test_includes_config(self, gemini):
+        messages = [{"role": "user", "content": "Hi"}]
+        payload = gemini.build_request_payload(messages, temperature=0.5)
+        assert payload["config"]["temperature"] == 0.5
+
+    def test_stream_removed_from_config(self, gemini):
+        """stream param is not included in config — it controls method dispatch."""
+        gemini.default_params = {"stream": True}
+        messages = [{"role": "user", "content": "Hi"}]
+        payload = gemini.build_request_payload(messages)
+        assert "stream" not in payload["config"]
+
+    def test_does_not_call_sdk(self, gemini):
+        messages = [{"role": "user", "content": "Hi"}]
+        gemini.build_request_payload(messages)
+        gemini.client.models.generate_content.assert_not_called()
+        gemini.client.models.generate_content_stream.assert_not_called()

@@ -21,11 +21,36 @@ logger = logging.getLogger(__name__)
 class LLM(ABC):
     """Abstract Base Class for all LLM providers."""
 
-    _last_request_payload: Optional[Dict[str, Any]] = None
+    def build_request_payload(
+        self,
+        messages: List[Dict[str, Any]],
+        model: Optional[str] = None,
+        tools: Optional[List[Any]] = None,
+        **kwargs: Any,
+    ) -> Optional[Dict[str, Any]]:
+        """Build the exact API-ready payload dict without executing the request.
 
-    def get_last_request_payload(self) -> Optional[Dict[str, Any]]:
-        """Return the exact payload sent in the most recent generate_response() call."""
-        return self._last_request_payload
+        Each provider overrides this to return the wire-level payload in its
+        native shape.  The engine calls this separately to capture raw requests
+        for persistence.
+
+        Parameters
+        ----------
+        messages : List[Dict[str, Any]]
+            Message dicts in the provider's format.
+        model : Optional[str], optional
+            Model override.  Falls back to the instance default when None.
+        tools : Optional[List[Any]], optional
+            Tool definitions to include in the payload.
+        **kwargs : Any
+            Additional parameters merged into the payload.
+
+        Returns
+        -------
+        Optional[Dict[str, Any]]
+            The provider-specific request dict, or None when not implemented.
+        """
+        return None
 
     @abstractmethod
     def generate_response(
@@ -181,13 +206,7 @@ class LLM(ABC):
 class _OpenAICompatible(LLM):
     """Mixin class for providers with OpenAI-compatible APIs."""
 
-    def generate_response(
-        self,
-        messages: List[Dict[str, Any]],
-        model: Optional[str] = None,
-        tools: Optional[List[Any]] = None,
-        **kwargs: Any,
-    ) -> Any:
+    def _clean_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         cleaned_messages = []
         for msg in messages:
             cleaned_msg = dict(msg)
@@ -204,17 +223,34 @@ class _OpenAICompatible(LLM):
                 ] and not cleaned_msg.get("tool_calls"):
                     cleaned_msg["content"] = ""
             cleaned_messages.append(cleaned_msg)
+        return cleaned_messages
 
+    def build_request_payload(
+        self,
+        messages: List[Dict[str, Any]],
+        model: Optional[str] = None,
+        tools: Optional[List[Any]] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
         api_kwargs = {
             **self.default_params,
             **kwargs,
         }
         api_kwargs["model"] = model or self.model
-        api_kwargs["messages"] = cleaned_messages
+        api_kwargs["messages"] = self._clean_messages(messages)
 
         if tools:
             api_kwargs["tools"] = tools
-        self._last_request_payload = api_kwargs
+        return api_kwargs
+
+    def generate_response(
+        self,
+        messages: List[Dict[str, Any]],
+        model: Optional[str] = None,
+        tools: Optional[List[Any]] = None,
+        **kwargs: Any,
+    ) -> Any:
+        api_kwargs = self.build_request_payload(messages, model, tools, **kwargs)
         return self.client.chat.completions.create(**api_kwargs)
 
     def extract_content(self, response: Any) -> Optional[str]:
@@ -358,12 +394,26 @@ class OpenRouter(_OpenAICompatible):
         self.model = model
         self.default_params = {"stream": True, **kwargs}
 
-    def generate_response(self, *args, **kwargs):
+    def _inject_headers(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         headers = kwargs.pop("extra_headers", {})
         headers.update(
             {"HTTP-Referer": "https://chatnificent.com", "X-Title": "Chatnificent"}
         )
         kwargs["extra_headers"] = headers
+        return kwargs
+
+    def build_request_payload(
+        self,
+        messages: List[Dict[str, Any]],
+        model: Optional[str] = None,
+        tools: Optional[List[Any]] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        kwargs = self._inject_headers(kwargs)
+        return super().build_request_payload(messages, model, tools, **kwargs)
+
+    def generate_response(self, *args, **kwargs):
+        kwargs = self._inject_headers(kwargs)
         return super().generate_response(*args, **kwargs)
 
 
@@ -468,17 +518,21 @@ class Anthropic(LLM):
                 )
         return translated_tools
 
-    def generate_response(
+    def _extract_system_and_messages(self, messages: List[Dict[str, Any]]) -> tuple:
+        messages = list(messages)
+        system_prompt = None
+        if messages and messages[0].get("role") == "system":
+            system_prompt = messages.pop(0)["content"]
+        return messages, system_prompt
+
+    def build_request_payload(
         self,
         messages: List[Dict[str, Any]],
         model: Optional[str] = None,
         tools: Optional[List[Any]] = None,
         **kwargs: Any,
-    ) -> Any:
-        messages = list(messages)
-        system_prompt = None
-        if messages and messages[0].get("role") == "system":
-            system_prompt = messages.pop(0)["content"]
+    ) -> Dict[str, Any]:
+        messages, system_prompt = self._extract_system_and_messages(messages)
 
         api_kwargs = {
             **self.default_params,
@@ -491,8 +545,16 @@ class Anthropic(LLM):
             api_kwargs["system"] = system_prompt
         if tools:
             api_kwargs["tools"] = self._translate_tool_schema(tools)
+        return api_kwargs
 
-        self._last_request_payload = api_kwargs
+    def generate_response(
+        self,
+        messages: List[Dict[str, Any]],
+        model: Optional[str] = None,
+        tools: Optional[List[Any]] = None,
+        **kwargs: Any,
+    ) -> Any:
+        api_kwargs = self.build_request_payload(messages, model, tools, **kwargs)
         return self.client.messages.create(**api_kwargs)
 
     def extract_content(self, response: Any) -> Optional[str]:
@@ -750,6 +812,50 @@ class Gemini(LLM):
             return [types.Tool(function_declarations=declarations)]
         return []
 
+    def build_request_payload(
+        self,
+        messages: List[Dict[str, Any]],
+        model: Optional[str] = None,
+        tools: Optional[List[Any]] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        config_dict: Dict[str, Any] = {**self.default_params, **kwargs}
+        config_dict.pop("stream", None)
+
+        contents, system_instruction = self._translate_request(messages)
+
+        if system_instruction is not None:
+            config_dict["system_instruction"] = system_instruction
+
+        if tools:
+            translated = self._translate_tool_schema(tools)
+            if translated:
+                config_dict["tools"] = translated
+
+        serialized_contents = [
+            c.model_dump(mode="json") if hasattr(c, "model_dump") else c
+            for c in contents
+        ]
+        serialized_config = {}
+        for k, v in config_dict.items():
+            if isinstance(v, list):
+                serialized_config[k] = [
+                    item.model_dump(mode="json")
+                    if hasattr(item, "model_dump")
+                    else item
+                    for item in v
+                ]
+            elif hasattr(v, "model_dump"):
+                serialized_config[k] = v.model_dump(mode="json")
+            else:
+                serialized_config[k] = v
+
+        return {
+            "model": model or self.model,
+            "contents": serialized_contents,
+            "config": serialized_config,
+        }
+
     def generate_response(
         self,
         messages: List[Dict[str, Any]],
@@ -775,12 +881,6 @@ class Gemini(LLM):
                 config_dict["tools"] = translated
 
         config = types.GenerateContentConfig(**config_dict) if config_dict else None
-
-        self._last_request_payload = {
-            "model": model or self.model,
-            "messages": messages,
-            "config": config_dict,
-        }
 
         if is_streaming:
             return self.client.models.generate_content_stream(
@@ -901,7 +1001,7 @@ class Ollama(LLM):
         self.model = model
         self.default_params = {"stream": True, **kwargs}
 
-    def generate_response(self, messages, model=None, tools=None, **kwargs) -> Any:
+    def build_request_payload(self, messages, model=None, tools=None, **kwargs):
         api_kwargs = {
             "model": model or self.model,
             "messages": messages,
@@ -910,7 +1010,10 @@ class Ollama(LLM):
         }
         if tools:
             api_kwargs["tools"] = tools
-        self._last_request_payload = api_kwargs
+        return api_kwargs
+
+    def generate_response(self, messages, model=None, tools=None, **kwargs) -> Any:
+        api_kwargs = self.build_request_payload(messages, model, tools, **kwargs)
         return self.client.chat(**api_kwargs)
 
     def extract_content(self, response: Any) -> Optional[str]:
@@ -989,6 +1092,18 @@ class Echo(LLM):
         self.model = model
         self.default_params = {"stream": True, **kwargs}
 
+    def build_request_payload(
+        self,
+        messages: List[Dict[str, Any]],
+        model: Optional[str] = None,
+        tools: Optional[List[Any]] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        return {
+            "model": model or self.model,
+            "messages": messages,
+        }
+
     def generate_response(
         self,
         messages: List[Dict[str, Any]],
@@ -1012,11 +1127,6 @@ class Echo(LLM):
 
         if not user_prompt:
             user_prompt = "No user message found."
-
-        self._last_request_payload = {
-            "model": model or self.model,
-            "messages": messages,
-        }
 
         content = f"**Echo LLM - static response**\n\n_Your prompt:_\n\n{user_prompt}"
 

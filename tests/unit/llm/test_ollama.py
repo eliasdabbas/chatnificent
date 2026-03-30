@@ -199,3 +199,39 @@ class TestGenerateResponse:
         ollama_llm.generate_response(messages)
         call_kwargs = ollama_llm.client.chat.call_args.kwargs
         assert "tools" not in call_kwargs
+
+
+# ===== build_request_payload tests =====
+
+
+class TestBuildRequestPayload:
+    def test_returns_dict(self, ollama_llm):
+        messages = [{"role": "user", "content": "Hello"}]
+        payload = ollama_llm.build_request_payload(messages)
+        assert isinstance(payload, dict)
+
+    def test_includes_model(self, ollama_llm):
+        messages = [{"role": "user", "content": "Hello"}]
+        payload = ollama_llm.build_request_payload(messages)
+        assert payload["model"] == "llama3.2"
+
+    def test_model_override(self, ollama_llm):
+        messages = [{"role": "user", "content": "Hi"}]
+        payload = ollama_llm.build_request_payload(messages, model="mistral")
+        assert payload["model"] == "mistral"
+
+    def test_includes_tools(self, ollama_llm):
+        messages = [{"role": "user", "content": "Hi"}]
+        tools = [{"type": "function", "function": {"name": "fn"}}]
+        payload = ollama_llm.build_request_payload(messages, tools=tools)
+        assert payload["tools"] == tools
+
+    def test_no_tools_key_when_none(self, ollama_llm):
+        messages = [{"role": "user", "content": "Hi"}]
+        payload = ollama_llm.build_request_payload(messages)
+        assert "tools" not in payload
+
+    def test_does_not_call_sdk(self, ollama_llm):
+        messages = [{"role": "user", "content": "Hi"}]
+        ollama_llm.build_request_payload(messages)
+        ollama_llm.client.chat.assert_not_called()

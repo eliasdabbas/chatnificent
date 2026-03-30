@@ -140,7 +140,7 @@ class TestEngineStoreIntegration:
             mock_llm.generate_response.return_value = {"raw": "response"}
             mock_llm.extract_content.return_value = "Test response"
             mock_llm.parse_tool_calls.return_value = []
-            mock_llm.get_last_request_payload.return_value = {
+            mock_llm.build_request_payload.return_value = {
                 "model": "test",
                 "messages": [],
             }

@@ -347,3 +347,73 @@ class TestTranslateToolSchema:
         ]
         result = anthropic_llm._translate_tool_schema(tools)
         assert result[0]["input_schema"] == {"type": "object", "properties": {}}
+
+
+# ===== build_request_payload tests =====
+
+
+class TestBuildRequestPayload:
+    def test_returns_dict(self, anthropic_llm):
+        messages = [{"role": "user", "content": "Hello"}]
+        payload = anthropic_llm.build_request_payload(messages)
+        assert isinstance(payload, dict)
+
+    def test_includes_model(self, anthropic_llm):
+        messages = [{"role": "user", "content": "Hello"}]
+        payload = anthropic_llm.build_request_payload(messages)
+        assert payload["model"] == "claude-opus-4-6"
+
+    def test_model_override(self, anthropic_llm):
+        messages = [{"role": "user", "content": "Hi"}]
+        payload = anthropic_llm.build_request_payload(messages, model="claude-3-haiku")
+        assert payload["model"] == "claude-3-haiku"
+
+    def test_extracts_system_prompt(self, anthropic_llm):
+        messages = [
+            {"role": "system", "content": "Be helpful"},
+            {"role": "user", "content": "Hi"},
+        ]
+        payload = anthropic_llm.build_request_payload(messages)
+        assert payload["system"] == "Be helpful"
+        assert all(m.get("role") != "system" for m in payload["messages"])
+
+    def test_no_system_key_without_system_message(self, anthropic_llm):
+        messages = [{"role": "user", "content": "Hi"}]
+        payload = anthropic_llm.build_request_payload(messages)
+        assert "system" not in payload
+
+    def test_includes_translated_tools(self, anthropic_llm):
+        messages = [{"role": "user", "content": "Hi"}]
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get weather",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ]
+        payload = anthropic_llm.build_request_payload(messages, tools=tools)
+        assert len(payload["tools"]) == 1
+        assert payload["tools"][0]["name"] == "get_weather"
+
+    def test_no_tools_key_when_none(self, anthropic_llm):
+        messages = [{"role": "user", "content": "Hi"}]
+        payload = anthropic_llm.build_request_payload(messages)
+        assert "tools" not in payload
+
+    def test_merges_default_params(self, anthropic_llm):
+        messages = [{"role": "user", "content": "Hi"}]
+        payload = anthropic_llm.build_request_payload(messages)
+        assert payload["max_tokens"] == 4096
+
+    def test_kwargs_override_default_params(self, anthropic_llm):
+        messages = [{"role": "user", "content": "Hi"}]
+        payload = anthropic_llm.build_request_payload(messages, max_tokens=8192)
+        assert payload["max_tokens"] == 8192
+
+    def test_does_not_call_sdk(self, anthropic_llm):
+        messages = [{"role": "user", "content": "Hi"}]
+        anthropic_llm.build_request_payload(messages)
+        anthropic_llm.client.messages.create.assert_not_called()

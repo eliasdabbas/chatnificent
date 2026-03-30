@@ -196,7 +196,7 @@ class TestOrchestratorEngine:
 
     def test_non_serializable_request_payload_is_not_saved(self, engine, mock_app):
         """Only dict/list raw request payloads should be persisted."""
-        mock_app.llm.get_last_request_payload = Mock(return_value=Mock())
+        mock_app.llm.build_request_payload = Mock(return_value=Mock())
         mock_app.store.save_raw_api_request = Mock()
 
         engine.handle_message("Hello", "user123", None)
@@ -404,7 +404,7 @@ class TestHandleMessageStream:
         # Remove save_raw_api_response so _save_raw_exchange exercises the list path
         mock_app.store.save_raw_api_response = Mock()
         mock_app.store.save_raw_api_request = Mock()
-        mock_app.llm.get_last_request_payload = Mock(return_value={"model": "test"})
+        mock_app.llm.build_request_payload = Mock(return_value={"model": "test"})
 
         events = list(engine.handle_message_stream("Hi", "user1", None))
 
@@ -426,7 +426,7 @@ class TestHandleMessageStream:
         mock_app.llm.extract_stream_delta.return_value = "Hi"
         mock_app.store.save_raw_api_response = Mock()
         mock_app.store.save_raw_api_request = Mock()
-        mock_app.llm.get_last_request_payload = Mock(return_value={"model": "test"})
+        mock_app.llm.build_request_payload = Mock(return_value={"model": "test"})
 
         list(engine.handle_message_stream("Hi", "user1", None))
 
@@ -449,9 +449,57 @@ class TestHandleMessageStream:
         mock_app.llm.extract_stream_delta.return_value = "Hi"
         mock_app.store.save_raw_api_response = Mock()
         mock_app.store.save_raw_api_request = Mock()
-        mock_app.llm.get_last_request_payload = Mock(return_value={"model": "test"})
+        mock_app.llm.build_request_payload = Mock(return_value={"model": "test"})
 
         list(engine.handle_message_stream("Hi", "user1", None))
 
         assert len(engine.after_save_calls) == 1
         assert engine.after_save_calls[0][1] == "user1"
+
+
+class TestBuildRequestPayloadSeam:
+    """Test the _build_request_payload engine seam."""
+
+    @pytest.fixture
+    def mock_app(self):
+        app = Mock()
+        app.llm = Mock()
+        app.llm.build_request_payload = Mock(
+            return_value={"model": "test", "messages": []}
+        )
+        app.tools = Mock()
+        app.tools.get_tools = Mock(return_value=None)
+        return app
+
+    @pytest.fixture
+    def engine(self, mock_app):
+        return Orchestrator(mock_app)
+
+    def test_delegates_to_llm(self, engine, mock_app):
+        """Engine calls llm.build_request_payload with the payload."""
+        payload = [{"role": "user", "content": "Hello"}]
+        engine._build_request_payload(payload, stream=False)
+        mock_app.llm.build_request_payload.assert_called_once_with(
+            payload, stream=False
+        )
+
+    def test_passes_tools_when_available(self, engine, mock_app):
+        """Tools are forwarded when get_tools() returns a list."""
+        mock_app.tools.get_tools.return_value = [
+            {"type": "function", "function": {"name": "test"}}
+        ]
+        payload = [{"role": "user", "content": "Hello"}]
+        engine._build_request_payload(payload, stream=False)
+        mock_app.llm.build_request_payload.assert_called_once_with(
+            payload,
+            tools=[{"type": "function", "function": {"name": "test"}}],
+            stream=False,
+        )
+
+    def test_no_tools_key_when_none(self, engine, mock_app):
+        """No tools kwarg when get_tools() returns None."""
+        mock_app.tools.get_tools.return_value = None
+        payload = [{"role": "user", "content": "Hello"}]
+        engine._build_request_payload(payload)
+        call_kwargs = mock_app.llm.build_request_payload.call_args
+        assert "tools" not in (call_kwargs.kwargs or {})

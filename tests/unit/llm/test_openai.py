@@ -105,7 +105,11 @@ class TestOpenAIConstructor:
         with patch("openai.OpenAI"):
             with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
                 instance = OpenAI(temperature=0.7, top_p=0.9)
-                assert instance.default_params == {"stream": True, "temperature": 0.7, "top_p": 0.9}
+                assert instance.default_params == {
+                    "stream": True,
+                    "temperature": 0.7,
+                    "top_p": 0.9,
+                }
 
     def test_stream_true_by_default(self):
         from chatnificent.llm import OpenAI
@@ -396,6 +400,90 @@ class TestGenerateResponse:
         openai_llm.generate_response(messages)
         call_kwargs = openai_llm.client.chat.completions.create.call_args.kwargs
         assert call_kwargs["messages"][0]["content"] == ""
+
+
+# ===== build_request_payload tests =====
+
+
+class TestBuildRequestPayload:
+    def test_returns_dict(self, openai_llm):
+        messages = [{"role": "user", "content": "Hello"}]
+        payload = openai_llm.build_request_payload(messages)
+        assert isinstance(payload, dict)
+
+    def test_includes_model(self, openai_llm):
+        messages = [{"role": "user", "content": "Hello"}]
+        payload = openai_llm.build_request_payload(messages)
+        assert payload["model"] == "gpt-5.2"
+
+    def test_model_override(self, openai_llm):
+        messages = [{"role": "user", "content": "Hi"}]
+        payload = openai_llm.build_request_payload(messages, model="gpt-4o-mini")
+        assert payload["model"] == "gpt-4o-mini"
+
+    def test_includes_cleaned_messages(self, openai_llm):
+        messages = [
+            {"role": "user", "content": None},
+            {"role": "assistant", "content": "response"},
+        ]
+        payload = openai_llm.build_request_payload(messages)
+        assert payload["messages"][0]["content"] == ""
+        assert payload["messages"][1]["content"] == "response"
+
+    def test_includes_tools(self, openai_llm):
+        messages = [{"role": "user", "content": "Hi"}]
+        tools = [{"type": "function", "function": {"name": "fn"}}]
+        payload = openai_llm.build_request_payload(messages, tools=tools)
+        assert payload["tools"] == tools
+
+    def test_no_tools_key_when_none(self, openai_llm):
+        messages = [{"role": "user", "content": "Hi"}]
+        payload = openai_llm.build_request_payload(messages)
+        assert "tools" not in payload
+
+    def test_merges_default_params(self):
+        from chatnificent.llm import OpenAI
+
+        instance = object.__new__(OpenAI)
+        instance.client = MagicMock()
+        instance.model = "gpt-5.2"
+        instance.default_params = {"temperature": 0.5}
+
+        messages = [{"role": "user", "content": "Hi"}]
+        payload = instance.build_request_payload(messages)
+        assert payload["temperature"] == 0.5
+
+    def test_kwargs_override_default_params(self):
+        from chatnificent.llm import OpenAI
+
+        instance = object.__new__(OpenAI)
+        instance.client = MagicMock()
+        instance.model = "gpt-5.2"
+        instance.default_params = {"temperature": 0.5}
+
+        messages = [{"role": "user", "content": "Hi"}]
+        payload = instance.build_request_payload(messages, temperature=0.9)
+        assert payload["temperature"] == 0.9
+
+    def test_does_not_call_sdk(self, openai_llm):
+        messages = [{"role": "user", "content": "Hi"}]
+        openai_llm.build_request_payload(messages)
+        openai_llm.client.chat.completions.create.assert_not_called()
+
+    def test_assistant_tool_call_preserves_null_content(self, openai_llm):
+        messages = [
+            {"role": "assistant", "content": None, "tool_calls": [{"id": "call_1"}]},
+        ]
+        payload = openai_llm.build_request_payload(messages)
+        assert payload["messages"][0]["content"] is None
+
+
+class TestOpenRouterBuildRequestPayload:
+    def test_injects_headers(self, openrouter_llm):
+        messages = [{"role": "user", "content": "Hi"}]
+        payload = openrouter_llm.build_request_payload(messages)
+        assert payload["extra_headers"]["HTTP-Referer"] == "https://chatnificent.com"
+        assert payload["extra_headers"]["X-Title"] == "Chatnificent"
 
 
 # ===== OpenRouter-specific tests =====

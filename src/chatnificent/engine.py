@@ -170,7 +170,10 @@ class Orchestrator(Engine):
                 self._after_llm_call(llm_response)
 
                 # Persist raw request/response pair for this turn
-                self._save_raw_exchange(user_id, conversation.id, llm_response)
+                request_payload = self._build_request_payload(llm_payload, stream=False)
+                self._save_raw_exchange(
+                    user_id, conversation.id, llm_response, request_payload
+                )
 
                 # Parsing (Adapter)
                 tool_calls = self.app.llm.parse_tool_calls(llm_response)
@@ -249,7 +252,12 @@ class Orchestrator(Engine):
                     # Tool-calling turns always run non-streamed
                     llm_response = self._generate_response(llm_payload, stream=False)
                     self._after_llm_call(llm_response)
-                    self._save_raw_exchange(user_id, conversation.id, llm_response)
+                    request_payload = self._build_request_payload(
+                        llm_payload, stream=False
+                    )
+                    self._save_raw_exchange(
+                        user_id, conversation.id, llm_response, request_payload
+                    )
 
                     tool_calls = self.app.llm.parse_tool_calls(llm_response)
 
@@ -323,7 +331,10 @@ class Orchestrator(Engine):
                 conversation.messages.append(assistant_message)
 
             # Save raw exchange for the streaming path
-            self._save_raw_exchange(user_id, conversation.id, raw_chunks)
+            request_payload = self._build_request_payload(llm_payload)
+            self._save_raw_exchange(
+                user_id, conversation.id, raw_chunks, request_payload
+            )
 
             # 5. Persistence
             self._before_save(conversation)
@@ -380,6 +391,26 @@ class Orchestrator(Engine):
         self, conversation: Conversation, retrieval_context: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         return list(conversation.messages)
+
+    def _build_request_payload(
+        self, llm_payload: List[Dict[str, Any]], **kwargs
+    ) -> Any:
+        """[Seam] Build the request payload for raw persistence.
+
+        Parameters
+        ----------
+        llm_payload : List[Dict[str, Any]]
+            The message list.
+        **kwargs : Any
+            Additional keyword arguments forwarded to
+            ``build_request_payload()`` (e.g. ``stream=False``).
+        """
+        tools = self.app.tools.get_tools()
+        if tools:
+            return self.app.llm.build_request_payload(
+                llm_payload, tools=tools, **kwargs
+            )
+        return self.app.llm.build_request_payload(llm_payload, **kwargs)
 
     def _generate_response(self, llm_payload: List[Dict[str, Any]], **kwargs) -> Any:
         """[Seam] Executes the call to the LLM pillar.
@@ -452,16 +483,18 @@ class Orchestrator(Engine):
         return normalized_payload
 
     def _save_raw_exchange(
-        self, user_id: str, convo_id: str, llm_response: Any
+        self,
+        user_id: str,
+        convo_id: str,
+        llm_response: Any,
+        request_payload: Any = None,
     ) -> None:
         """[Seam] Persist the raw API request/response pair for one LLM call."""
-        request_payload = self._normalize_raw_payload(
-            self.app.llm.get_last_request_payload()
-        )
-        if hasattr(self.app.store, "save_raw_api_request") and request_payload:
-            self.app.store.save_raw_api_request(user_id, convo_id, request_payload)
+        normalized_request = self._normalize_raw_payload(request_payload)
+        if normalized_request:
+            self.app.store.save_raw_api_request(user_id, convo_id, normalized_request)
 
-        if hasattr(self.app.store, "save_raw_api_response") and llm_response:
+        if llm_response:
             response_to_save = self._normalize_raw_payload(llm_response)
             if response_to_save is not None:
                 self.app.store.save_raw_api_response(

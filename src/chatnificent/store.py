@@ -135,20 +135,24 @@ class InMemory(Store):
     def __init__(self):
         self._store: Dict[str, Dict[str, Conversation]] = {}
         self._files: Dict[str, Dict[str, Dict[str, bytes]]] = {}
+        self._lock = Lock()
 
     def load_conversation(self, user_id: str, convo_id: str) -> Optional[Conversation]:
         """Load a conversation. Returns None if user or conversation doesn't exist."""
-        return self._store.get(user_id, {}).get(convo_id)
+        with self._lock:
+            return self._store.get(user_id, {}).get(convo_id)
 
     def save_conversation(self, user_id: str, conversation: Conversation):
-        self._store.setdefault(user_id, {})[conversation.id] = conversation.copy(
-            deep=True
-        )
+        with self._lock:
+            self._store.setdefault(user_id, {})[conversation.id] = conversation.copy(
+                deep=True
+            )
 
     def list_conversations(self, user_id: str) -> List[str]:
         """Lists all conversation IDs for a given user. Returns empty list if user doesn't exist."""
-        user_conversations = self._store.get(user_id, {})
-        return list(user_conversations.keys())
+        with self._lock:
+            user_conversations = self._store.get(user_id, {})
+            return list(user_conversations.keys())
 
     def save_file(
         self,
@@ -158,20 +162,23 @@ class InMemory(Store):
         data: bytes,
         **kwargs: Any,
     ) -> None:
-        user_files = self._files.setdefault(user_id, {})
-        convo_files = user_files.setdefault(convo_id, {})
-        if kwargs.get("append"):
-            convo_files[filename] = convo_files.get(filename, b"") + data
-        else:
-            convo_files[filename] = bytes(data)
+        with self._lock:
+            user_files = self._files.setdefault(user_id, {})
+            convo_files = user_files.setdefault(convo_id, {})
+            if kwargs.get("append"):
+                convo_files[filename] = convo_files.get(filename, b"") + data
+            else:
+                convo_files[filename] = bytes(data)
 
     def load_file(
         self, user_id: str, convo_id: str, filename: str, **kwargs: Any
     ) -> Optional[bytes]:
-        return self._files.get(user_id, {}).get(convo_id, {}).get(filename)
+        with self._lock:
+            return self._files.get(user_id, {}).get(convo_id, {}).get(filename)
 
     def list_files(self, user_id: str, convo_id: str) -> List[str]:
-        return sorted(self._files.get(user_id, {}).get(convo_id, {}).keys())
+        with self._lock:
+            return sorted(self._files.get(user_id, {}).get(convo_id, {}).keys())
 
 
 class File(Store):

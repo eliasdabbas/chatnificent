@@ -949,3 +949,112 @@ class TestInMemory:
         loaded = store.load_conversation("new_user", "conv_001")
         assert loaded is not None
         assert loaded.messages[0]["content"] == "Hello"
+
+
+class TestInMemoryThreadSafety:
+    """Test that InMemory store is thread-safe for concurrent access."""
+
+    def test_concurrent_saves_no_data_loss(self):
+        """Concurrent save_conversation calls should not lose data."""
+        import threading
+
+        store = InMemory()
+        errors = []
+
+        def save_conversations(user_id, start, count):
+            try:
+                for i in range(start, start + count):
+                    convo = Conversation(
+                        id=f"conv_{i:04d}",
+                        messages=[{"role": "user", "content": f"Message {i}"}],
+                    )
+                    store.save_conversation(user_id, convo)
+            except Exception as e:
+                errors.append(e)
+
+        threads = []
+        per_thread = 50
+        for t in range(4):
+            th = threading.Thread(
+                target=save_conversations,
+                args=("user1", t * per_thread, per_thread),
+            )
+            threads.append(th)
+            th.start()
+        for th in threads:
+            th.join()
+
+        assert not errors
+        assert len(store.list_conversations("user1")) == 4 * per_thread
+
+    def test_concurrent_save_and_list(self):
+        """list_conversations should not raise during concurrent saves."""
+        import threading
+
+        store = InMemory()
+        errors = []
+        stop = threading.Event()
+
+        def saver():
+            i = 0
+            while not stop.is_set():
+                convo = Conversation(
+                    id=f"conv_{i:04d}",
+                    messages=[{"role": "user", "content": f"msg {i}"}],
+                )
+                store.save_conversation("user1", convo)
+                i += 1
+
+        def lister():
+            try:
+                while not stop.is_set():
+                    store.list_conversations("user1")
+            except Exception as e:
+                errors.append(e)
+
+        t1 = threading.Thread(target=saver)
+        t2 = threading.Thread(target=lister)
+        t1.start()
+        t2.start()
+        import time
+
+        time.sleep(0.1)
+        stop.set()
+        t1.join()
+        t2.join()
+        assert not errors
+
+    def test_concurrent_save_file(self):
+        """Concurrent save_file (append) calls should not lose data."""
+        import threading
+
+        store = InMemory()
+        errors = []
+
+        def append_data(thread_id, count):
+            try:
+                for i in range(count):
+                    store.save_file(
+                        "user1",
+                        "conv1",
+                        "log.jsonl",
+                        f"line-{thread_id}-{i}\n".encode(),
+                        append=True,
+                    )
+            except Exception as e:
+                errors.append(e)
+
+        threads = []
+        per_thread = 50
+        for t in range(4):
+            th = threading.Thread(target=append_data, args=(t, per_thread))
+            threads.append(th)
+            th.start()
+        for th in threads:
+            th.join()
+
+        assert not errors
+        raw = store.load_file("user1", "conv1", "log.jsonl")
+        assert raw is not None
+        lines = [l for l in raw.decode().splitlines() if l]
+        assert len(lines) == 4 * per_thread

@@ -1,7 +1,10 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
-#     "chatnificent[openai]",
+#     "chatnificent",
+#     "google-genai",
+#     "anthropic",
+#     "openai",
 # ]
 # ///
 """
@@ -117,7 +120,9 @@ tools.register_function(get_weather)
 tools.register_function(roll_dice)
 
 app = chat.Chatnificent(
-    llm=chat.llm.Anthropic(),
+    llm=chat.llm.OpenAI(),  # <- default
+    # llm=chat.llm.Anthropic(),
+    # llm=chat.llm.Gemini(),
     tools=tools,
 )
 

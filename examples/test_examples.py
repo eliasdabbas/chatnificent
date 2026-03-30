@@ -49,9 +49,7 @@ def _openai_response(content: str):
 def _openai_stream(*deltas: str):
     """Build minimal OpenAI-compatible streaming chunks for tests."""
     return [
-        SimpleNamespace(
-            choices=[SimpleNamespace(delta=SimpleNamespace(content=delta))]
-        )
+        SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=delta))])
         for delta in deltas
     ]
 
@@ -301,8 +299,14 @@ class TestUsageDisplayMultiProvider:
             ),
             (
                 [
-                    {"type": "message_start", "message": {"usage": {"input_tokens": 8, "output_tokens": 0}}},
-                    {"type": "message_delta", "usage": {"input_tokens": 8, "output_tokens": 12}},
+                    {
+                        "type": "message_start",
+                        "message": {"usage": {"input_tokens": 8, "output_tokens": 0}},
+                    },
+                    {
+                        "type": "message_delta",
+                        "usage": {"input_tokens": 8, "output_tokens": 12},
+                    },
                 ],
                 "Usage: ↑ 8 + ↓ 12 = 20 Tokens",
             ),
@@ -351,7 +355,9 @@ class TestConversationTitle:
 
         mod = _import_example("conversation_title")
         mod.app.store = chat.store.InMemory()
-        mod.app.llm.generate_response = lambda *args, **kwargs: {"content": "Solar System"}
+        mod.app.llm.generate_response = lambda *args, **kwargs: {
+            "content": "Solar System"
+        }
         mod.app.llm.extract_content = lambda response: response["content"]
         mod.app.llm.create_assistant_message = lambda response: {
             "role": "assistant",
@@ -366,7 +372,9 @@ class TestConversationTitle:
             convo_id_from_url=None,
         )
 
-        title_bytes = mod.app.store.load_file("test", convo.id, "conversation_title.txt")
+        title_bytes = mod.app.store.load_file(
+            "test", convo.id, "conversation_title.txt"
+        )
         assert title_bytes is not None
 
         rendered = mod.app.layout.render_conversations(
@@ -475,7 +483,9 @@ class TestWebSearch:
         }
 
         mod.app.llm.generate_response = lambda *args, **kwargs: grounded_response
-        mod.app.llm.extract_content = lambda response: response["candidates"][0]["content"]["parts"][0]["text"]
+        mod.app.llm.extract_content = lambda response: response["candidates"][0][
+            "content"
+        ]["parts"][0]["text"]
         mod.app.llm.create_assistant_message = lambda response: {
             "role": "assistant",
             "content": response["candidates"][0]["content"]["parts"][0]["text"],
@@ -501,9 +511,10 @@ class TestWebSearch:
 
         assert "<details>" in rendered[-1]["content"]
         assert "<summary>🔍 Sources (2)</summary>" in rendered[-1]["content"]
-        assert "**[UEFA Euro 2024](https://www.uefa.com/euro2024/)**" in rendered[-1][
-            "content"
-        ]
+        assert (
+            "**[UEFA Euro 2024](https://www.uefa.com/euro2024/)**"
+            in rendered[-1]["content"]
+        )
         assert "https://www.uefa.com/euro2024/" in rendered[-1]["content"]
         assert "**Spain** won Euro 2024 in Berlin." in rendered[-1]["content"]
 
@@ -524,7 +535,9 @@ class TestDisplayRedaction:
             "Backup contact was riley@protonmail.com on +1 555-222-4444, "
             "with test card 4242-4242-4242-1111."
         )
-        mod.app.llm.generate_response = lambda *args, **kwargs: {"content": response_text}
+        mod.app.llm.generate_response = lambda *args, **kwargs: {
+            "content": response_text
+        }
         mod.app.llm.extract_content = lambda response: response["content"]
         mod.app.llm.create_assistant_message = lambda response: {
             "role": "assistant",

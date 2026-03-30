@@ -295,6 +295,23 @@ uv pip install -e .
 - **Minimal Changes**: Implement exactly what's requested, nothing more
 - **Incremental Development**: Build → Test → Verify → Next feature
 - **Challenge Bad Ideas**: Question requirements if there's a better approach
+- **Concurrency Awareness**: Design every feature as if it will run under a multi-threaded server
+
+### Concurrency Awareness
+
+The current `DevServer` is single-threaded, but Chatnificent is designed to run behind production servers (FastAPI, Starlette, etc.) that dispatch requests across threads or async tasks. **Every new feature must be safe under concurrent access.**
+
+**Design philosophy:** The server handles concurrency, not the engine. The engine stays synchronous and stateless per-request. Async servers wrap engine calls in their thread pools (e.g. `asyncio.to_thread()`). This means non-server pillar code (Engine, LLM, Store, Auth, Tools, Retrieval) doesn't need `async/await` — but it *does* need to be thread-safe, because multiple threads will call into it concurrently. The Server pillar itself may use `async def` freely (e.g. FastAPI route handlers, Starlette endpoints).
+
+**Rules for all pillars:**
+- **No per-request state on `self`.** Never stash request-specific data on the instance (class variables, module globals, or instance variables like the old `_last_request_payload`). All pillar instances are shared across requests — mutable instance state is a race condition. Pass per-request data through the call stack or return it.
+- **Immutable config on `self` is fine.** Constructor parameters (model name, API key, db path, feature flags) are set once and never mutated — no lock needed.
+- **Lock intentionally shared state.** When a pillar *must* hold shared mutable state (e.g., InMemory store's conversation dict), protect it with `threading.Lock` or finer-grained locks. This is **data-integrity locking**, not concurrency orchestration. Reference patterns: `InMemory` store uses a single lock; `File` store uses per-conversation write locks.
+- **Don't orchestrate concurrency.** No request queuing, no `async/await`, no thread pools inside pillars. Concurrency orchestration (thread dispatch, async event loops, request routing) is the server's job.
+- **Engine methods must stay stateless per-request.** No side effects on `self` during `handle_message()` / `handle_message_stream()` beyond delegating to the Store pillar.
+- **New pillar implementations must be thread-safe.** Whether it's a new Store, LLM, Auth, or any other pillar — if it holds mutable instance state, protect it.
+- **Ask the concurrency question.** For every new piece of state: *"What happens if two requests hit this at the same time?"* If the answer isn't "nothing, it's request-local," reconsider the design — prefer stateless approaches over adding locks.
+- **Test concurrent access.** New stateful components should include a multi-threaded test (using `threading.Thread` or `concurrent.futures`) that exercises parallel access. Sequential "concurrent" tests are insufficient.
 
 ### Code Style
 - Dash component IDs: `snake_case`

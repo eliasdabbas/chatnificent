@@ -4,20 +4,24 @@ Same pattern as tests/unit/llm/test_openai.py — validates one concrete
 implementation against the Server pillar contract.
 """
 
+import ast
+import inspect
 from unittest.mock import Mock, patch
 
 import pytest
 
 dash = pytest.importorskip("dash", reason="DashServer tests require the dash extra")
 
+import flask
 from chatnificent import Chatnificent
 from chatnificent.server import DashServer, DevServer
 
 
 def _make_dash_app(**kwargs):
     """Create a Chatnificent app wired to DashServer + mock DashLayout."""
-    import dash.html as html
     from unittest.mock import Mock
+
+    import dash.html as html
     from chatnificent.layout import DashLayout
 
     mock_layout = Mock(spec=DashLayout)
@@ -119,3 +123,75 @@ class TestDashServerLayout:
             external_stylesheets=[existing_stylesheet],
         )
         assert app.server.dash_app is not None
+
+
+class TestDashServerAuthParity:
+    """DashServer callbacks must pass session_id to auth, matching DevServer."""
+
+    def test_get_session_id_reads_cookie(self):
+        """_get_session_id extracts chatnificent_session cookie from Flask request."""
+        from chatnificent._callbacks import _get_session_id
+
+        flask_app = flask.Flask(__name__)
+        with flask_app.test_request_context(
+            headers={"Cookie": "chatnificent_session=abc123"}
+        ):
+            assert _get_session_id() == "abc123"
+
+    def test_get_session_id_returns_none_without_cookie(self):
+        """_get_session_id returns None when no session cookie exists."""
+        from chatnificent._callbacks import _get_session_id
+
+        flask_app = flask.Flask(__name__)
+        with flask_app.test_request_context():
+            assert _get_session_id() is None
+
+    def test_all_auth_calls_include_session_id(self):
+        """Every auth.get_current_user_id() call in register_callbacks must pass session_id.
+
+        Structural contract test: DevServer reads the session cookie and passes
+        session_id= to auth. DashServer must do the same at every call site.
+        """
+        from chatnificent import _callbacks
+
+        source = inspect.getsource(_callbacks.register_callbacks)
+        tree = ast.parse(source)
+
+        violations = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if (
+                isinstance(node.func, ast.Attribute)
+                and node.func.attr == "get_current_user_id"
+            ):
+                kwarg_names = [kw.arg for kw in node.keywords]
+                if "session_id" not in kwarg_names:
+                    violations.append(node.lineno)
+
+        assert not violations, (
+            f"get_current_user_id() called without session_id= at relative lines: {violations}"
+        )
+
+    def test_no_pathname_kwarg_passed_to_auth(self):
+        """auth.get_current_user_id() must never receive pathname= (wrong kwarg)."""
+        from chatnificent import _callbacks
+
+        source = inspect.getsource(_callbacks.register_callbacks)
+        tree = ast.parse(source)
+
+        violations = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if (
+                isinstance(node.func, ast.Attribute)
+                and node.func.attr == "get_current_user_id"
+            ):
+                kwarg_names = [kw.arg for kw in node.keywords]
+                if "pathname" in kwarg_names:
+                    violations.append(node.lineno)
+
+        assert not violations, (
+            f"get_current_user_id() called with pathname= (wrong kwarg) at relative lines: {violations}"
+        )

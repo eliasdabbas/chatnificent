@@ -595,20 +595,32 @@ class TestServerParityContract:
         call_kwargs = app.auth.get_current_user_id.call_args
         assert call_kwargs.kwargs.get("session_id") == "session_abc"
 
-    def test_dashserver_auth_divergence_documented(self):
-        """DashServer currently does NOT pass session_id to auth (known divergence).
+    def test_dashserver_auth_parity_achieved(self):
+        """DashServer now passes session_id to auth, matching DevServer.
 
-        This test documents the current behavior. When DashServer is fixed
-        to pass session_id, this test should be updated to assert parity.
+        See tests/unit/server/test_dash.py::TestDashServerAuthParity for
+        the full behavioral and structural contract tests.
         """
-        from chatnificent._callbacks import _filter_display_messages
+        dash = pytest.importorskip("dash", reason="DashServer parity test requires dash")
+        import ast
+        import inspect
 
-        # The DashServer callback code calls:
-        #   user_id = url_parts.user_id or app.auth.get_current_user_id()
-        # Note: no session_id kwarg — this is the divergence.
-        # This is a documentation test, not a behavioral assertion.
-        # The fix (Step 7) will align DashServer with DevServer.
-        pass
+        from chatnificent import _callbacks
+
+        source = inspect.getsource(_callbacks.register_callbacks)
+        tree = ast.parse(source)
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if (
+                isinstance(node.func, ast.Attribute)
+                and node.func.attr == "get_current_user_id"
+            ):
+                kwarg_names = [kw.arg for kw in node.keywords]
+                assert "session_id" in kwarg_names, (
+                    f"Line {node.lineno}: get_current_user_id() missing session_id"
+                )
 
     def test_devserver_url_build_path_contract(self):
         """DevServer uses url.build_conversation_path for response paths."""

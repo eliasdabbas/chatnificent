@@ -1,8 +1,14 @@
 """Atomic callback architecture for Chatnificent."""
 
+import flask
 from dash import ALL, Input, Output, State, callback_context, no_update
 
 from .models import ASSISTANT_ROLE, SYSTEM_ROLE, USER_ROLE
+
+
+def _get_session_id():
+    """Read the chatnificent_session cookie from the current Flask request."""
+    return flask.request.cookies.get("chatnificent_session")
 
 
 def _filter_display_messages(messages, llm):
@@ -63,12 +69,14 @@ def register_callbacks(dash_app, app):
 
         try:
             url_parts = app.url.parse(pathname, search)
-            user_id = url_parts.user_id or app.auth.get_current_user_id()
+            user_id = url_parts.user_id or app.auth.get_current_user_id(
+                session_id=_get_session_id()
+            )
             convo_id_from_url = url_parts.convo_id
         except Exception as e:
             # Fallback: Generate emergency user_id for error tracking/handling
             try:
-                user_id = app.auth.get_current_user_id()  # Last resort auth call
+                user_id = app.auth.get_current_user_id(session_id=_get_session_id())
             except:
                 user_id = "error_user"  # Ultimate fallback
 
@@ -108,15 +116,13 @@ def register_callbacks(dash_app, app):
             if not convo_id:
                 return []
             user_id = url_parts.user_id or app.auth.get_current_user_id(
-                pathname=pathname
+                session_id=_get_session_id()
             )
             conversation = app.store.load_conversation(user_id, convo_id)
             if not conversation or not conversation.messages:
                 return []
 
-            filtered_messages = _filter_display_messages(
-                conversation.messages, app.llm
-            )
+            filtered_messages = _filter_display_messages(conversation.messages, app.llm)
             if not filtered_messages:
                 return []
             return app.layout.build_messages(filtered_messages)
@@ -139,7 +145,9 @@ def register_callbacks(dash_app, app):
 
         try:
             url_parts = app.url.parse(current_pathname)
-            user_id = url_parts.user_id or app.auth.get_current_user_id()
+            user_id = url_parts.user_id or app.auth.get_current_user_id(
+                session_id=_get_session_id()
+            )
             new_path = app.url.build_new_chat_path(user_id)
             return new_path, True
         except Exception:
@@ -162,7 +170,9 @@ def register_callbacks(dash_app, app):
             ctx = callback_context
             selected_convo_id = ctx.triggered_id["id"]
             url_parts = app.url.parse(current_pathname)
-            user_id = url_parts.user_id or app.auth.get_current_user_id()
+            user_id = url_parts.user_id or app.auth.get_current_user_id(
+                session_id=_get_session_id()
+            )
             new_path = app.url.build_conversation_path(user_id, selected_convo_id)
             return new_path, True
         except Exception:
@@ -192,7 +202,9 @@ def register_callbacks(dash_app, app):
 
         try:
             url_parts = app.url.parse(pathname, search)
-            user_id = url_parts.user_id or app.auth.get_current_user_id()
+            user_id = url_parts.user_id or app.auth.get_current_user_id(
+                session_id=_get_session_id()
+            )
             conversation_ids = app.store.list_conversations(user_id)
 
             conversation_items = []
@@ -201,7 +213,8 @@ def register_callbacks(dash_app, app):
 
                 if conv and conv.messages:
                     first_user_msg = next(
-                        (msg for msg in conv.messages if msg.get("role") == USER_ROLE), None
+                        (msg for msg in conv.messages if msg.get("role") == USER_ROLE),
+                        None,
                     )
                     if first_user_msg:
                         # Handle potential non-string content for title display

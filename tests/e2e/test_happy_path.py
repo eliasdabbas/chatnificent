@@ -61,9 +61,7 @@ def running_devserver():
     _wait_for_server("127.0.0.1", port)
 
     jar = http.cookiejar.CookieJar()
-    opener = urllib.request.build_opener(
-        urllib.request.HTTPCookieProcessor(jar)
-    )
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
     yield {
         "host": "127.0.0.1",
@@ -153,9 +151,7 @@ class TestHappyPath:
         )
         convo_id = chat_data["conversation_id"]
 
-        convo_data = _get_json(
-            running_devserver, f"/api/conversations/{convo_id}"
-        )
+        convo_data = _get_json(running_devserver, f"/api/conversations/{convo_id}")
         assert convo_data["id"] == convo_id
         assert len(convo_data["messages"]) >= 2
 
@@ -180,12 +176,8 @@ class TestHappyPath:
 
         assert data2["conversation_id"] == convo_id
 
-        convo_data = _get_json(
-            running_devserver, f"/api/conversations/{convo_id}"
-        )
-        user_messages = [
-            m for m in convo_data["messages"] if m.get("role") == "user"
-        ]
+        convo_data = _get_json(running_devserver, f"/api/conversations/{convo_id}")
+        user_messages = [m for m in convo_data["messages"] if m.get("role") == "user"]
         assert len(user_messages) >= 2
 
     def test_empty_message_returns_400(self, running_devserver):

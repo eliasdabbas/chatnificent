@@ -7,7 +7,6 @@ round-trip faithfully through all Store implementations (InMemory, File, SQLite)
 import pytest
 from chatnificent.models import Conversation
 
-
 # =============================================================================
 # Provider-native message fixtures — shapes taken from each LLM's
 # create_assistant_message() output

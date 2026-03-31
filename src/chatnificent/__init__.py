@@ -90,9 +90,21 @@ class Chatnificent:
                 import warnings
 
                 warnings.warn(
-                    "No LLM provider SDK found — falling back to EchoLLM (mirrors your input). "
+                    "No LLM provider SDK found — falling back to Echo (mirrors your input). "
                     "Install a provider, e.g.: pip install 'chatnificent[openai]', "
                     "'chatnificent[anthropic]', 'chatnificent[gemini]', or 'chatnificent[ollama]'",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                from .llm import Echo
+
+                self.llm = Echo()
+            except Exception as exc:
+                import warnings
+
+                warnings.warn(
+                    f"LLM provider failed to initialize ({exc}) — falling back to Echo (mirrors your input). "
+                    "Check your API key and environment configuration.",
                     UserWarning,
                     stacklevel=2,
                 )

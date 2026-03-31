@@ -70,6 +70,20 @@ class TestChatnificentInit:
 
                 assert isinstance(app.llm, Echo)
                 mock_warn.assert_called_once()
+                assert "No LLM provider SDK found" in str(mock_warn.call_args)
+
+    def test_echo_llm_fallback_on_misconfigured_provider(self):
+        """Test fallback to Echo LLM when provider SDK is installed but misconfigured."""
+        with patch(
+            "chatnificent.llm.OpenAI",
+            side_effect=ValueError("OpenAI API key not found."),
+        ):
+            with patch("warnings.warn") as mock_warn:
+                app = Chatnificent()
+
+                assert isinstance(app.llm, Echo)
+                mock_warn.assert_called_once()
+                assert "failed to initialize" in str(mock_warn.call_args)
 
     def test_devserver_fallback_without_dash(self):
         """Without Dash, Chatnificent falls back to DevServer."""

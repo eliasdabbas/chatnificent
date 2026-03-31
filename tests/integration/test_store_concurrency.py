@@ -5,6 +5,7 @@ access using real threads (not sequential "concurrent" simulations).
 """
 
 import concurrent.futures
+
 import pytest
 from chatnificent.models import Conversation
 
@@ -143,9 +144,7 @@ class TestStoreConcurrency:
             for j in range(convos_per_user):
                 convo = Conversation(
                     id=f"c_{j}",
-                    messages=[
-                        {"role": "user", "content": f"user{user_idx} msg{j}"}
-                    ],
+                    messages=[{"role": "user", "content": f"user{user_idx} msg{j}"}],
                 )
                 store.save_conversation(user_id, convo)
 

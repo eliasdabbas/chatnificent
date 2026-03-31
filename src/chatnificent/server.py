@@ -243,7 +243,8 @@ class _DevHandler(SimpleHTTPRequestHandler):
                     if first_user:
                         content = first_user.get("content", "")
                         if isinstance(content, str) and content.strip():
-                            title = content.strip()[:30]
+                            stripped = content.strip()
+                            title = stripped[:30] + ("…" if len(stripped) > 30 else "")
                 conversations.append({"id": cid, "title": title})
             conversations = self._render_conversations_for_display(
                 user_id, conversations

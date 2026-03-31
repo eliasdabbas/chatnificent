@@ -484,6 +484,52 @@ class TestDevHandlerLayoutIntegration:
 
         app.layout.render_conversations.assert_called_once()
 
+    def test_list_conversations_title_truncated_with_ellipsis(self, app):
+        from chatnificent.models import Conversation
+
+        long_msg = "A" * 50
+        app.store.save_conversation(
+            "user1",
+            Conversation(
+                id="conv1",
+                messages=[{"role": "user", "content": long_msg}],
+            ),
+        )
+
+        response = self._make_handler(
+            app,
+            "GET",
+            "/api/conversations",
+            cookie="chatnificent_session=user1",
+        )
+        data = self._extract_json(response)
+
+        title = data["conversations"][0]["title"]
+        assert title == "A" * 30 + "…"
+
+    def test_list_conversations_short_title_no_ellipsis(self, app):
+        from chatnificent.models import Conversation
+
+        app.store.save_conversation(
+            "user1",
+            Conversation(
+                id="conv1",
+                messages=[{"role": "user", "content": "short"}],
+            ),
+        )
+
+        response = self._make_handler(
+            app,
+            "GET",
+            "/api/conversations",
+            cookie="chatnificent_session=user1",
+        )
+        data = self._extract_json(response)
+
+        title = data["conversations"][0]["title"]
+        assert title == "short"
+        assert "…" not in title
+
 
 # =============================================================================
 # Server Parity Contract Tests

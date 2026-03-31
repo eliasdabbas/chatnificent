@@ -725,8 +725,7 @@
                                     if (payload.data && payload.data.conversation_id) {
                                         convoId = payload.data.conversation_id;
                                         history.replaceState({ convoId: convoId }, "", payload.data.path || "/" + convoId);
-                                        refreshConvoList();
-                                        loadConvo(convoId, true);
+                                        upsertSidebarEntry(convoId, text.length > 30 ? text.slice(0, 30) + "…" : text);
                                     }
                                     bubble.innerHTML = renderMarkdown(accumulated);
                                 } else if (payload.event === "error") {
@@ -741,7 +740,7 @@
                             renderMessageList(data.messages || []);
                             convoId = data.conversation_id;
                             history.replaceState({ convoId: convoId }, "", data.path || "/" + convoId);
-                            refreshConvoList();
+                            upsertSidebarEntry(convoId, text.length > 30 ? text.slice(0, 30) + "…" : text);
                         }
                     }
                 } catch (e) { hideLoading(); addMsg("assistant", "Error: " + e.message); }
@@ -760,11 +759,30 @@
                         var id = c.id || c, title = c.title || id;
                         var el = document.createElement("div");
                         el.className = "convo-item" + (id === convoId ? " active" : "");
+                        el.dataset.convoId = id;
                         el.textContent = title; el.title = title;
                         el.addEventListener("click", function () { loadConvo(id) });
                         convoList.appendChild(el);
                     });
                 } catch (e) { }
+            }
+            function upsertSidebarEntry(id, title) {
+                var items = convoList.querySelectorAll(".convo-item");
+                var existing = null;
+                for (var i = 0; i < items.length; i++) {
+                    items[i].classList.remove("active");
+                    if (items[i].dataset.convoId === id) existing = items[i];
+                }
+                if (existing) {
+                    existing.classList.add("active");
+                } else {
+                    var el = document.createElement("div");
+                    el.className = "convo-item active";
+                    el.dataset.convoId = id;
+                    el.textContent = title || id; el.title = title || id;
+                    el.addEventListener("click", function () { loadConvo(id) });
+                    convoList.prepend(el);
+                }
             }
             async function loadConvo(id, replaceHistory) {
                 try {

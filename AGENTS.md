@@ -297,6 +297,24 @@ uv pip install -e .
 - **Challenge Bad Ideas**: Question requirements if there's a better approach
 - **Concurrency Awareness**: Design every feature as if it will run under a multi-threaded server
 
+### Prioritization Principles
+
+1. **Fix before you build.** Technical debt erodes trust. A broken SQLite store or a stale AGENTS.md costs more credibility than a missing feature.
+2. **Protect the zero-dep core.** Every decision should ask: "Does this keep the zero-dependency experience intact?" It's the single sharpest differentiator.
+3. **The server handles async, not the engine.** Don't over-engineer the engine with async internals. Let async servers (FastAPI, Starlette) handle concurrency — the engine focuses on per-request orchestration.
+4. **Streaming is the default.** Every LLM provider streams by default. The delightful experience is immediate. Opt out with `stream=False`.
+5. **MCP over most feature work.** MCP is an ecosystem play (force multiplier). Voice is lower priority; file upload can move earlier when it closes genuine multimodal parity gaps across major providers.
+6. **Examples are documentation.** A working example teaches more than a page of API docs. Invest heavily in `/examples` and ship them as agent skills.
+7. **Pillar hardening is continuous.** Don't treat it as a one-time phase gate — every release should improve edge cases, error messages, and validation.
+8. **Ship the boring stuff.** Thread safety, proper error handling, accurate docs — these are what make a framework trustworthy. They're not exciting, but they're what separates a toy from a tool.
+9. **Server extensibility matters.** Provide a solid reference implementation with clear extension points. The goal is consistent behavior across all servers while remaining easy to extend or replace entirely.
+10. **Name the contract precisely.** Be explicit about which layer is canonical for exact provider fidelity (raw logs) and which layer exists to make orchestration pluggable (`Conversation.messages`).
+
+### Persistence Contract
+
+- **Raw API logs** (`raw_api_requests.jsonl`, `raw_api_responses.jsonl`) are the exact provider-fidelity layer — auditing, debugging, and advanced hacking
+- **`Conversation.messages`** is the orchestration layer — the framework's working state for replaying conversations through the engine. Provider-native dict shapes are preserved best-effort, but raw logs are the canonical fidelity source
+
 ### Concurrency Awareness
 
 The current `DevServer` is single-threaded, but Chatnificent is designed to run behind production servers (FastAPI, Starlette, etc.) that dispatch requests across threads or async tasks. **Every new feature must be safe under concurrent access.**
@@ -404,6 +422,62 @@ The `term-missing` flag highlights uncovered lines — use it to identify what s
 **DashServer / Dash layouts** (`_callbacks.py`) — snake_case Dash component IDs:
 `url_location`, `messages_container`, `input_textarea`, `submit_button`, `new_conversation_button`, `conversations_list`, `sidebar`, `sidebar_toggle`, `status_indicator`
 
+## Server Endpoint Contract
+
+Every Chatnificent server implementation must expose these endpoints. DevServer is the reference implementation — StarletteServer, FastAPIServer, and any custom server must produce identical behavior for the same inputs.
+
+> **This contract is provisional.** It reflects DevServer's current behavior and will be refined as async server implementations (Starlette, FastAPI) are built. The e2e and parity tests are the authoritative spec.
+
+### Endpoints
+
+| Method | Path | Request Body | Response | Notes |
+|--------|------|-------------|----------|-------|
+| GET | `/` | — | HTML page (`layout.render_page()`) | Serves the chat UI |
+| GET | `/{user_id}/{convo_id}` | — | HTML page with `<script>window.__CHATNIFICENT_CONVO__="{convo_id}"</script>` injected | Pre-loads conversation |
+| GET | `/api/conversations` | — | `{"conversations": [{"id": "...", "title": "..."}]}` | Titles derived from first user message, truncated to 30 chars + "…" |
+| GET | `/api/conversations/{id}` | — | `{"id": "...", "messages": [...], "path": "..."}` | Messages filtered through `layout.render_messages()`. 404 if not found |
+| POST | `/api/chat` | `{"message": "...", "conversation_id": "..."}` | JSON or SSE stream (see below) | Dispatches based on `llm.default_params["stream"]` |
+
+### Non-Streaming Response (POST /api/chat)
+
+```json
+{
+  "response": "assistant text",
+  "messages": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}],
+  "conversation_id": "abc123",
+  "path": "/conversations/<user_id>/<convo_id>"
+}
+```
+
+Errors: `{"error": "message"}` with HTTP 400 or 500.
+
+### SSE Streaming Response (POST /api/chat)
+
+`Content-Type: text/event-stream`. Each event is `data: {json}\n\n`.
+
+| Event | `data` Payload | Purpose |
+|-------|---------------|---------|
+| `delta` | `"token text"` (string) | Streamed content token |
+| `status` | `"Calling tool: ..."` (string) | Agentic loop status |
+| `done` | `{"conversation_id": "...", "path": "..."}` (object) | Stream complete |
+| `error` | `"error message"` (string) | Error during processing |
+
+### Auth Contract
+
+| Property | Value |
+|----------|-------|
+| Cookie name | `chatnificent_session` |
+| Cookie attributes | `Path=/; SameSite=Lax` |
+| Session resolution | `auth.get_current_user_id(session_id=<cookie_value>)` |
+| Set-Cookie | Only on new sessions (`_new_session=True`) |
+
+### Pillar Delegation
+
+- **Auth**: All endpoints resolve user via `auth.get_current_user_id(session_id=...)` — never bare `get_current_user_id()`
+- **URL**: Path parsing via `url.parse(path)`, path building via `url.build_conversation_path(user_id, convo_id)`
+- **Layout**: `render_page()` for HTML, `render_messages()` for message filtering, `render_conversations()` for sidebar data
+- **Engine**: `handle_message()` (non-streaming) or `handle_message_stream()` (SSE) — server checks `llm.default_params.get("stream", False)`
+
 ## Quick Reference for Agents
 
 **Need to add a new LLM provider?** → Subclass `llm.LLM`, implement `generate_response()` and `extract_content()`
@@ -417,3 +491,14 @@ The `term-missing` flag highlights uncovered lines — use it to identify what s
 **Need tool integration?** → Subclass `tools.Tool`, handle tool call dicts → tool result dicts
 
 **Need a different HTTP server?** → Subclass `server.Server`, implement `create_server()` and `run()`
+
+## Examples Design Constraints
+
+All examples live in `/examples/` as standalone scripts. See `examples/README.md` for the full index.
+
+- Each example is a single `.py` file, not a directory
+- PEP 723 `# /// script` metadata block declares dependencies
+- Every example has `if __name__ == "__main__": app.run()` guard
+- Comprehensive module docstring explaining what the example demonstrates, how to run it, and what to explore next
+- Minimal code — focus on showcasing Chatnificent's API, not unrelated logic
+- Examples should demonstrate user-facing features that make Chatnificent a delight to develop with. Avoid using `print()` to demonstrate functionality

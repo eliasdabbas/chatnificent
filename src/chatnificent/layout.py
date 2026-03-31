@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
 
-from .models import SYSTEM_ROLE
+from .models import SYSTEM_ROLE, USER_ROLE
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 

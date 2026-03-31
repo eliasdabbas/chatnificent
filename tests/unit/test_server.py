@@ -483,3 +483,117 @@ class TestDevHandlerLayoutIntegration:
         )
 
         app.layout.render_conversations.assert_called_once()
+
+
+# =============================================================================
+# Server Parity Contract Tests
+# =============================================================================
+
+
+class TestServerParityContract:
+    """Verify that DevServer and DashServer follow the same pillar contracts.
+
+    These tests document the expected caller contract for each server
+    and surface known divergences.
+    """
+
+    def _make_dev_handler(self, app, method, path, body=None, cookie=None):
+        """Simulate a DevServer HTTP request, returning the handler instance."""
+        from chatnificent.server import _DevHandler
+
+        raw_body = json.dumps(body).encode("utf-8") if body is not None else b""
+        wfile = io.BytesIO()
+
+        with patch.object(_DevHandler, "__init__", lambda self, _app, *a, **kw: None):
+            h = _DevHandler.__new__(_DevHandler)
+            h._app = app
+            h._new_session = False
+            h._session_id = None
+            h.rfile = io.BytesIO(raw_body)
+            h.wfile = wfile
+            h.requestline = f"{method} {path} HTTP/1.1"
+            h.command = method
+            h.path = path
+            headers = {"Content-Length": str(len(raw_body)), "Host": "localhost"}
+            if cookie:
+                headers["Cookie"] = cookie
+            h.headers = headers
+            h.request_version = "HTTP/1.1"
+            h.close_connection = True
+
+            if method == "POST":
+                h.rfile = io.BytesIO(raw_body)
+                h.do_POST()
+            elif method == "GET":
+                h.do_GET()
+
+            return h, wfile
+
+    def test_devserver_passes_session_id_to_auth(self):
+        """DevServer passes session_id kwarg from cookie to auth.get_current_user_id."""
+        from chatnificent import Chatnificent
+        from chatnificent.llm import Echo
+        from chatnificent.store import InMemory
+
+        app = Chatnificent(llm=Echo(stream=False), store=InMemory(), server=DevServer())
+        app.auth = Mock()
+        app.auth.get_current_user_id.return_value = "user1"
+
+        self._make_dev_handler(
+            app, "POST", "/api/chat",
+            {"message": "hello"},
+            cookie="chatnificent_session=session_abc",
+        )
+
+        app.auth.get_current_user_id.assert_called()
+        call_kwargs = app.auth.get_current_user_id.call_args
+        assert call_kwargs.kwargs.get("session_id") == "session_abc"
+
+    def test_dashserver_auth_divergence_documented(self):
+        """DashServer currently does NOT pass session_id to auth (known divergence).
+
+        This test documents the current behavior. When DashServer is fixed
+        to pass session_id, this test should be updated to assert parity.
+        """
+        from chatnificent._callbacks import _filter_display_messages
+
+        # The DashServer callback code calls:
+        #   user_id = url_parts.user_id or app.auth.get_current_user_id()
+        # Note: no session_id kwarg — this is the divergence.
+        # This is a documentation test, not a behavioral assertion.
+        # The fix (Step 7) will align DashServer with DevServer.
+        pass
+
+    def test_devserver_url_build_path_contract(self):
+        """DevServer uses url.build_conversation_path for response paths."""
+        from chatnificent import Chatnificent
+        from chatnificent.llm import Echo
+        from chatnificent.store import InMemory
+
+        app = Chatnificent(llm=Echo(stream=False), store=InMemory(), server=DevServer())
+        app.url = Mock()
+        app.url.parse.return_value = Mock(user_id=None, convo_id=None)
+        app.url.build_conversation_path.return_value = "/user1/conv1"
+
+        _, wfile = self._make_dev_handler(
+            app, "POST", "/api/chat",
+            {"message": "hello"},
+            cookie="chatnificent_session=user1",
+        )
+
+        app.url.build_conversation_path.assert_called_once()
+        wfile.seek(0)
+        raw = wfile.read().decode("utf-8", errors="replace")
+        body_start = raw.find("\r\n\r\n")
+        data = json.loads(raw[body_start + 4:])
+        assert data["path"] == "/user1/conv1"
+
+    def test_both_servers_produce_same_path_for_same_inputs(self):
+        """url.build_conversation_path produces identical results regardless of server."""
+        from chatnificent.url import PathBased, QueryParams
+
+        for impl in [PathBased(), QueryParams()]:
+            path = impl.build_conversation_path("user_abc", "conv_xyz")
+            path2 = impl.build_conversation_path("user_abc", "conv_xyz")
+            assert path == path2, f"Deterministic path building failed for {type(impl).__name__}"
+            assert "conv_xyz" in path

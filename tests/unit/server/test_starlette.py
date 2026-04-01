@@ -503,3 +503,79 @@ class TestASGICallable:
         client = TestClient(app, raise_server_exceptions=False)
         r = client.get("/")
         assert r.status_code == 500
+
+
+# =============================================================================
+# run() — uvicorn kwargs passthrough
+# =============================================================================
+
+
+class TestRunKwargsPassthrough:
+    """StarletteServer.run() passes **kwargs transparently to uvicorn.run()."""
+
+    def test_defaults(self, mocker):
+        """Without kwargs, uses host=127.0.0.1, port=7777, log_level=info."""
+        mock_run = mocker.patch("uvicorn.run")
+        app = _make_app()
+        app.server.run()
+        mock_run.assert_called_once()
+        call_kwargs = mock_run.call_args
+        assert call_kwargs.kwargs["host"] == "127.0.0.1"
+        assert call_kwargs.kwargs["port"] == 7777
+        assert call_kwargs.kwargs["log_level"] == "info"
+
+    def test_custom_host_and_port(self, mocker):
+        """host and port override defaults."""
+        mock_run = mocker.patch("uvicorn.run")
+        app = _make_app()
+        app.server.run(host="0.0.0.0", port=9000)
+        call_kwargs = mock_run.call_args
+        assert call_kwargs.kwargs["host"] == "0.0.0.0"
+        assert call_kwargs.kwargs["port"] == 9000
+
+    def test_debug_sets_log_level(self, mocker):
+        """debug=True maps to log_level='debug'."""
+        mock_run = mocker.patch("uvicorn.run")
+        app = _make_app()
+        app.server.run(debug=True)
+        call_kwargs = mock_run.call_args
+        assert call_kwargs.kwargs["log_level"] == "debug"
+
+    def test_explicit_log_level_overrides_debug(self, mocker):
+        """Explicit log_level takes precedence over debug flag."""
+        mock_run = mocker.patch("uvicorn.run")
+        app = _make_app()
+        app.server.run(debug=True, log_level="warning")
+        call_kwargs = mock_run.call_args
+        assert call_kwargs.kwargs["log_level"] == "warning"
+
+    def test_extra_kwargs_passed_to_uvicorn(self, mocker):
+        """Arbitrary uvicorn kwargs are forwarded transparently."""
+        mock_run = mocker.patch("uvicorn.run")
+        app = _make_app()
+        app.server.run(
+            workers=4,
+            reload=True,
+            timeout_keep_alive=30,
+            ssl_keyfile="/path/to/key.pem",
+        )
+        call_kwargs = mock_run.call_args.kwargs
+        assert call_kwargs["workers"] == 4
+        assert call_kwargs["reload"] is True
+        assert call_kwargs["timeout_keep_alive"] == 30
+        assert call_kwargs["ssl_keyfile"] == "/path/to/key.pem"
+
+    def test_debug_not_forwarded_to_uvicorn(self, mocker):
+        """debug is a Chatnificent flag, not a uvicorn parameter."""
+        mock_run = mocker.patch("uvicorn.run")
+        app = _make_app()
+        app.server.run(debug=True)
+        call_kwargs = mock_run.call_args.kwargs
+        assert "debug" not in call_kwargs
+
+    def test_first_arg_is_asgi_app(self, mocker):
+        """First positional arg to uvicorn.run is the ASGI app."""
+        mock_run = mocker.patch("uvicorn.run")
+        app = _make_app()
+        app.server.run()
+        assert mock_run.call_args.args[0] is app.server.asgi_app

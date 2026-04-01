@@ -6,8 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.0.16] — 2026-04-02
+
+StarletteServer — production-grade async ASGI server with full uvicorn integration.
+
 ### Added
 
+- **Server**: `StarletteServer` — production-grade async server using Starlette + Uvicorn with SSE streaming, thread-offloaded sync pillar code via `anyio.to_thread.run_sync`, route prefix support, and ASGI `__call__` on `Chatnificent` for direct `uvicorn app:app` usage
+- **Server**: `Starlette.run(**kwargs)` passes all keyword arguments transparently to `uvicorn.run()` — port, reload, workers, SSL, timeouts, etc. Auto-resolves import string from `__main__` so `reload=True` and `workers=N` just work
+- **Server**: shared helper methods on `Server` base class — `_build_conversation_title()`, `_extract_last_response()`, `_is_llm_streaming()`, `_render_messages()`, `_render_conversations()` — eliminating duplication across DevServer and StarletteServer
+- **Server**: `starlette` optional dependency group (`pip install chatnificent[starlette]`)
+- **Init**: `Chatnificent.__call__` ASGI protocol support — delegates to `server.asgi_app` for StarletteServer
 - **Store**: thread-safe locking for InMemory store (`threading.Lock` around all dict mutations)
 - **Docs**: concurrency guidelines added to AGENTS.md
 - **Docs**: prioritization principles and examples design constraints moved from ROADMAP to AGENTS.md
@@ -17,10 +26,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Server**: DevServer refactored to use shared base class helpers via `_server` property
 - **LLM**: replaced `_last_request_payload` class variable with `build_request_payload()` method — eliminates shared mutable state across requests
 
 ### Fixed
 
+- **Server**: DashServer auth aligned with DevServer `session_id` contract
+- **Layout**: added missing `USER_ROLE` import in DashLayout
 - **LLM**: Gemini `create_assistant_message()` now preserves `thought_signature` on function-call parts, fixing `400 INVALID_ARGUMENT` when replaying tool-calling conversations
 
 ## [0.0.15] — 2026-03-26

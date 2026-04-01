@@ -584,6 +584,9 @@ class Starlette(Server):
         return self.asgi_app
 
     def run(self, **kwargs) -> None:
+        import sys
+        from pathlib import Path
+
         import uvicorn
 
         kwargs.setdefault("host", "127.0.0.1")
@@ -593,11 +596,22 @@ class Starlette(Server):
         if "log_level" not in kwargs:
             kwargs["log_level"] = "debug" if debug else "info"
 
+        # Auto-resolve import string so uvicorn.run() parameters just work.
+        # Explicit app="module:var" overrides.
+        if "app" not in kwargs:
+            main = sys.modules.get("__main__")
+            if main:
+                for name, obj in vars(main).items():
+                    if obj is self.app:
+                        kwargs["app"] = f"{Path(sys.argv[0]).stem}:{name}"
+                        break
+        app_target = kwargs.pop("app", self.asgi_app)
+
         print(
             f"Chatnificent Starlette server running on"
             f" http://{kwargs['host']}:{kwargs['port']}"
         )
-        uvicorn.run(self.asgi_app, **kwargs)
+        uvicorn.run(app_target, **kwargs)
 
     # -- Path helpers ---------------------------------------------------------
 

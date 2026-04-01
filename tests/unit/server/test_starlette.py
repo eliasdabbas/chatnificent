@@ -573,9 +573,73 @@ class TestRunKwargsPassthrough:
         call_kwargs = mock_run.call_args.kwargs
         assert "debug" not in call_kwargs
 
-    def test_first_arg_is_asgi_app(self, mocker):
-        """First positional arg to uvicorn.run is the ASGI app."""
+    def test_explicit_app_import_string(self, mocker):
+        """Explicit app='module:var' is passed as first arg to uvicorn."""
         mock_run = mocker.patch("uvicorn.run")
         app = _make_app()
+        app.server.run(app="myapp:app")
+        assert mock_run.call_args.args[0] == "myapp:app"
+
+    def test_app_kwarg_not_forwarded_to_uvicorn(self, mocker):
+        """app is consumed by run(), not passed as a kwarg to uvicorn."""
+        mock_run = mocker.patch("uvicorn.run")
+        app = _make_app()
+        app.server.run(app="myapp:app")
+        assert "app" not in mock_run.call_args.kwargs
+
+    def test_auto_resolves_import_string_from_main(self, mocker):
+        """Without explicit app kwarg, resolves import string from __main__."""
+        import sys
+        import types
+
+        mock_run = mocker.patch("uvicorn.run")
+        app = _make_app()
+        fake_main = types.ModuleType("__main__")
+        fake_main.my_chat = app
+        mocker.patch.dict(sys.modules, {"__main__": fake_main})
+        mocker.patch("sys.argv", ["my_script.py"])
+        app.server.run()
+        assert mock_run.call_args.args[0] == "my_script:my_chat"
+
+    def test_auto_resolve_strips_path(self, mocker):
+        """Auto-resolved import string uses just the module stem."""
+        import sys
+        import types
+
+        mock_run = mocker.patch("uvicorn.run")
+        app = _make_app()
+        fake_main = types.ModuleType("__main__")
+        fake_main.chatbot = app
+        mocker.patch.dict(sys.modules, {"__main__": fake_main})
+        mocker.patch("sys.argv", ["/full/path/to/server.py"])
+        app.server.run()
+        assert mock_run.call_args.args[0] == "server:chatbot"
+
+    def test_falls_back_to_asgi_object(self, mocker):
+        """Falls back to ASGI app object when not found in __main__."""
+        import sys
+        import types
+
+        mock_run = mocker.patch("uvicorn.run")
+        app = _make_app()
+        fake_main = types.ModuleType("__main__")
+        fake_main.other_var = "not the app"
+        mocker.patch.dict(sys.modules, {"__main__": fake_main})
         app.server.run()
         assert mock_run.call_args.args[0] is app.server.asgi_app
+
+    def test_two_instances_resolves_first(self, mocker):
+        """With two Chatnificent instances in __main__, picks the matching one."""
+        import sys
+        import types
+
+        mock_run = mocker.patch("uvicorn.run")
+        app1 = _make_app()
+        app2 = _make_app()
+        fake_main = types.ModuleType("__main__")
+        fake_main.first_app = app1
+        fake_main.second_app = app2
+        mocker.patch.dict(sys.modules, {"__main__": fake_main})
+        mocker.patch("sys.argv", ["server.py"])
+        app2.server.run()
+        assert mock_run.call_args.args[0] == "server:second_app"

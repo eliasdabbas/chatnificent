@@ -655,3 +655,215 @@ class TestServerParityContract:
             path2 = impl.build_conversation_path("user_abc", "conv_xyz")
             assert path == path2, f"Deterministic path building failed for {type(impl).__name__}"
             assert "conv_xyz" in path
+
+
+# =============================================================================
+# Shared Server Helpers — base class methods
+# =============================================================================
+
+
+class _StubServer(Server):
+    """Minimal concrete Server for testing base-class helpers."""
+
+    def create_server(self, **kwargs):
+        return None
+
+    def run(self, **kwargs):
+        pass
+
+
+class TestBuildConversationTitle:
+    """Server._build_conversation_title extracts a display title from a Conversation."""
+
+    def _server(self):
+        return _StubServer()
+
+    def test_short_message_used_as_title(self):
+        from chatnificent.models import Conversation
+
+        convo = Conversation(
+            id="c1", messages=[{"role": "user", "content": "Hello world"}]
+        )
+        assert self._server()._build_conversation_title(convo) == "Hello world"
+
+    def test_long_message_truncated_with_ellipsis(self):
+        from chatnificent.models import Conversation
+
+        long_msg = "a" * 50
+        convo = Conversation(id="c1", messages=[{"role": "user", "content": long_msg}])
+        title = self._server()._build_conversation_title(convo)
+        assert title == "a" * 30 + "…"
+        assert len(title) == 31
+
+    def test_exactly_30_chars_no_ellipsis(self):
+        from chatnificent.models import Conversation
+
+        msg = "x" * 30
+        convo = Conversation(id="c1", messages=[{"role": "user", "content": msg}])
+        assert self._server()._build_conversation_title(convo) == msg
+
+    def test_falls_back_to_convo_id(self):
+        """Conversation with no user messages falls back to id."""
+        from chatnificent.models import Conversation
+
+        convo = Conversation(
+            id="abc123", messages=[{"role": "assistant", "content": "hi"}]
+        )
+        assert self._server()._build_conversation_title(convo) == "abc123"
+
+    def test_empty_messages_falls_back_to_id(self):
+        from chatnificent.models import Conversation
+
+        convo = Conversation(id="abc123", messages=[])
+        assert self._server()._build_conversation_title(convo) == "abc123"
+
+    def test_whitespace_only_content_falls_back_to_id(self):
+        from chatnificent.models import Conversation
+
+        convo = Conversation(
+            id="c1", messages=[{"role": "user", "content": "   "}]
+        )
+        assert self._server()._build_conversation_title(convo) == "c1"
+
+    def test_non_string_content_falls_back_to_id(self):
+        from chatnificent.models import Conversation
+
+        convo = Conversation(
+            id="c1", messages=[{"role": "user", "content": [{"type": "text"}]}]
+        )
+        assert self._server()._build_conversation_title(convo) == "c1"
+
+    def test_strips_leading_trailing_whitespace(self):
+        from chatnificent.models import Conversation
+
+        convo = Conversation(
+            id="c1", messages=[{"role": "user", "content": "  hello  "}]
+        )
+        assert self._server()._build_conversation_title(convo) == "hello"
+
+    def test_skips_system_messages(self):
+        """First message might be system — title comes from first user message."""
+        from chatnificent.models import Conversation
+
+        convo = Conversation(
+            id="c1",
+            messages=[
+                {"role": "system", "content": "You are helpful"},
+                {"role": "user", "content": "actual question"},
+            ],
+        )
+        assert self._server()._build_conversation_title(convo) == "actual question"
+
+
+class TestExtractLastResponse:
+    """Server._extract_last_response finds last assistant content from display messages."""
+
+    def _server(self):
+        return _StubServer()
+
+    def test_returns_last_assistant_content(self):
+        msgs = [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "first"},
+            {"role": "user", "content": "again"},
+            {"role": "assistant", "content": "second"},
+        ]
+        assert self._server()._extract_last_response(msgs) == "second"
+
+    def test_empty_when_no_assistant(self):
+        msgs = [{"role": "user", "content": "hello"}]
+        assert self._server()._extract_last_response(msgs) == ""
+
+    def test_empty_list(self):
+        assert self._server()._extract_last_response([]) == ""
+
+    def test_skips_none_content(self):
+        msgs = [
+            {"role": "assistant", "content": "real"},
+            {"role": "assistant", "content": None},
+        ]
+        assert self._server()._extract_last_response(msgs) == "real"
+
+    def test_skips_whitespace_only_content(self):
+        msgs = [
+            {"role": "assistant", "content": "real"},
+            {"role": "assistant", "content": "   "},
+        ]
+        assert self._server()._extract_last_response(msgs) == "real"
+
+
+class TestIsLlmStreaming:
+    """Server._is_llm_streaming checks the LLM's streaming configuration."""
+
+    def _server_with_llm(self, llm):
+        srv = _StubServer()
+        srv.app = Mock()
+        srv.app.llm = llm
+        return srv
+
+    def test_true_when_default_params_stream(self):
+        llm = Mock()
+        llm.default_params = {"stream": True}
+        llm._streaming = False
+        assert self._server_with_llm(llm)._is_llm_streaming() is True
+
+    def test_true_when_streaming_flag(self):
+        llm = Mock()
+        llm.default_params = {}
+        llm._streaming = True
+        assert self._server_with_llm(llm)._is_llm_streaming() is True
+
+    def test_false_by_default(self):
+        llm = Mock(spec=[])  # no default_params, no _streaming
+        assert self._server_with_llm(llm)._is_llm_streaming() is False
+
+    def test_false_when_stream_explicit_false(self):
+        llm = Mock()
+        llm.default_params = {"stream": False}
+        del llm._streaming
+        assert self._server_with_llm(llm)._is_llm_streaming() is False
+
+
+class TestRenderMessages:
+    """Server._render_messages delegates to the Layout pillar."""
+
+    def test_delegates_to_layout(self):
+        from chatnificent.models import Conversation
+
+        srv = _StubServer()
+        srv.app = Mock()
+        srv.app.layout.render_messages.return_value = [{"role": "assistant", "content": "filtered"}]
+
+        convo = Conversation(
+            id="c1",
+            messages=[
+                {"role": "user", "content": "hi"},
+                {"role": "assistant", "content": "filtered"},
+            ],
+        )
+        result = srv._render_messages("user1", convo)
+
+        srv.app.layout.render_messages.assert_called_once_with(
+            convo.messages,
+            user_id="user1",
+            convo_id="c1",
+            conversation=convo,
+        )
+        assert result == [{"role": "assistant", "content": "filtered"}]
+
+
+class TestRenderConversations:
+    """Server._render_conversations delegates to the Layout pillar."""
+
+    def test_delegates_to_layout(self):
+        srv = _StubServer()
+        srv.app = Mock()
+        convos = [{"id": "c1", "title": "Hello"}]
+        srv.app.layout.render_conversations.return_value = convos
+
+        result = srv._render_conversations("user1", convos)
+
+        srv.app.layout.render_conversations.assert_called_once_with(
+            convos, user_id="user1"
+        )
+        assert result == convos

@@ -56,6 +56,105 @@ class Server(ABC):
         """
         pass
 
+    # -- Shared helpers -------------------------------------------------------
+    # Non-abstract methods available to all server implementations. These
+    # eliminate duplicated logic across DevServer, Starlette, etc.
+
+    def _build_conversation_title(self, conversation):
+        """Derive a display title from a Conversation's first user message.
+
+        Parameters
+        ----------
+        conversation : Conversation
+            The conversation to extract a title from.
+
+        Returns
+        -------
+        str
+            First user message content truncated to 30 chars with "…",
+            or the conversation id as fallback.
+        """
+        if conversation and conversation.messages:
+            first_user = next(
+                (m for m in conversation.messages if m.get("role") == USER_ROLE),
+                None,
+            )
+            if first_user:
+                content = first_user.get("content", "")
+                if isinstance(content, str) and content.strip():
+                    stripped = content.strip()
+                    return stripped[:30] + ("…" if len(stripped) > 30 else "")
+        return conversation.id if conversation else ""
+
+    def _extract_last_response(self, display_messages):
+        """Extract the last assistant message content from display messages.
+
+        Parameters
+        ----------
+        display_messages : list[dict]
+            Messages already filtered for display.
+
+        Returns
+        -------
+        str
+            The content of the last non-empty assistant message, or "".
+        """
+        assistant_messages = [
+            msg
+            for msg in display_messages
+            if msg.get("role") == ASSISTANT_ROLE
+            and msg.get("content") is not None
+            and str(msg.get("content", "")).strip() != ""
+        ]
+        return assistant_messages[-1]["content"] if assistant_messages else ""
+
+    def _is_llm_streaming(self):
+        """Check if the configured LLM is set up for streaming.
+
+        Returns
+        -------
+        bool
+        """
+        llm = self.app.llm
+        if getattr(llm, "default_params", {}).get("stream", False):
+            return True
+        if hasattr(llm, "_streaming") and llm._streaming:
+            return True
+        return False
+
+    def _render_messages(self, user_id, conversation):
+        """Delegate message filtering to the Layout pillar.
+
+        Parameters
+        ----------
+        user_id : str
+        conversation : Conversation
+
+        Returns
+        -------
+        list[dict]
+        """
+        return self.app.layout.render_messages(
+            conversation.messages,
+            user_id=user_id,
+            convo_id=conversation.id,
+            conversation=conversation,
+        )
+
+    def _render_conversations(self, user_id, conversations):
+        """Delegate conversation-list shaping to the Layout pillar.
+
+        Parameters
+        ----------
+        user_id : str
+        conversations : list[dict]
+
+        Returns
+        -------
+        list[dict]
+        """
+        return self.app.layout.render_conversations(conversations, user_id=user_id)
+
 
 # =============================================================================
 # DevServer — zero-dependency stdlib server for development & demonstration
@@ -111,37 +210,16 @@ class _DevHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         if self.path == "/api/chat":
-            if self._is_streaming():
+            if self._server._is_llm_streaming():
                 self._handle_chat_stream()
             else:
                 self._handle_chat()
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
 
-    def _is_streaming(self):
-        """Check if the configured LLM is set up for streaming."""
-        llm = self._app.llm
-        if getattr(llm, "default_params", {}).get("stream", False):
-            return True
-        if hasattr(llm, "_streaming") and llm._streaming:
-            return True
-        return False
-
-    def _render_messages_for_display(self, user_id, conversation):
-        """Delegate visible transcript shaping to the Layout pillar."""
-        return self._app.layout.render_messages(
-            conversation.messages,
-            user_id=user_id,
-            convo_id=conversation.id,
-            conversation=conversation,
-        )
-
-    def _render_conversations_for_display(self, user_id, conversations):
-        """Delegate conversation-list shaping to the Layout pillar."""
-        return self._app.layout.render_conversations(
-            conversations,
-            user_id=user_id,
-        )
+    @property
+    def _server(self):
+        return self._app.server
 
     def _handle_chat(self):
         try:
@@ -158,17 +236,8 @@ class _DevHandler(SimpleHTTPRequestHandler):
             convo_id = body.get("conversation_id")
 
             conversation = self._app.engine.handle_message(message, user_id, convo_id)
-            display_messages = self._render_messages_for_display(user_id, conversation)
-            assistant_messages = [
-                msg
-                for msg in display_messages
-                if msg.get("role") == ASSISTANT_ROLE
-                and msg.get("content") is not None
-                and str(msg.get("content", "")).strip() != ""
-            ]
-            last_response = (
-                assistant_messages[-1]["content"] if assistant_messages else ""
-            )
+            display_messages = self._server._render_messages(user_id, conversation)
+            last_response = self._server._extract_last_response(display_messages)
 
             self._respond_json(
                 {
@@ -234,21 +303,9 @@ class _DevHandler(SimpleHTTPRequestHandler):
             conversations = []
             for cid in convo_ids:
                 convo = self._app.store.load_conversation(user_id, cid)
-                title = cid
-                if convo and convo.messages:
-                    first_user = next(
-                        (m for m in convo.messages if m.get("role") == USER_ROLE),
-                        None,
-                    )
-                    if first_user:
-                        content = first_user.get("content", "")
-                        if isinstance(content, str) and content.strip():
-                            stripped = content.strip()
-                            title = stripped[:30] + ("…" if len(stripped) > 30 else "")
+                title = self._server._build_conversation_title(convo) if convo else cid
                 conversations.append({"id": cid, "title": title})
-            conversations = self._render_conversations_for_display(
-                user_id, conversations
-            )
+            conversations = self._server._render_conversations(user_id, conversations)
             self._respond_json({"conversations": conversations})
         except Exception as e:
             logger.exception("DevServer error in /api/conversations")
@@ -264,7 +321,7 @@ class _DevHandler(SimpleHTTPRequestHandler):
                 )
                 return
 
-            messages = self._render_messages_for_display(user_id, conversation)
+            messages = self._server._render_messages(user_id, conversation)
             self._respond_json(
                 {
                     "id": conversation.id,
@@ -409,3 +466,330 @@ class DashServer(Server):
 
     def run(self, **kwargs) -> None:
         self.dash_app.run(**kwargs)
+
+
+# =============================================================================
+# Starlette — production-grade async ASGI server
+# =============================================================================
+
+
+class Starlette(Server):
+    """Production-grade async server using Starlette + Uvicorn.
+
+    Implements the same endpoint contract as DevServer with async handlers
+    that wrap the synchronous engine via ``anyio.to_thread.run_sync``.
+
+    Parameters
+    ----------
+    app : Chatnificent, optional
+        Back-reference set by the framework during init.
+    prefix : str
+        URL prefix for sub-app mounting (e.g. ``"/chat"``). Prepended to
+        all outgoing paths in JSON responses.
+    debug : bool
+        Forwarded to ``starlette.applications.Starlette(debug=...)``.
+    routes : sequence, optional
+        Additional Starlette ``Route`` objects. Prepended before framework
+        routes so user routes take priority (first-match wins).
+    middleware : sequence, optional
+        Starlette ``Middleware`` descriptors forwarded to the app constructor.
+    exception_handlers : mapping, optional
+        Forwarded to ``starlette.applications.Starlette``.
+    lifespan : callable, optional
+        ASGI lifespan handler for startup/shutdown hooks.
+
+    Examples
+    --------
+    Minimal:
+
+    >>> import chatnificent as chat
+    >>> app = chat.Chatnificent(server=chat.server.Starlette())
+    >>> app.run()  # http://127.0.0.1:7777
+
+    Direct uvicorn (enables ``--workers``, ``--reload``, etc.):
+
+    >>> app = chat.Chatnificent(server=chat.server.Starlette())
+    >>> # $ uvicorn app:app
+
+    With CORS middleware:
+
+    >>> from starlette.middleware import Middleware
+    >>> from starlette.middleware.cors import CORSMiddleware
+    >>> server = chat.server.Starlette(
+    ...     middleware=[Middleware(CORSMiddleware, allow_origins=["*"])],
+    ... )
+
+    Mount under a prefix alongside other routes:
+
+    >>> server = chat.server.Starlette(prefix="/chat")
+    >>> # Mount(path="/chat", app=chatapp.server.asgi_app)
+    """
+
+    def __init__(
+        self,
+        app=None,
+        *,
+        prefix="",
+        debug=False,
+        routes=None,
+        middleware=None,
+        exception_handlers=None,
+        lifespan=None,
+    ):
+        super().__init__(app)
+        self.asgi_app = None
+        self._prefix = prefix.rstrip("/")
+        self._debug = debug
+        self._user_routes = list(routes) if routes else []
+        self._middleware = list(middleware) if middleware else []
+        self._exception_handlers = (
+            dict(exception_handlers) if exception_handlers else {}
+        )
+        self._lifespan = lifespan
+
+    def create_server(self, **kwargs) -> Any:
+        import starlette.applications
+        import starlette.routing
+
+        framework_routes = [
+            starlette.routing.Route("/api/chat", self._handle_chat, methods=["POST"]),
+            starlette.routing.Route(
+                "/api/conversations/{convo_id:path}",
+                self._handle_load_conversation,
+                methods=["GET"],
+            ),
+            starlette.routing.Route(
+                "/api/conversations",
+                self._handle_list_conversations,
+                methods=["GET"],
+            ),
+            starlette.routing.Route("/{path:path}", self._handle_page, methods=["GET"]),
+            starlette.routing.Route("/", self._handle_page, methods=["GET"]),
+        ]
+        self.routes = self._user_routes + framework_routes
+
+        starlette_kwargs = {}
+        if self._middleware:
+            starlette_kwargs["middleware"] = self._middleware
+        if self._exception_handlers:
+            starlette_kwargs["exception_handlers"] = self._exception_handlers
+        if self._lifespan:
+            starlette_kwargs["lifespan"] = self._lifespan
+
+        self.asgi_app = starlette.applications.Starlette(
+            debug=self._debug,
+            routes=self.routes,
+            **starlette_kwargs,
+        )
+        return self.asgi_app
+
+    def run(self, **kwargs) -> None:
+        import uvicorn
+
+        host = kwargs.get("host", "127.0.0.1")
+        port = kwargs.get("port", 7777)
+        log_level = "debug" if kwargs.get("debug", self._debug) else "info"
+
+        print(f"Chatnificent Starlette server running on http://{host}:{port}")
+        uvicorn.run(self.asgi_app, host=host, port=port, log_level=log_level)
+
+    # -- Path helpers ---------------------------------------------------------
+
+    def _build_path(self, path):
+        """Prepend the configured prefix to an outgoing path."""
+        if self._prefix:
+            return self._prefix + path
+        return path
+
+    # -- Auth helper ----------------------------------------------------------
+
+    def _get_session(self, request):
+        """Read session cookie and resolve user identity.
+
+        Returns (user_id, is_new_session).
+        """
+        cookie_value = request.cookies.get("chatnificent_session")
+        user_id = self.app.auth.get_current_user_id(session_id=cookie_value)
+        is_new = not cookie_value
+        return user_id, is_new
+
+    def _maybe_set_cookie(self, response, user_id, is_new):
+        if is_new and user_id:
+            response.set_cookie(
+                "chatnificent_session",
+                user_id,
+                path="/",
+                samesite="lax",
+            )
+
+    # -- Route handlers -------------------------------------------------------
+
+    async def _handle_page(self, request):
+        from starlette.responses import HTMLResponse
+
+        user_id, is_new = self._get_session(request)
+        path = request.scope.get("path", request.url.path)
+        url_parts = self.app.url.parse(path)
+
+        if url_parts.user_id and not request.cookies.get("chatnificent_session"):
+            user_id = url_parts.user_id
+            is_new = True
+
+        html = self.app.layout.render_page()
+
+        if url_parts.convo_id:
+            safe_id = url_parts.convo_id.replace("\\", "\\\\").replace('"', '\\"')
+            tag = f'<script>window.__CHATNIFICENT_CONVO__="{safe_id}";</script>'
+            html = html.replace("</head>", tag + "</head>")
+
+        response = HTMLResponse(html)
+        self._maybe_set_cookie(response, user_id, is_new)
+        return response
+
+    async def _handle_chat(self, request):
+        import anyio
+        from starlette.responses import JSONResponse
+
+        user_id, is_new = self._get_session(request)
+
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+        message = body.get("message", "").strip() if body else ""
+        if not message:
+            return JSONResponse({"error": "Empty message"}, status_code=400)
+
+        convo_id = body.get("conversation_id")
+
+        if self._is_llm_streaming():
+            return await self._handle_chat_stream(
+                request, user_id, is_new, message, convo_id
+            )
+
+        try:
+
+            def _sync_chat():
+                conversation = self.app.engine.handle_message(
+                    message, user_id, convo_id
+                )
+                display_messages = self._render_messages(user_id, conversation)
+                last_response = self._extract_last_response(display_messages)
+                return {
+                    "response": last_response,
+                    "messages": display_messages,
+                    "conversation_id": conversation.id,
+                    "path": self._build_path(
+                        self.app.url.build_conversation_path(user_id, conversation.id)
+                    ),
+                }
+
+            response_data = await anyio.to_thread.run_sync(_sync_chat)
+            response = JSONResponse(response_data)
+            self._maybe_set_cookie(response, user_id, is_new)
+            return response
+        except Exception as e:
+            logger.exception("Starlette error in /api/chat")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    async def _handle_chat_stream(self, request, user_id, is_new, message, convo_id):
+        import anyio
+        from starlette.responses import StreamingResponse
+
+        async def event_generator():
+            try:
+                stream = self.app.engine.handle_message_stream(
+                    message, user_id, convo_id
+                )
+                _sentinel = object()
+
+                while True:
+                    if await request.is_disconnected():
+                        break
+                    event = await anyio.to_thread.run_sync(
+                        lambda: next(stream, _sentinel)
+                    )
+                    if event is _sentinel:
+                        break
+                    if event.get("event") == "done" and isinstance(
+                        event.get("data"), dict
+                    ):
+                        cid = event["data"].get("conversation_id")
+                        if cid:
+                            event["data"]["path"] = self._build_path(
+                                self.app.url.build_conversation_path(user_id, cid)
+                            )
+                    yield f"data: {json.dumps(event)}\n\n"
+            except Exception as e:
+                logger.exception("Starlette error in /api/chat (stream)")
+                error_event = {"event": "error", "data": str(e)}
+                yield f"data: {json.dumps(error_event)}\n\n"
+
+        response = StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+        self._maybe_set_cookie(response, user_id, is_new)
+        return response
+
+    async def _handle_list_conversations(self, request):
+        import anyio
+        from starlette.responses import JSONResponse
+
+        user_id, is_new = self._get_session(request)
+
+        try:
+
+            def _sync_list():
+                convo_ids = self.app.store.list_conversations(user_id)
+                conversations = []
+                for cid in convo_ids:
+                    convo = self.app.store.load_conversation(user_id, cid)
+                    title = self._build_conversation_title(convo) if convo else cid
+                    conversations.append({"id": cid, "title": title})
+                return self._render_conversations(user_id, conversations)
+
+            conversations = await anyio.to_thread.run_sync(_sync_list)
+            response = JSONResponse({"conversations": conversations})
+            self._maybe_set_cookie(response, user_id, is_new)
+            return response
+        except Exception as e:
+            logger.exception("Starlette error in /api/conversations")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    async def _handle_load_conversation(self, request):
+        import anyio
+        from starlette.responses import JSONResponse
+
+        user_id, is_new = self._get_session(request)
+
+        try:
+            convo_id = request.path_params["convo_id"]
+
+            def _sync_load():
+                conversation = self.app.store.load_conversation(user_id, convo_id)
+                if not conversation:
+                    return None
+                messages = self._render_messages(user_id, conversation)
+                return {
+                    "id": conversation.id,
+                    "messages": messages,
+                    "path": self._build_path(
+                        self.app.url.build_conversation_path(user_id, conversation.id)
+                    ),
+                }
+
+            response_data = await anyio.to_thread.run_sync(_sync_load)
+            if response_data is None:
+                return JSONResponse(
+                    {"error": "Conversation not found"}, status_code=404
+                )
+
+            response = JSONResponse(response_data)
+            self._maybe_set_cookie(response, user_id, is_new)
+            return response
+        except Exception as e:
+            logger.exception("Starlette error loading conversation")
+            return JSONResponse({"error": str(e)}, status_code=500)

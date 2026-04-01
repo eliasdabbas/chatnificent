@@ -52,6 +52,11 @@ dash = [
     "dash>=3.0.0",
     "dash-bootstrap-components>=2.0.0",
 ]
+starlette = [
+    "starlette>=0.27.0",
+    "uvicorn>=0.20.0",
+    "httpx>=0.24.0",
+]
 mantine = [
     "chatnificent[dash]",
     "dash-mantine-components>=1.1.0",
@@ -69,7 +74,7 @@ default = ["chatnificent[dash,openai]"]
 
 # Development — all adapters + test tools (CI uses this)
 dev = [
-    "chatnificent[dash,mantine,openai,anthropic,gemini,ollama]",
+    "chatnificent[dash,mantine,starlette,openai,anthropic,gemini,ollama]",
     "pytest",
     "pytest-mock",
     "pytest-cov",

@@ -174,3 +174,19 @@ class Chatnificent:
             Runtime options passed to the server (host, port, debug, etc.).
         """
         self.server.run(**kwargs)
+
+    async def __call__(self, scope, receive, send):
+        """ASGI interface — delegates to the server's ASGI app.
+
+        Enables direct usage with ASGI servers::
+
+            $ uvicorn app:app
+            $ uvicorn app:app --workers 4 --host 0.0.0.0
+        """
+        asgi_app = getattr(self.server, "asgi_app", None)
+        if asgi_app is None:
+            raise TypeError(
+                f"{type(self.server).__name__} does not expose an ASGI app. "
+                f"Use chat.server.Starlette() for direct uvicorn usage."
+            )
+        await asgi_app(scope, receive, send)

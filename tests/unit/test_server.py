@@ -96,7 +96,9 @@ class TestDevHandler:
         from chatnificent.llm import Echo
         from chatnificent.store import InMemory
 
-        return Chatnificent(llm=Echo(stream=False), store=InMemory(), server=DevServer())
+        return Chatnificent(
+            llm=Echo(stream=False), store=InMemory(), server=DevServer()
+        )
 
     @pytest.fixture
     def handler_class(self, app):
@@ -194,7 +196,9 @@ class TestDevHandlerAuthDelegation:
         from chatnificent.llm import Echo
         from chatnificent.store import InMemory
 
-        return Chatnificent(llm=Echo(stream=False), store=InMemory(), server=DevServer())
+        return Chatnificent(
+            llm=Echo(stream=False), store=InMemory(), server=DevServer()
+        )
 
     def _make_handler(self, app, method, path, body=None, cookie=None):
         """Simulate an HTTP request with optional cookie, returning raw response."""
@@ -235,8 +239,11 @@ class TestDevHandlerAuthDelegation:
         app.auth.get_current_user_id.return_value = "auth-decided-id"
 
         self._make_handler(
-            app, "POST", "/api/chat", {"message": "hello"},
-            cookie="chatnificent_session=my-cookie-val"
+            app,
+            "POST",
+            "/api/chat",
+            {"message": "hello"},
+            cookie="chatnificent_session=my-cookie-val",
         )
 
         app.auth.get_current_user_id.assert_called()
@@ -264,7 +271,9 @@ class TestDevHandlerURLIntegration:
         from chatnificent.llm import Echo
         from chatnificent.store import InMemory
 
-        return Chatnificent(llm=Echo(stream=False), store=InMemory(), server=DevServer())
+        return Chatnificent(
+            llm=Echo(stream=False), store=InMemory(), server=DevServer()
+        )
 
     def _make_handler(self, app, method, path, body=None, cookie=None):
         from chatnificent.server import _DevHandler
@@ -303,14 +312,16 @@ class TestDevHandlerURLIntegration:
         body_start = raw_response.find("\r\n\r\n")
         if body_start == -1:
             return None
-        return json.loads(raw_response[body_start + 4:])
+        return json.loads(raw_response[body_start + 4 :])
 
     def test_chat_response_includes_path(self, app):
         """POST /api/chat response must include 'path' built by URL pillar."""
         response = self._make_handler(
-            app, "POST", "/api/chat",
+            app,
+            "POST",
+            "/api/chat",
             {"message": "hi"},
-            cookie="chatnificent_session=user1"
+            cookie="chatnificent_session=user1",
         )
         data = self._extract_json(response)
         assert "path" in data, "API response must include 'path' from URL pillar"
@@ -322,12 +333,16 @@ class TestDevHandlerURLIntegration:
         app.auth.get_current_user_id.return_value = "testuser"
 
         response = self._make_handler(
-            app, "POST", "/api/chat",
+            app,
+            "POST",
+            "/api/chat",
             {"message": "hi"},
-            cookie="chatnificent_session=testuser"
+            cookie="chatnificent_session=testuser",
         )
         data = self._extract_json(response)
-        expected_path = app.url.build_conversation_path("testuser", data["conversation_id"])
+        expected_path = app.url.build_conversation_path(
+            "testuser", data["conversation_id"]
+        )
         assert data["path"] == expected_path
 
     def test_deep_link_adopts_url_user_id_without_cookie(self, app):
@@ -335,9 +350,12 @@ class TestDevHandlerURLIntegration:
         from chatnificent.models import Conversation
 
         # Pre-populate a conversation for user "abc123"
-        convo = Conversation(id="conv001", messages=[
-            {"role": "user", "content": "hello"},
-        ])
+        convo = Conversation(
+            id="conv001",
+            messages=[
+                {"role": "user", "content": "hello"},
+            ],
+        )
         app.store.save_conversation("abc123", convo)
 
         # Page load with deep link — no cookie
@@ -345,8 +363,10 @@ class TestDevHandlerURLIntegration:
 
         # Now subsequent API call should use the adopted user_id
         response = self._make_handler(
-            app, "GET", "/api/conversations/conv001",
-            cookie="chatnificent_session=abc123"
+            app,
+            "GET",
+            "/api/conversations/conv001",
+            cookie="chatnificent_session=abc123",
         )
         data = self._extract_json(response)
         assert data.get("id") == "conv001"
@@ -359,11 +379,12 @@ class TestDevHandlerURLIntegration:
     def test_deep_link_does_not_override_existing_cookie(self, app):
         """If cookie already exists, URL user_id should NOT override it."""
         response = self._make_handler(
-            app, "GET", "/url_user/conv1",
-            cookie="chatnificent_session=cookie_user"
+            app, "GET", "/url_user/conv1", cookie="chatnificent_session=cookie_user"
         )
-        assert "chatnificent_session=cookie_user" not in response or \
-               "chatnificent_session=url_user" not in response
+        assert (
+            "chatnificent_session=cookie_user" not in response
+            or "chatnificent_session=url_user" not in response
+        )
 
 
 class TestDevHandlerLayoutIntegration:
@@ -422,7 +443,7 @@ class TestDevHandlerLayoutIntegration:
         body_start = raw_response.find("\r\n\r\n")
         if body_start == -1:
             return None
-        return json.loads(raw_response[body_start + 4:])
+        return json.loads(raw_response[body_start + 4 :])
 
     def test_post_chat_uses_layout_render_messages(self, app):
         response = self._make_handler(
@@ -586,7 +607,9 @@ class TestServerParityContract:
         app.auth.get_current_user_id.return_value = "user1"
 
         self._make_dev_handler(
-            app, "POST", "/api/chat",
+            app,
+            "POST",
+            "/api/chat",
             {"message": "hello"},
             cookie="chatnificent_session=session_abc",
         )
@@ -601,7 +624,9 @@ class TestServerParityContract:
         See tests/unit/server/test_dash.py::TestDashServerAuthParity for
         the full behavioral and structural contract tests.
         """
-        dash = pytest.importorskip("dash", reason="DashServer parity test requires dash")
+        dash = pytest.importorskip(
+            "dash", reason="DashServer parity test requires dash"
+        )
         import ast
         import inspect
 
@@ -634,7 +659,9 @@ class TestServerParityContract:
         app.url.build_conversation_path.return_value = "/user1/conv1"
 
         _, wfile = self._make_dev_handler(
-            app, "POST", "/api/chat",
+            app,
+            "POST",
+            "/api/chat",
             {"message": "hello"},
             cookie="chatnificent_session=user1",
         )
@@ -643,7 +670,7 @@ class TestServerParityContract:
         wfile.seek(0)
         raw = wfile.read().decode("utf-8", errors="replace")
         body_start = raw.find("\r\n\r\n")
-        data = json.loads(raw[body_start + 4:])
+        data = json.loads(raw[body_start + 4 :])
         assert data["path"] == "/user1/conv1"
 
     def test_both_servers_produce_same_path_for_same_inputs(self):
@@ -653,7 +680,9 @@ class TestServerParityContract:
         for impl in [PathBased(), QueryParams()]:
             path = impl.build_conversation_path("user_abc", "conv_xyz")
             path2 = impl.build_conversation_path("user_abc", "conv_xyz")
-            assert path == path2, f"Deterministic path building failed for {type(impl).__name__}"
+            assert path == path2, (
+                f"Deterministic path building failed for {type(impl).__name__}"
+            )
             assert "conv_xyz" in path
 
 
@@ -720,9 +749,7 @@ class TestBuildConversationTitle:
     def test_whitespace_only_content_falls_back_to_id(self):
         from chatnificent.models import Conversation
 
-        convo = Conversation(
-            id="c1", messages=[{"role": "user", "content": "   "}]
-        )
+        convo = Conversation(id="c1", messages=[{"role": "user", "content": "   "}])
         assert self._server()._build_conversation_title(convo) == "c1"
 
     def test_non_string_content_falls_back_to_id(self):
@@ -832,7 +859,9 @@ class TestRenderMessages:
 
         srv = _StubServer()
         srv.app = Mock()
-        srv.app.layout.render_messages.return_value = [{"role": "assistant", "content": "filtered"}]
+        srv.app.layout.render_messages.return_value = [
+            {"role": "assistant", "content": "filtered"}
+        ]
 
         convo = Conversation(
             id="c1",

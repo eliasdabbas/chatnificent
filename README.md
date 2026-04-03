@@ -49,7 +49,7 @@ app = chat.Chatnificent(llm=chat.llm.Ollama())       # pip install ollama (local
 
 # Persistent storage
 app = chat.Chatnificent(store=chat.store.SQLite(db_path="chats.db"))
-app = chat.Chatnificent(store=chat.store.File(directory="./conversations"))
+app = chat.Chatnificent(store=chat.store.File(base_dir="./conversations"))
 
 # Mix and match
 app = chat.Chatnificent(

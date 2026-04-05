@@ -604,6 +604,7 @@
             var sidebar = $("#sidebar"), convoList = $("#convo-list");
             var chatWrap = $("#chat-wrap"), welcome = $("#welcome");
             var convoId = null, sidebarOpen = false;
+            var apiBase = window.__CHATNIFICENT_ROOT__ || "";
 
             function setTheme(dark) {
                 document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
@@ -630,7 +631,7 @@
             $("#new-chat-btn").addEventListener("click", function () {
                 convoId = null; msgs.innerHTML = "";
                 msgs.appendChild(welcome); welcome.style.display = "";
-                history.pushState({ convoId: null }, "", "/");
+                history.pushState({ convoId: null }, "", apiBase + "/");
                 refreshConvoList();
             });
 
@@ -683,7 +684,7 @@
                 addMsg("user", text); input.value = ""; input.style.height = "auto";
                 sendBtn.disabled = true; showLoading();
                 try {
-                    var r = await fetch("/api/chat", {
+                    var r = await fetch(apiBase + "/api/chat", {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
@@ -724,7 +725,7 @@
                                 } else if (payload.event === "done") {
                                     if (payload.data && payload.data.conversation_id) {
                                         convoId = payload.data.conversation_id;
-                                        history.replaceState({ convoId: convoId }, "", payload.data.path || "/" + convoId);
+                                        history.replaceState({ convoId: convoId }, "", payload.data.path || apiBase + "/" + convoId);
                                         upsertSidebarEntry(convoId, text.length > 30 ? text.slice(0, 30) + "…" : text);
                                     }
                                     bubble.innerHTML = renderMarkdown(accumulated);
@@ -739,7 +740,7 @@
                         else {
                             renderMessageList(data.messages || []);
                             convoId = data.conversation_id;
-                            history.replaceState({ convoId: convoId }, "", data.path || "/" + convoId);
+                            history.replaceState({ convoId: convoId }, "", data.path || apiBase + "/" + convoId);
                             upsertSidebarEntry(convoId, text.length > 30 ? text.slice(0, 30) + "…" : text);
                         }
                     }
@@ -753,7 +754,7 @@
 
             async function refreshConvoList() {
                 try {
-                    var r = await fetch("/api/conversations"); var data = await r.json();
+                    var r = await fetch(apiBase + "/api/conversations"); var data = await r.json();
                     convoList.innerHTML = "";
                     (data.conversations || []).forEach(function (c) {
                         var id = c.id || c, title = c.title || id;
@@ -786,11 +787,11 @@
             }
             async function loadConvo(id, replaceHistory) {
                 try {
-                    var r = await fetch("/api/conversations/" + id); var data = await r.json();
+                    var r = await fetch(apiBase + "/api/conversations/" + id); var data = await r.json();
                     if (data.error) return;
                     convoId = id;
-                    if (replaceHistory) history.replaceState({ convoId: id }, "", data.path || "/" + id);
-                    else history.pushState({ convoId: id }, "", data.path || "/" + id);
+                    if (replaceHistory) history.replaceState({ convoId: id }, "", data.path || apiBase + "/" + id);
+                    else history.pushState({ convoId: id }, "", data.path || apiBase + "/" + id);
                     renderMessageList(data.messages || []);
                     refreshConvoList();
                 } catch (e) { }

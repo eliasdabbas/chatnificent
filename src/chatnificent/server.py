@@ -155,6 +155,60 @@ class Server(ABC):
         """
         return self.app.layout.render_conversations(conversations, user_id=user_id)
 
+    def _inject_root_into_html(self, html, root_path):
+        """Inject ``window.__CHATNIFICENT_ROOT__`` into HTML when mounted.
+
+        Parameters
+        ----------
+        html : str
+            The rendered HTML page.
+        root_path : str
+            The ASGI root_path (mount prefix). Empty string when not mounted.
+
+        Returns
+        -------
+        str
+            HTML with the script tag injected before ``</head>``, or
+            unchanged if *root_path* is empty.
+        """
+        if not root_path:
+            return html
+        safe_root = root_path.replace("\\", "\\\\").replace('"', '\\"')
+        tag = f'<script>window.__CHATNIFICENT_ROOT__="{safe_root}";</script>'
+        return html.replace("</head>", tag + "</head>")
+
+    def _build_full_conversation_path(self, root_path, user_id, convo_id):
+        """Build a URL path with the mount prefix prepended.
+
+        Parameters
+        ----------
+        root_path : str
+            The mount prefix (e.g. ``"/code"``). Empty when not mounted.
+        user_id : str
+        convo_id : str
+
+        Returns
+        -------
+        str
+        """
+        return root_path + self.app.url.build_conversation_path(user_id, convo_id)
+
+    @staticmethod
+    def _cookie_path(root_path):
+        """Compute the cookie ``Path`` attribute for the given mount prefix.
+
+        Parameters
+        ----------
+        root_path : str
+            Mount prefix (e.g. ``"/code"``). Empty when not mounted.
+
+        Returns
+        -------
+        str
+            ``root_path + "/"`` when mounted, ``"/"`` otherwise.
+        """
+        return (root_path + "/") if root_path else "/"
+
 
 # =============================================================================
 # DevServer — zero-dependency stdlib server for development & demonstration
@@ -481,11 +535,6 @@ class Starlette(Server):
 
     Parameters
     ----------
-    app : Chatnificent, optional
-        Back-reference set by the framework during init.
-    prefix : str
-        URL prefix for sub-app mounting (e.g. ``"/chat"``). Prepended to
-        all outgoing paths in JSON responses.
     debug : bool
         Forwarded to ``starlette.applications.Starlette(debug=...)``.
     routes : sequence, optional
@@ -519,32 +568,22 @@ class Starlette(Server):
     ...     middleware=[Middleware(CORSMiddleware, allow_origins=["*"])],
     ... )
 
-    Mount under a prefix alongside other routes:
-
-    >>> server = chat.server.Starlette(prefix="/chat")
-    >>> # Mount(path="/chat", app=chatapp.server.asgi_app)
     """
 
     def __init__(
         self,
-        app=None,
-        *,
-        prefix="",
         debug=False,
         routes=None,
         middleware=None,
         exception_handlers=None,
         lifespan=None,
     ):
-        super().__init__(app)
+        super().__init__()
         self.asgi_app = None
-        self._prefix = prefix.rstrip("/")
         self._debug = debug
-        self._user_routes = list(routes) if routes else []
-        self._middleware = list(middleware) if middleware else []
-        self._exception_handlers = (
-            dict(exception_handlers) if exception_handlers else {}
-        )
+        self._user_routes = routes
+        self._middleware = middleware
+        self._exception_handlers = exception_handlers
         self._lifespan = lifespan
 
     def create_server(self, **kwargs) -> Any:
@@ -566,60 +605,55 @@ class Starlette(Server):
             starlette.routing.Route("/{path:path}", self._handle_page, methods=["GET"]),
             starlette.routing.Route("/", self._handle_page, methods=["GET"]),
         ]
-        self.routes = self._user_routes + framework_routes
-
-        starlette_kwargs = {}
-        if self._middleware:
-            starlette_kwargs["middleware"] = self._middleware
-        if self._exception_handlers:
-            starlette_kwargs["exception_handlers"] = self._exception_handlers
-        if self._lifespan:
-            starlette_kwargs["lifespan"] = self._lifespan
+        self.routes = list(self._user_routes or []) + framework_routes
 
         self.asgi_app = starlette.applications.Starlette(
             debug=self._debug,
             routes=self.routes,
-            **starlette_kwargs,
+            middleware=self._middleware,
+            exception_handlers=self._exception_handlers,
+            lifespan=self._lifespan,
         )
         return self.asgi_app
 
-    def run(self, **kwargs) -> None:
+    def run(
+        self,
+        *,
+        host: str = "127.0.0.1",
+        port: int = 7777,
+        workers: int | None = None,
+        reload: bool = False,
+        log_level: str = "info",
+        ssl_keyfile: str | None = None,
+        ssl_certfile: str | None = None,
+        **kwargs,
+    ) -> None:
         import sys
         from pathlib import Path
 
         import uvicorn
 
-        kwargs.setdefault("host", "127.0.0.1")
-        kwargs.setdefault("port", 7777)
+        # Auto-resolve import string so workers/reload can spawn fresh processes.
+        app_target: object = self.asgi_app
+        main = sys.modules.get("__main__")
+        if main:
+            for name, obj in vars(main).items():
+                if obj is self.app:
+                    app_target = f"{Path(sys.argv[0]).stem}:{name}"
+                    break
 
-        debug = kwargs.pop("debug", self._debug)
-        if "log_level" not in kwargs:
-            kwargs["log_level"] = "debug" if debug else "info"
-
-        # Auto-resolve import string so uvicorn.run() parameters just work.
-        # Explicit app="module:var" overrides.
-        if "app" not in kwargs:
-            main = sys.modules.get("__main__")
-            if main:
-                for name, obj in vars(main).items():
-                    if obj is self.app:
-                        kwargs["app"] = f"{Path(sys.argv[0]).stem}:{name}"
-                        break
-        app_target = kwargs.pop("app", self.asgi_app)
-
-        print(
-            f"Chatnificent Starlette server running on"
-            f" http://{kwargs['host']}:{kwargs['port']}"
+        print(f"Chatnificent Starlette server running on http://{host}:{port}")
+        uvicorn.run(
+            app_target,
+            host=host,
+            port=port,
+            workers=workers,
+            reload=reload,
+            log_level=log_level,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile,
+            **kwargs,
         )
-        uvicorn.run(app_target, **kwargs)
-
-    # -- Path helpers ---------------------------------------------------------
-
-    def _build_path(self, path):
-        """Prepend the configured prefix to an outgoing path."""
-        if self._prefix:
-            return self._prefix + path
-        return path
 
     # -- Auth helper ----------------------------------------------------------
 
@@ -633,12 +667,22 @@ class Starlette(Server):
         is_new = not cookie_value
         return user_id, is_new
 
-    def _maybe_set_cookie(self, response, user_id, is_new):
+    def _get_root_path(self, request):
+        """Extract the ASGI root_path (mount prefix) from the request.
+
+        Returns
+        -------
+        str
+            The mount prefix (e.g. ``"/code"``), or ``""`` when not mounted.
+        """
+        return request.scope.get("root_path", "")
+
+    def _maybe_set_cookie(self, response, user_id, is_new, root_path=""):
         if is_new and user_id:
             response.set_cookie(
                 "chatnificent_session",
                 user_id,
-                path="/",
+                path=self._cookie_path(root_path),
                 samesite="lax",
             )
 
@@ -655,7 +699,8 @@ class Starlette(Server):
             user_id = url_parts.user_id
             is_new = True
 
-        html = self.app.layout.render_page()
+        root_path = self._get_root_path(request)
+        html = self._inject_root_into_html(self.app.layout.render_page(), root_path)
 
         if url_parts.convo_id:
             safe_id = url_parts.convo_id.replace("\\", "\\\\").replace('"', '\\"')
@@ -663,7 +708,7 @@ class Starlette(Server):
             html = html.replace("</head>", tag + "</head>")
 
         response = HTMLResponse(html)
-        self._maybe_set_cookie(response, user_id, is_new)
+        self._maybe_set_cookie(response, user_id, is_new, root_path)
         return response
 
     async def _handle_chat(self, request):
@@ -683,6 +728,8 @@ class Starlette(Server):
 
         convo_id = body.get("conversation_id")
 
+        root_path = self._get_root_path(request)
+
         if self._is_llm_streaming():
             return await self._handle_chat_stream(
                 request, user_id, is_new, message, convo_id
@@ -700,14 +747,14 @@ class Starlette(Server):
                     "response": last_response,
                     "messages": display_messages,
                     "conversation_id": conversation.id,
-                    "path": self._build_path(
-                        self.app.url.build_conversation_path(user_id, conversation.id)
+                    "path": self._build_full_conversation_path(
+                        root_path, user_id, conversation.id
                     ),
                 }
 
             response_data = await anyio.to_thread.run_sync(_sync_chat)
             response = JSONResponse(response_data)
-            self._maybe_set_cookie(response, user_id, is_new)
+            self._maybe_set_cookie(response, user_id, is_new, root_path)
             return response
         except Exception as e:
             logger.exception("Starlette error in /api/chat")
@@ -716,6 +763,8 @@ class Starlette(Server):
     async def _handle_chat_stream(self, request, user_id, is_new, message, convo_id):
         import anyio
         from starlette.responses import StreamingResponse
+
+        root_path = self._get_root_path(request)
 
         async def event_generator():
             try:
@@ -737,8 +786,8 @@ class Starlette(Server):
                     ):
                         cid = event["data"].get("conversation_id")
                         if cid:
-                            event["data"]["path"] = self._build_path(
-                                self.app.url.build_conversation_path(user_id, cid)
+                            event["data"]["path"] = self._build_full_conversation_path(
+                                root_path, user_id, cid
                             )
                     yield f"data: {json.dumps(event)}\n\n"
             except Exception as e:
@@ -751,7 +800,7 @@ class Starlette(Server):
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
-        self._maybe_set_cookie(response, user_id, is_new)
+        self._maybe_set_cookie(response, user_id, is_new, root_path)
         return response
 
     async def _handle_list_conversations(self, request):
@@ -773,7 +822,9 @@ class Starlette(Server):
 
             conversations = await anyio.to_thread.run_sync(_sync_list)
             response = JSONResponse({"conversations": conversations})
-            self._maybe_set_cookie(response, user_id, is_new)
+            self._maybe_set_cookie(
+                response, user_id, is_new, self._get_root_path(request)
+            )
             return response
         except Exception as e:
             logger.exception("Starlette error in /api/conversations")
@@ -787,6 +838,7 @@ class Starlette(Server):
 
         try:
             convo_id = request.path_params["convo_id"]
+            root_path = self._get_root_path(request)
 
             def _sync_load():
                 conversation = self.app.store.load_conversation(user_id, convo_id)
@@ -796,8 +848,8 @@ class Starlette(Server):
                 return {
                     "id": conversation.id,
                     "messages": messages,
-                    "path": self._build_path(
-                        self.app.url.build_conversation_path(user_id, conversation.id)
+                    "path": self._build_full_conversation_path(
+                        root_path, user_id, conversation.id
                     ),
                 }
 
@@ -808,7 +860,7 @@ class Starlette(Server):
                 )
 
             response = JSONResponse(response_data)
-            self._maybe_set_cookie(response, user_id, is_new)
+            self._maybe_set_cookie(response, user_id, is_new, root_path)
             return response
         except Exception as e:
             logger.exception("Starlette error loading conversation")

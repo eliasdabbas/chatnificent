@@ -371,14 +371,6 @@ class TestErrorHandling:
 class TestStarletteConstructor:
     """Constructor mirrors starlette.applications.Starlette signature."""
 
-    def test_default_prefix_is_empty(self):
-        server = StarletteServer()
-        assert server._prefix == ""
-
-    def test_prefix_strips_trailing_slash(self):
-        server = StarletteServer(prefix="/chat/")
-        assert server._prefix == "/chat"
-
     def test_user_routes_prepended(self):
         """User-supplied routes appear before framework routes."""
         from starlette.responses import PlainTextResponse
@@ -425,55 +417,6 @@ class TestStarletteConstructor:
 
 
 # =============================================================================
-# Prefix — outgoing path generation
-# =============================================================================
-
-
-class TestPrefix:
-    """prefix= prepends to all outgoing paths in JSON responses."""
-
-    def test_chat_response_path_includes_prefix(self):
-        app = _make_app(server=StarletteServer(prefix="/chat"))
-        client = TestClient(app.server.asgi_app)
-        r = client.post("/api/chat", json={"message": "hello"})
-        assert r.status_code == 200
-        assert r.json()["path"].startswith("/chat/")
-
-    def test_conversation_detail_path_includes_prefix(self):
-        app = _make_app(server=StarletteServer(prefix="/chat"))
-        client = TestClient(app.server.asgi_app)
-
-        r = client.post("/api/chat", json={"message": "hello"})
-        convo_id = r.json()["conversation_id"]
-
-        r2 = client.get(f"/api/conversations/{convo_id}")
-        assert r2.json()["path"].startswith("/chat/")
-
-    def test_stream_done_path_includes_prefix(self):
-        app = _make_app(server=StarletteServer(prefix="/chat"), llm=Echo(stream=True))
-        client = TestClient(app.server.asgi_app)
-
-        with client.stream("POST", "/api/chat", json={"message": "hi"}) as r:
-            lines = list(r.iter_lines())
-
-        events = []
-        for line in lines:
-            if line.startswith("data: "):
-                events.append(json.loads(line[6:]))
-
-        done = next(e for e in events if e["event"] == "done")
-        assert done["data"]["path"].startswith("/chat/")
-
-    def test_no_prefix_paths_unchanged(self):
-        """Without prefix, paths have no prefix added."""
-        app = _make_app(server=StarletteServer())
-        client = TestClient(app.server.asgi_app)
-        r = client.post("/api/chat", json={"message": "hello"})
-        path = r.json()["path"]
-        assert not path.startswith("/chat")
-
-
-# =============================================================================
 # ASGI __call__ — direct uvicorn usage
 # =============================================================================
 
@@ -511,81 +454,75 @@ class TestASGICallable:
 
 
 class TestRunKwargsPassthrough:
-    """StarletteServer.run() passes **kwargs transparently to uvicorn.run()."""
+    """StarletteServer.run() passes kwargs transparently to uvicorn.run()."""
 
     def test_defaults(self, mocker):
-        """Without kwargs, uses host=127.0.0.1, port=7777, log_level=info."""
+        """Without kwargs, uses Chatnificent defaults for all explicit params."""
         mock_run = mocker.patch("uvicorn.run")
         app = _make_app()
         app.server.run()
         mock_run.assert_called_once()
-        call_kwargs = mock_run.call_args
-        assert call_kwargs.kwargs["host"] == "127.0.0.1"
-        assert call_kwargs.kwargs["port"] == 7777
-        assert call_kwargs.kwargs["log_level"] == "info"
+        call_kwargs = mock_run.call_args.kwargs
+        assert call_kwargs["host"] == "127.0.0.1"
+        assert call_kwargs["port"] == 7777
+        assert call_kwargs["log_level"] == "info"
+        assert call_kwargs["workers"] is None
+        assert call_kwargs["reload"] is False
+        assert call_kwargs["ssl_keyfile"] is None
+        assert call_kwargs["ssl_certfile"] is None
 
     def test_custom_host_and_port(self, mocker):
         """host and port override defaults."""
         mock_run = mocker.patch("uvicorn.run")
         app = _make_app()
         app.server.run(host="0.0.0.0", port=9000)
-        call_kwargs = mock_run.call_args
-        assert call_kwargs.kwargs["host"] == "0.0.0.0"
-        assert call_kwargs.kwargs["port"] == 9000
-
-    def test_debug_sets_log_level(self, mocker):
-        """debug=True maps to log_level='debug'."""
-        mock_run = mocker.patch("uvicorn.run")
-        app = _make_app()
-        app.server.run(debug=True)
-        call_kwargs = mock_run.call_args
-        assert call_kwargs.kwargs["log_level"] == "debug"
-
-    def test_explicit_log_level_overrides_debug(self, mocker):
-        """Explicit log_level takes precedence over debug flag."""
-        mock_run = mocker.patch("uvicorn.run")
-        app = _make_app()
-        app.server.run(debug=True, log_level="warning")
-        call_kwargs = mock_run.call_args
-        assert call_kwargs.kwargs["log_level"] == "warning"
+        call_kwargs = mock_run.call_args.kwargs
+        assert call_kwargs["host"] == "0.0.0.0"
+        assert call_kwargs["port"] == 9000
 
     def test_extra_kwargs_passed_to_uvicorn(self, mocker):
         """Arbitrary uvicorn kwargs are forwarded transparently."""
         mock_run = mocker.patch("uvicorn.run")
         app = _make_app()
         app.server.run(
-            workers=4,
-            reload=True,
             timeout_keep_alive=30,
-            ssl_keyfile="/path/to/key.pem",
+            limit_concurrency=100,
+            proxy_headers=True,
         )
         call_kwargs = mock_run.call_args.kwargs
-        assert call_kwargs["workers"] == 4
-        assert call_kwargs["reload"] is True
         assert call_kwargs["timeout_keep_alive"] == 30
-        assert call_kwargs["ssl_keyfile"] == "/path/to/key.pem"
+        assert call_kwargs["limit_concurrency"] == 100
+        assert call_kwargs["proxy_headers"] is True
 
-    def test_debug_not_forwarded_to_uvicorn(self, mocker):
-        """debug is a Chatnificent flag, not a uvicorn parameter."""
+    def test_explicit_workers_param(self, mocker):
+        """workers= explicit param is forwarded to uvicorn."""
         mock_run = mocker.patch("uvicorn.run")
         app = _make_app()
-        app.server.run(debug=True)
+        app.server.run(workers=8)
+        assert mock_run.call_args.kwargs["workers"] == 8
+
+    def test_explicit_reload_param(self, mocker):
+        """reload= explicit param is forwarded to uvicorn."""
+        mock_run = mocker.patch("uvicorn.run")
+        app = _make_app()
+        app.server.run(reload=True)
+        assert mock_run.call_args.kwargs["reload"] is True
+
+    def test_explicit_log_level_param(self, mocker):
+        """log_level= explicit param is forwarded to uvicorn."""
+        mock_run = mocker.patch("uvicorn.run")
+        app = _make_app()
+        app.server.run(log_level="warning")
+        assert mock_run.call_args.kwargs["log_level"] == "warning"
+
+    def test_explicit_ssl_params(self, mocker):
+        """ssl_keyfile= and ssl_certfile= explicit params are forwarded."""
+        mock_run = mocker.patch("uvicorn.run")
+        app = _make_app()
+        app.server.run(ssl_keyfile="k.pem", ssl_certfile="c.pem")
         call_kwargs = mock_run.call_args.kwargs
-        assert "debug" not in call_kwargs
-
-    def test_explicit_app_import_string(self, mocker):
-        """Explicit app='module:var' is passed as first arg to uvicorn."""
-        mock_run = mocker.patch("uvicorn.run")
-        app = _make_app()
-        app.server.run(app="myapp:app")
-        assert mock_run.call_args.args[0] == "myapp:app"
-
-    def test_app_kwarg_not_forwarded_to_uvicorn(self, mocker):
-        """app is consumed by run(), not passed as a kwarg to uvicorn."""
-        mock_run = mocker.patch("uvicorn.run")
-        app = _make_app()
-        app.server.run(app="myapp:app")
-        assert "app" not in mock_run.call_args.kwargs
+        assert call_kwargs["ssl_keyfile"] == "k.pem"
+        assert call_kwargs["ssl_certfile"] == "c.pem"
 
     def test_auto_resolves_import_string_from_main(self, mocker):
         """Without explicit app kwarg, resolves import string from __main__."""
@@ -643,3 +580,106 @@ class TestRunKwargsPassthrough:
         mocker.patch("sys.argv", ["server.py"])
         app2.server.run()
         assert mock_run.call_args.args[0] == "server:second_app"
+
+
+# =============================================================================
+# root_path — ASGI mount prefix support
+# =============================================================================
+
+
+def _make_mounted_app(mount_path="/sub", **kwargs):
+    """Create a Chatnificent app mounted under a prefix via Starlette Mount."""
+    from starlette.applications import Starlette as StarletteApp
+    from starlette.routing import Mount
+
+    app = _make_app(**kwargs)
+    parent = StarletteApp(routes=[Mount(mount_path, app=app)])
+    return app, parent
+
+
+class TestRootPath:
+    """ASGI root_path (mount prefix) is propagated to HTML, JSON paths, and cookies."""
+
+    def test_root_path_injected_in_html(self):
+        """Mounted app injects window.__CHATNIFICENT_ROOT__ with the mount prefix."""
+        _, parent = _make_mounted_app("/myapp")
+        client = TestClient(parent)
+        r = client.get("/myapp/")
+        assert r.status_code == 200
+        assert 'window.__CHATNIFICENT_ROOT__="/myapp"' in r.text
+
+    def test_root_path_not_injected_when_not_mounted(self):
+        """Non-mounted app does not inject a __CHATNIFICENT_ROOT__ assignment."""
+        client = _client()
+        r = client.get("/")
+        assert '__CHATNIFICENT_ROOT__="' not in r.text
+
+    def test_root_path_in_chat_response_path(self):
+        """Non-streaming POST /api/chat returns path prefixed with mount path."""
+        _, parent = _make_mounted_app("/app")
+        client = TestClient(parent)
+        r = client.post("/app/api/chat", json={"message": "hello"})
+        assert r.status_code == 200
+        assert r.json()["path"].startswith("/app/")
+
+    def test_root_path_in_stream_done_event(self):
+        """Streaming POST /api/chat done event has prefixed path."""
+        _, parent = _make_mounted_app("/app", llm=Echo(stream=True))
+        client = TestClient(parent)
+        with client.stream("POST", "/app/api/chat", json={"message": "hello"}) as r:
+            lines = list(r.iter_lines())
+
+        events = []
+        for line in lines:
+            if line.startswith("data: "):
+                events.append(json.loads(line[6:]))
+
+        done = next(e for e in events if e["event"] == "done")
+        assert done["data"]["path"].startswith("/app/")
+
+    def test_root_path_in_load_conversation_path(self):
+        """GET /api/conversations/{id} returns path prefixed with mount path."""
+        _, parent = _make_mounted_app("/app")
+        client = TestClient(parent)
+
+        r = client.post("/app/api/chat", json={"message": "hello"})
+        convo_id = r.json()["conversation_id"]
+
+        r2 = client.get(f"/app/api/conversations/{convo_id}")
+        assert r2.status_code == 200
+        assert r2.json()["path"].startswith("/app/")
+
+    def test_cookie_scoped_to_mount_path(self):
+        """Mounted app sets cookie with Path scoped to the mount prefix."""
+        _, parent = _make_mounted_app("/app")
+        client = TestClient(parent, cookies={})
+        r = client.get("/app/api/conversations", follow_redirects=False)
+        set_cookie = r.headers.get("set-cookie", "")
+        assert "Path=/app/" in set_cookie
+
+    def test_cookie_path_is_root_when_not_mounted(self):
+        """Non-mounted app sets cookie with Path=/."""
+        client = TestClient(_make_app().server.asgi_app, cookies={})
+        r = client.get("/api/conversations", follow_redirects=False)
+        set_cookie = r.headers.get("set-cookie", "")
+        assert "Path=/" in set_cookie
+
+    def test_two_mounted_apps_independent_cookies(self):
+        """Two apps at different mount points scope cookies independently."""
+        from starlette.applications import Starlette as StarletteApp
+        from starlette.routing import Mount
+
+        app_a = _make_app()
+        app_b = _make_app()
+        parent = StarletteApp(
+            routes=[Mount("/a", app=app_a), Mount("/b", app=app_b)]
+        )
+        client = TestClient(parent, cookies={})
+
+        r_a = client.get("/a/api/conversations", follow_redirects=False)
+        r_b = client.get("/b/api/conversations", follow_redirects=False)
+
+        cookie_a = r_a.headers.get("set-cookie", "")
+        cookie_b = r_b.headers.get("set-cookie", "")
+        assert "Path=/a/" in cookie_a
+        assert "Path=/b/" in cookie_b

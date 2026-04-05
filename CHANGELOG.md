@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.0.17] — 2026-04-05
+
+ASGI root_path mounting — run multiple Chatnificent apps on one website.
+
+### Added
+
+- **Server**: ASGI `root_path` mounting support — Chatnificent auto-detects the mount prefix from `scope["root_path"]` and adjusts API paths, browser URLs, session cookies, and frontend fetch calls accordingly
+- **Server**: base class helpers `_inject_root_into_html()`, `_build_full_conversation_path()`, `_cookie_path()` — reusable by any future ASGI server implementation
+- **Frontend**: `apiBase` variable in `default.html` reads `window.__CHATNIFICENT_ROOT__` for prefix-aware API calls and URL history
+- **Examples**: Tier 5 Starlette suite — `starlette_quickstart`, `starlette_server_options`, `starlette_uvicorn_options`, `starlette_multi_mount`
+
+### Changed
+
+- **Server**: `Starlette.__init__` simplified — removed `prefix` param, removed defensive `list()`/`dict()` copies (Starlette accepts `None`)
+- **Server**: `Starlette.run()` simplified — explicit params (`host`, `port`, `workers`, `reload`, `log_level`, `ssl_keyfile`, `ssl_certfile`) with transparent `**kwargs` passthrough to uvicorn; removed `debug` flag
+- **Server**: `Starlette.create_server()` simplified — passes all 5 params directly to `starlette.applications.Starlette()`, no intermediate dict
+- **Server**: removed `httpx` from `[starlette]` extras — not needed at runtime, only for testing via Starlette's `TestClient`
+
 ## [0.0.16] — 2026-04-02
 
 StarletteServer — production-grade async ASGI server with full uvicorn integration.
@@ -107,7 +125,9 @@ The release that establishes Chatnificent's identity: zero dependencies, streami
 
 - **Store**: InMemory `save_conversation` handles new users via `setdefault`
 
-[Unreleased]: https://github.com/eliasdabbas/chatnificent/compare/v0.0.15...HEAD
+[Unreleased]: https://github.com/eliasdabbas/chatnificent/compare/v0.0.17...HEAD
+[0.0.17]: https://github.com/eliasdabbas/chatnificent/compare/v0.0.16...v0.0.17
+[0.0.16]: https://github.com/eliasdabbas/chatnificent/compare/v0.0.15...v0.0.16
 [0.0.15]: https://github.com/eliasdabbas/chatnificent/compare/v0.0.14...v0.0.15
 [0.0.14]: https://github.com/eliasdabbas/chatnificent/compare/v0.0.13...v0.0.14
 [0.0.13]: https://github.com/eliasdabbas/chatnificent/releases/tag/v0.0.13

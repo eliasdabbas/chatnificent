@@ -579,3 +579,141 @@ class TestDisplayRedaction:
         assert "r****@p****.com" in rendered[-1]["content"]
         assert "XXXX4444" in rendered[-1]["content"]
         assert "XXXX1111" in rendered[-1]["content"]
+
+
+# ---------------------------------------------------------------------------
+# Tier 5 — Production & Deployment
+# ---------------------------------------------------------------------------
+
+
+class TestStarletteQuickstart:
+    def test_app_instantiates_with_starlette_server(self):
+        mod = _import_example("starlette_quickstart")
+        assert isinstance(mod.app.server, chat.server.Starlette)
+
+    def test_asgi_app_is_created(self):
+        mod = _import_example("starlette_quickstart")
+        assert mod.app.server.asgi_app is not None
+
+    def test_responds_via_engine(self):
+        mod = _import_example("starlette_quickstart")
+        convo = mod.app.engine.handle_message(
+            "hello", user_id="test", convo_id_from_url=None
+        )
+        assert len(convo.messages) >= 2
+        assert convo.messages[-1]["content"]
+
+
+class TestStarletteServerOptions:
+    def test_app_instantiates_with_starlette_server(self):
+        mod = _import_example("starlette_server_options")
+        assert isinstance(mod.app.server, chat.server.Starlette)
+
+    def test_custom_routes_accessible(self):
+        from starlette.testclient import TestClient
+
+        mod = _import_example("starlette_server_options")
+        client = TestClient(mod.app.server.asgi_app)
+        r = client.get("/api/health")
+        assert r.status_code == 200
+        assert r.json()["status"] == "healthy"
+
+        r = client.get("/api/version")
+        assert r.status_code == 200
+        assert "version" in r.json()
+
+    def test_framework_routes_still_work(self):
+        from starlette.testclient import TestClient
+
+        mod = _import_example("starlette_server_options")
+        client = TestClient(mod.app.server.asgi_app)
+        r = client.get("/")
+        assert r.status_code == 200
+
+        r = client.get("/api/conversations")
+        assert r.status_code == 200
+
+    def test_cors_headers_present(self):
+        from starlette.testclient import TestClient
+
+        mod = _import_example("starlette_server_options")
+        client = TestClient(mod.app.server.asgi_app)
+        r = client.options(
+            "/api/chat",
+            headers={
+                "Origin": "https://example.com",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        assert r.headers.get("access-control-allow-origin") == "*"
+
+    def test_responds_via_engine(self):
+        mod = _import_example("starlette_server_options")
+        convo = mod.app.engine.handle_message(
+            "hello", user_id="test", convo_id_from_url=None
+        )
+        assert len(convo.messages) >= 2
+
+
+class TestStarletteUvicornOptions:
+    def test_app_instantiates_with_starlette_server(self):
+        mod = _import_example("starlette_uvicorn_options")
+        assert isinstance(mod.app.server, chat.server.Starlette)
+
+    def test_asgi_app_is_created(self):
+        mod = _import_example("starlette_uvicorn_options")
+        assert mod.app.server.asgi_app is not None
+
+    def test_responds_via_engine(self):
+        mod = _import_example("starlette_uvicorn_options")
+        convo = mod.app.engine.handle_message(
+            "hello", user_id="test", convo_id_from_url=None
+        )
+        assert len(convo.messages) >= 2
+
+
+class TestStarletteMultiMount:
+    def test_module_imports(self):
+        mod = _import_example("starlette_multi_mount")
+        assert hasattr(mod, "app")
+        assert hasattr(mod, "code_app")
+        assert hasattr(mod, "writer_app")
+
+    def test_sub_apps_are_starlette(self):
+        mod = _import_example("starlette_multi_mount")
+        assert isinstance(mod.code_app.server, chat.server.Starlette)
+        assert isinstance(mod.writer_app.server, chat.server.Starlette)
+
+    def test_landing_page(self):
+        from starlette.testclient import TestClient
+
+        mod = _import_example("starlette_multi_mount")
+        client = TestClient(mod.app)
+        r = client.get("/")
+        assert r.status_code == 200
+        assert "Code Assistant" in r.text
+        assert "Writing Assistant" in r.text
+
+    def test_sub_apps_serve_chat_ui(self):
+        from starlette.testclient import TestClient
+
+        mod = _import_example("starlette_multi_mount")
+        client = TestClient(mod.app)
+        for path in ["/code/", "/writer/"]:
+            r = client.get(path)
+            assert r.status_code == 200
+            assert "text/html" in r.headers["content-type"]
+
+    def test_sub_apps_have_independent_stores(self):
+        from starlette.testclient import TestClient
+
+        mod = _import_example("starlette_multi_mount")
+        client = TestClient(mod.app)
+
+        convo = mod.code_app.engine.handle_message(
+            "hello code", user_id="test", convo_id_from_url=None
+        )
+        code_convos = mod.code_app.store.list_conversations("test")
+        writer_convos = mod.writer_app.store.list_conversations("test")
+        assert len(code_convos) >= 1
+        assert len(writer_convos) == 0

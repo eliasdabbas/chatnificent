@@ -59,3 +59,14 @@ Keep canonical history clean while enriching what the UI shows.
 | 14 | [conversation_summary.py](conversation_summary.py) | Append summaries to `summaries.md` in `_after_save` and render the latest one above the transcript | `chatnificent[openai,anthropic,gemini]` |
 | 15 | [web_search.py](web_search.py) | Use Gemini web search, read raw API responses in `render_messages()`, and render sources as a simple Markdown list under the answer | `chatnificent[gemini]` |
 | 16 | [display_redaction.py](display_redaction.py) | Use built-in regex rules to mask emails, phones, and card numbers in the visible transcript only | `chatnificent[anthropic]` |
+
+## Tier 5 — Production & Deployment
+
+Run Chatnificent on a production-grade async server with Starlette and Uvicorn.
+
+| # | Example | Purpose | Dependencies |
+|---|---------|---------|--------------|
+| 17 | [starlette_quickstart.py](starlette_quickstart.py) | One-line swap to a production async server | `chatnificent[starlette]` |
+| 18 | [starlette_server_options.py](starlette_server_options.py) | Custom routes, middleware, lifespan hooks, and error handlers | `chatnificent[starlette]` |
+| 19 | [starlette_uvicorn_options.py](starlette_uvicorn_options.py) | Configure uvicorn: workers, reload, SSL, host/port | `chatnificent[starlette]` |
+| 20 | [starlette_multi_mount.py](starlette_multi_mount.py) | Mount multiple independent chat apps on one website | `chatnificent[starlette]` |

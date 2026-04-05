@@ -166,7 +166,7 @@ uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/display_redaction.py
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/web_search.py
 
-# Starlette server
+# Starlette server (requires OPENAI_API_KEY)
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/starlette_quickstart.py
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/starlette_server_options.py
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/starlette_uvicorn_options.py

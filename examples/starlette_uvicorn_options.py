@@ -2,6 +2,7 @@
 # requires-python = ">=3.9"
 # dependencies = [
 #     "chatnificent[starlette]",
+#     "openai",
 # ]
 # ///
 """

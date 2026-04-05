@@ -55,7 +55,6 @@ dash = [
 starlette = [
     "starlette>=0.27.0",
     "uvicorn>=0.20.0",
-    "httpx>=0.24.0",
 ]
 mantine = [
     "chatnificent[dash]",
@@ -75,6 +74,7 @@ default = ["chatnificent[dash,openai]"]
 # Development — all adapters + test tools (CI uses this)
 dev = [
     "chatnificent[dash,mantine,starlette,openai,anthropic,gemini,ollama]",
+    "httpx>=0.24.0",
     "pytest",
     "pytest-mock",
     "pytest-cov",

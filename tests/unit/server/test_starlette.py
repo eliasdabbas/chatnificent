@@ -15,12 +15,14 @@ starlette = pytest.importorskip(
 )
 httpx = pytest.importorskip("httpx", reason="StarletteServer tests require httpx")
 
-from chatnificent import Chatnificent
-from chatnificent.llm import Echo
-from chatnificent.models import Conversation
-from chatnificent.server import Starlette as StarletteServer
-from chatnificent.store import InMemory
-from starlette.testclient import TestClient
+# Imports below must follow importorskip so the module is cleanly skipped
+# when the starlette extra is not installed.
+from chatnificent import Chatnificent  # noqa: E402
+from chatnificent.llm import Echo  # noqa: E402
+from chatnificent.models import Conversation  # noqa: E402
+from chatnificent.server import Starlette as StarletteServer  # noqa: E402
+from chatnificent.store import InMemory  # noqa: E402
+from starlette.testclient import TestClient  # noqa: E402
 
 
 def _make_app(**kwargs):
@@ -671,9 +673,7 @@ class TestRootPath:
 
         app_a = _make_app()
         app_b = _make_app()
-        parent = StarletteApp(
-            routes=[Mount("/a", app=app_a), Mount("/b", app=app_b)]
-        )
+        parent = StarletteApp(routes=[Mount("/a", app=app_a), Mount("/b", app=app_b)])
         client = TestClient(parent, cookies={})
 
         r_a = client.get("/a/api/conversations", follow_redirects=False)

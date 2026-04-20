@@ -70,3 +70,14 @@ Run Chatnificent on a production-grade async server with Starlette and Uvicorn.
 | 18 | [starlette_server_options.py](starlette_server_options.py) | Custom routes, middleware, lifespan hooks, and error handlers | `chatnificent[starlette]` |
 | 19 | [starlette_uvicorn_options.py](starlette_uvicorn_options.py) | Configure uvicorn: workers, reload, SSL, host/port | `chatnificent[starlette]` |
 | 20 | [starlette_multi_mount.py](starlette_multi_mount.py) | Mount multiple independent chat apps on one website | `chatnificent[starlette]` |
+
+## Tier 6 — OpenAI Responses API
+
+Route Chatnificent through OpenAI's `responses.create` endpoint via a small subclass. Each example adds one hosted tool on top.
+
+| # | Example | Purpose | Dependencies |
+|---|---------|---------|--------------|
+| 21 | [openai_responses.py](openai_responses.py) | Route through OpenAI's `responses.create` in an 8-line subclass | `chatnificent[openai]` |
+| 22 | [openai_responses_website_search.py](openai_responses_website_search.py) | Domain-restricted research assistant via the hosted web-search tool | `chatnificent[openai]` |
+| 23 | [openai_responses_image_generator.py](openai_responses_image_generator.py) | Inline image generation every turn via the hosted `image_generation` tool | `chatnificent[openai]` |
+| 24 | [openai_responses_image_studio.py](openai_responses_image_studio.py) | Multi-turn image studio with per-conversation image persistence and context-safe replay | `chatnificent[openai]` |

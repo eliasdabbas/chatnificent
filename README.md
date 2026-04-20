@@ -171,11 +171,17 @@ uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/starlette_server_options.py
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/starlette_uvicorn_options.py
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/starlette_multi_mount.py
+
+# OpenAI Responses API (requires OPENAI_API_KEY)
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/openai_responses.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/openai_responses_website_search.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/openai_responses_image_generator.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/openai_responses_image_studio.py
 ```
 
 ## Examples
 
-The [`examples/`](examples/) directory has 20 standalone scripts covering basics, tool calling, display enrichment, web search, and more — each runnable with a single command:
+The [`examples/`](examples/) directory has 24 standalone scripts covering basics, tool calling, display enrichment, web search, and more — each runnable with a single command:
 
 ```bash
 uv run --script examples/quickstart.py

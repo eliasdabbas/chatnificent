@@ -114,12 +114,14 @@ The **Engine** pillar manages the request lifecycle and enables complex, multi-s
 
 ### Agentic Loop Architecture
 
+Retrieval (RAG context) runs **once per request, before** the loop — not inside it. The loop itself is bounded by `Orchestrator.max_agentic_turns` (default 5) to prevent runaway tool invocations.
+
 The engine can loop multiple times to allow the LLM to use tools, process results, and form a final answer:
 
 1. **LLM generates response** (may include tool calls)
 2. **Engine detects tool calls** and executes them via Tools pillar
 3. **Tool results** are added to conversation history
-4. **Loop continues** until LLM provides final answer
+4. **Loop continues** until LLM provides final answer or `max_agentic_turns` is reached
 
 **Pillar Contracts:**
 - The **LLM** pillar is responsible for parsing tool calls from its own native response format

@@ -78,6 +78,7 @@ dev = [
     "pytest",
     "pytest-mock",
     "pytest-cov",
+    "pytest-xdist",
 ]
 
 [build-system]

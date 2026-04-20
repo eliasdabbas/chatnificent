@@ -668,7 +668,12 @@ class Starlette(Server):
         return user_id, is_new
 
     def _get_root_path(self, request):
-        """Extract the ASGI root_path (mount prefix) from the request.
+        """Extract the mount prefix from the request.
+
+        Framework-specific seam — override in concrete server subclasses to
+        read the prefix from whatever primitive the framework exposes (ASGI
+        ``scope["root_path"]`` for Starlette, WSGI ``environ["SCRIPT_NAME"]``
+        for Flask, etc.).
 
         Returns
         -------

@@ -50,6 +50,35 @@ passing requests to the sub-app, and Chatnificent detects the ASGI
 ``root_path`` to prefix all API paths, browser URLs, and session cookies
 accordingly — no extra configuration needed.
 
+Mounting Under a Prefix — Implementation Notes
+----------------------------------------------
+When a Chatnificent app is mounted under a URL prefix (either via Starlette's
+``Mount("/code", app=sub)`` as shown here, or via ``uvicorn --root-path
+/myapp`` when reverse-proxied), four things must be adjusted so the app works
+transparently under the prefix:
+
+1. **API response ``path`` fields** — JSON responses that include a path back
+   to a conversation must be prefixed
+2. **Frontend ``fetch()`` URLs** — the injected ``window.__CHATNIFICENT_ROOT__``
+   global tells the browser JS what to prepend
+3. **Browser URL bar** — pushState navigation must use the prefixed path
+4. **Session cookie ``Path``** — scoped to the mount so cookies from
+   ``/code/`` don't leak into ``/writer/``
+
+The ``Server`` base class provides three framework-agnostic helpers that
+cover these concerns: ``_inject_root_into_html``,
+``_build_full_conversation_path``, and ``_cookie_path``. The one
+framework-specific seam is ``_get_root_path(request)`` — each concrete
+server overrides it to read the prefix from whatever primitive its framework
+exposes (ASGI ``scope["root_path"]`` for Starlette, WSGI
+``environ["SCRIPT_NAME"]`` for Flask, etc.). ``DevServer`` does not support
+mounting; use an ASGI server (e.g. ``Starlette``) for that.
+
+To add mount support to a new server implementation: subclass ``Server`` (or
+an existing concrete server), override ``_get_root_path`` to return the
+prefix from your framework's request object, and the three shared helpers
+will apply it uniformly throughout the stack.
+
 .. note::
 
    Each mount point (``/code/``, ``/writer/``) serves a fully standalone chat

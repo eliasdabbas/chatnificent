@@ -352,6 +352,9 @@
             border-collapse: collapse;
             margin: 0.6em 0;
             font-size: 0.9em;
+            display: block;
+            max-width: 100%;
+            overflow-x: auto;
         }
 
         .msg.assistant th,
@@ -363,6 +366,15 @@
         .msg.assistant th {
             background: var(--bg);
             font-weight: 600;
+        }
+
+        .msg.assistant img,
+        .msg.assistant video {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 8px;
+            margin: 0.4em 0;
         }
 
         .status-indicator {

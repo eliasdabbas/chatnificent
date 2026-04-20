@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
-#     "chatnificent[openai]",
+#     "chatnificent[openai]>=0.0.18",
 # ]
 # ///
 """

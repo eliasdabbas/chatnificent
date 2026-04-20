@@ -232,9 +232,25 @@ class File(Store):
         return convo_dir
 
     def _get_file_path(self, user_id: str, convo_id: str, filename: str) -> Path:
-        """Get a validated file path inside the conversation directory."""
-        self._validate_path_segment(filename, "filename")
-        return self._get_conversation_dir(user_id, convo_id) / filename
+        """Get a validated file path inside the conversation directory.
+
+        Filenames may contain path separators (e.g. ``images/0.png``) as long
+        as the resolved path stays inside the conversation directory.
+        Containment is scoped to the conversation directory, not ``base_dir``:
+        ``save_file`` is conversation-scoped by signature, so anything broader
+        would permit cross-user writes via filename tricks.
+        """
+        if not filename or "\x00" in filename:
+            raise ValueError(f"Unsafe filename rejected (path traversal): {filename!r}")
+        if Path(filename).is_absolute():
+            raise ValueError(f"Unsafe filename rejected (path traversal): {filename!r}")
+        convo_dir = self._get_conversation_dir(user_id, convo_id)
+        convo_dir.mkdir(parents=True, exist_ok=True)
+        candidate = (convo_dir / filename).resolve()
+        convo_root = convo_dir.resolve()
+        if not candidate.is_relative_to(convo_root):
+            raise ValueError(f"Unsafe filename rejected (path traversal): {filename!r}")
+        return candidate
 
     def _get_write_lock(self, user_id: str, convo_id: str) -> Lock:
         """Get or create a write lock for a specific conversation."""
@@ -375,6 +391,7 @@ class File(Store):
                 convo_dir = self._get_conversation_dir(user_id, convo_id)
                 convo_dir.mkdir(exist_ok=True)
                 file_path = self._get_file_path(user_id, convo_id, filename)
+                file_path.parent.mkdir(parents=True, exist_ok=True)
                 mode = "ab" if kwargs.get("append") else "wb"
                 with open(file_path, mode) as f:
                     f.write(data)
@@ -396,16 +413,31 @@ class File(Store):
             return None
 
     def list_files(self, user_id: str, convo_id: str) -> List[str]:
-        """List auxiliary files stored alongside the canonical conversation."""
+        """List auxiliary files stored alongside the canonical conversation.
+
+        Returned paths are relative to the conversation directory and use
+        forward slashes on all platforms, matching the strings accepted by
+        ``save_file`` / ``load_file``. Reserved top-level files (canonical
+        messages, raw API logs) are excluded.
+        """
+        reserved = {
+            "messages.json",
+            "raw_api_requests.jsonl",
+            "raw_api_responses.jsonl",
+        }
         try:
             convo_dir = self._get_conversation_dir(user_id, convo_id)
             if not convo_dir.exists():
                 return []
-            return sorted(
-                item.name
-                for item in convo_dir.iterdir()
-                if item.is_file() and item.name != "messages.json"
-            )
+            results = []
+            for item in convo_dir.rglob("*"):
+                if not item.is_file():
+                    continue
+                rel = item.relative_to(convo_dir).as_posix()
+                if rel in reserved:
+                    continue
+                results.append(rel)
+            return sorted(results)
         except (PermissionError, OSError):
             return []
 

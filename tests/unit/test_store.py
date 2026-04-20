@@ -306,6 +306,51 @@ class TestFile:
 
             assert store.list_files("user1", "conv_001") == ["notes.txt"]
 
+    def test_file_list_files_recurses_nested_paths(self):
+        """``list_files`` must return nested files using forward-slash paths,
+        matching the strings ``save_file`` / ``load_file`` accept."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = File(temp_dir)
+            store.save_conversation(
+                "user1",
+                Conversation(
+                    id="conv_001",
+                    messages=[{"role": "user", "content": "hi"}],
+                ),
+            )
+            store.save_file("user1", "conv_001", "notes.txt", b"x")
+            store.save_file("user1", "conv_001", "images/0.png", b"\x89PNG")
+            store.save_file("user1", "conv_001", "images/1.png", b"\x89PNG")
+            store.save_file("user1", "conv_001", "a/b/c.bin", b"deep")
+
+            assert store.list_files("user1", "conv_001") == [
+                "a/b/c.bin",
+                "images/0.png",
+                "images/1.png",
+                "notes.txt",
+            ]
+
+    def test_file_list_files_excludes_reserved_top_level_files(self):
+        """Reserved top-level files (canonical messages + raw API logs) must
+        never appear in ``list_files`` output, even when nested siblings exist."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = File(temp_dir)
+            store.save_conversation(
+                "user1",
+                Conversation(
+                    id="conv_001",
+                    messages=[{"role": "user", "content": "hi"}],
+                ),
+            )
+            # Prime raw-log sidecars via the public path
+            store.save_raw_api_request(
+                "user1", "conv_001", {"model": "x", "messages": []}
+            )
+            store.save_raw_api_response("user1", "conv_001", {"id": "r"})
+            store.save_file("user1", "conv_001", "images/0.png", b"\x89PNG")
+
+            assert store.list_files("user1", "conv_001") == ["images/0.png"]
+
     class TestPathTraversal:
         """File store must reject path traversal attacks in user_id and convo_id."""
 
@@ -411,6 +456,63 @@ class TestFile:
                     store.save_conversation(
                         "..", Conversation(id="escape", messages=[])
                     )
+
+    class TestNestedFilenames:
+        """File store must allow nested filenames that stay inside the
+        conversation directory, while rejecting filenames that would escape it.
+
+        Containment is scoped to the conversation directory, not ``base_dir``:
+        ``save_file(user_id, convo_id, filename, data)`` is conversation-scoped
+        by signature, so anything broader would permit cross-user writes via
+        filename tricks.
+        """
+
+        def test_allow_nested_filename(self):
+            with tempfile.TemporaryDirectory() as d:
+                store = File(d)
+                store.save_file("user1", "conv1", "images/0.png", b"png-bytes")
+                assert store.load_file("user1", "conv1", "images/0.png") == b"png-bytes"
+
+        def test_allow_deep_nested_filename(self):
+            with tempfile.TemporaryDirectory() as d:
+                store = File(d)
+                store.save_file("user1", "conv1", "a/b/c.bin", b"deep")
+                assert store.load_file("user1", "conv1", "a/b/c.bin") == b"deep"
+
+        def test_reject_absolute_filename(self):
+            with tempfile.TemporaryDirectory() as d:
+                store = File(d)
+                with pytest.raises(ValueError, match="path traversal"):
+                    store.save_file("user1", "conv1", "/etc/passwd", b"x")
+
+        def test_reject_null_byte_in_filename(self):
+            with tempfile.TemporaryDirectory() as d:
+                store = File(d)
+                with pytest.raises(ValueError, match="path traversal"):
+                    store.save_file("user1", "conv1", "good\x00bad.txt", b"x")
+
+        def test_reject_dotdot_escape_in_nested_filename(self):
+            """Even if ``..`` appears inside a nested filename, the resolved
+            path must remain inside the conversation directory."""
+            with tempfile.TemporaryDirectory() as d:
+                store = File(d)
+                with pytest.raises(ValueError, match="path traversal"):
+                    store.save_file("user1", "conv1", "subdir/../../escape.txt", b"x")
+
+        def test_reject_symlink_escape(self):
+            """A symlink inside the conversation directory pointing outside
+            it must not be writable through ``save_file``."""
+            with tempfile.TemporaryDirectory() as d:
+                outside = Path(d) / "outside"
+                outside.mkdir()
+                store = File(str(Path(d) / "base"))
+                # Prime the conversation directory so we can plant a symlink.
+                store.save_file("user1", "conv1", "seed.txt", b"seed")
+                convo_dir = Path(d) / "base" / "user1" / "conv1"
+                link = convo_dir / "escape"
+                link.symlink_to(outside, target_is_directory=True)
+                with pytest.raises(ValueError, match="path traversal"):
+                    store.save_file("user1", "conv1", "escape/pwned.txt", b"x")
 
 
 class TestSQLite:

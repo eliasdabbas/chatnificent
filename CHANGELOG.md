@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.0.18] — 2026-04-20
+
+OpenAI Responses API examples; `File` store accepts nested filenames for per-conversation media.
+
+### Added
+
+- **Store**: `File` store now accepts nested filenames (e.g. `images/foo.png`) in `save_file()` / `load_file()` / `list_files()` — `_get_file_path` resolves the joined path with `Path.resolve()` and asserts containment via `is_relative_to(convo_dir)`, safely supporting subdirectories while blocking traversal and symlink escapes. `list_files()` recurses with `rglob` and excludes reserved framework files (`messages.json`, `raw_api_*.jsonl`). Enables per-conversation media storage (images, audio, documents) without subclassing
+- **Examples**: Tier 6 OpenAI Responses API suite — four examples showing how to route Chatnificent through OpenAI's `responses.create` endpoint in a small subclass:
+  - `openai_responses` — minimal 8-line subclass baseline
+  - `openai_responses_website_search` — domain-restricted research assistant via the hosted web-search tool
+  - `openai_responses_image_generator` — inline image generation every turn via the hosted `image_generation` tool
+  - `openai_responses_image_studio` — multi-turn image studio with per-conversation image persistence and context-safe replay
+- **Agents**: `.agents/skills/example-app/SKILL.md` — agent-skill convention for authoring `/examples/*.py`, so AI coding assistants can reliably produce examples that match the project's style ([Roadmap Phase 1: "Ship all examples as agent skills"](ROADMAP.md))
+- **Dev**: `pytest-xdist` added to the `dev` extra — full suite drops from ~127s to ~38s via `pytest -n auto`
+
+### Fixed
+
+- **Tests**: `test_starlette.py` imports that follow `pytest.importorskip` now carry explicit `# noqa: E402` (module must still be cleanly skipped when the `starlette` extra is missing)
+
 ## [0.0.17] — 2026-04-05
 
 ASGI root_path mounting — run multiple Chatnificent apps on one website.
@@ -125,7 +144,8 @@ The release that establishes Chatnificent's identity: zero dependencies, streami
 
 - **Store**: InMemory `save_conversation` handles new users via `setdefault`
 
-[Unreleased]: https://github.com/eliasdabbas/chatnificent/compare/v0.0.17...HEAD
+[Unreleased]: https://github.com/eliasdabbas/chatnificent/compare/v0.0.18...HEAD
+[0.0.18]: https://github.com/eliasdabbas/chatnificent/compare/v0.0.17...v0.0.18
 [0.0.17]: https://github.com/eliasdabbas/chatnificent/compare/v0.0.16...v0.0.17
 [0.0.16]: https://github.com/eliasdabbas/chatnificent/compare/v0.0.15...v0.0.16
 [0.0.15]: https://github.com/eliasdabbas/chatnificent/compare/v0.0.14...v0.0.15

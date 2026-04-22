@@ -5,115 +5,126 @@
 # ]
 # ///
 """
-Image Studio — Professional Multi-Turn Image Generation
-========================================================
+Image Studio — Multi-Turn Image Editing with Live Streaming
+===========================================================
 
-The "professional" companion to ``openai_responses_image_generator.py``.
-That example is the minimum demo: every turn generates an image and
-inlines a base64 data URL into ``messages.json``. It works for one
-shot but breaks on follow-up edits — the prior turn's ~1.9 MB data
-URL is replayed as input and blows the model's context window.
+A conversational image studio built on OpenAI's Responses API. Type a
+prompt, watch the image materialise in real time, then keep refining it
+with follow-up messages. Each reply edits the same running image —
+no re-uploads, no context overflow, no staring at a blank screen.
 
-This example fixes the three things a real product needs:
+What You'll See
+---------------
+Three features that set this apart from a basic image generator:
 
-1. **Server-side conversation state.** Uses OpenAI's native
-   ``Conversation`` object so the model sees prior images without us
-   re-uploading them each turn. The framework sends only the *new*
-   user message; OpenAI prepends prior conversation items.
-2. **Durable, organized image artifacts.** Each generated image is
-   decoded and saved as ``images/<n>.png`` under the conversation
-   directory via the Store pillar. ``messages.json`` keeps short URL
-   references (``/files/<user>/<convo>/images/<n>.png``), not
-   megabytes of base64.
-3. **A ``/files/...`` HTTP route.** A small ``DevServer`` subclass
-   adds a GET handler that streams sidecar bytes through the Store,
-   scoped to the requesting user. The default UI's ``<img>`` tags
-   resolve via this route.
+**1. Progressive streaming**
+    The image appears in the chat before generation is complete. Two
+    partial previews are sent as the model works, sharpening into the
+    final result. Users see something immediately instead of waiting
+    in silence.
 
-Three small subclasses do all of it (LLM + Engine + Server). The
-``File`` store is used as-is — nested filenames like ``images/0.png``
-are supported out of the box since the path-canonicalization fix.
-The original ``openai_responses_image_generator.py`` stays unchanged
-as the "minimally complete" pitch.
+**2. Multi-turn editing**
+    Every follow-up message edits the current image rather than
+    starting from scratch. This is powered by OpenAI's server-side
+    ``Conversation`` object — the model remembers prior images without
+    the app re-uploading them each turn.
 
-Architecture
-------------
-- ``messages.json`` view: text + short ``/files/...`` URLs (small).
-- OpenAI server view: full conversation including image items
-  (held by ``conversation=conv_*``).
-- The two never need to be reconciled — the model never sees our
-  short URLs, and we never re-send the bytes.
-
-Flow per turn
--------------
-1. **LLM** (``OpenAIResponses``):
-   - If a prior assistant message carries an
-     ``_openai_conversation_id`` marker, send only the new user input
-     and ``conversation=<id>`` to ``responses.create``. The server
-     prepends prior items.
-   - First turn: ``client.conversations.create()`` to mint a fresh
-     ``conv_*`` ID, then send full input plus ``conversation=<id>``.
-2. **Engine** (``ImageStudioEngine``) overrides ``_save_conversation``
-   (the seam that runs *after* ``raw_api_responses.jsonl`` is written
-   but *before* the canonical save). This means everything happens in
-   a single conversation-save:
-   - Read the just-written raw response chunks from the Store.
-   - Extract ``response.conversation.id`` and any
-     ``image_generation_call.result`` base64 bytes.
-   - Save bytes as ``images/<n>.png`` via Store.
-   - Rewrite the latest assistant message: replace inline data URLs
-     with ``/files/...`` URLs, attach the conversation marker.
-   - Hand off to the parent's save.
-3. **Server** (``FileServingDevServer``) adds a ``/files/...`` route
-   that loads bytes via Store and serves them with ``image/*``
-   content type, scoped to the requesting user.
+**3. Revised prompt visibility**
+    The model automatically rewrites your prompt for better results.
+    The revised version is shown below each image so you can see
+    exactly what was sent to the image generator — useful for learning
+    what kinds of prompts work well.
 
 Running
 -------
 ::
 
     export OPENAI_API_KEY="sk-..."
-    uv run examples/openai_responses_image_studio.py
+    uv run --script examples/openai_responses_image_studio.py
 
-Open http://127.0.0.1:7777 and try the iterative flow:
+Open http://127.0.0.1:7777 and try this iterative flow::
 
-- "give me an image of a camel in the desert"
-- "now make the sky yellow"
-- "now have it raining"
+    "a neon-lit ramen bar in Tokyo at midnight"
 
-Each follow-up edits the running image. ``messages.json`` stays
-small across turns; ``image_studio/<user>/<convo>/images/``
-accumulates real PNG files; the ``/files/...`` URLs in the chat
-resolve to those files.
+    "add a cat sleeping on the counter"
+    "make it rain outside the window"
+    "turn the whole scene into a watercolour painting"
 
-Why ``_save_conversation`` and not ``_after_save``?
----------------------------------------------------
-``_after_save`` runs after the canonical save is already on disk —
-mutating then would force a *second* write. ``_save_conversation``
-sits between raw-exchange persistence and the canonical save, so we
-mutate in place and the parent does the single write. Lower I/O,
-fewer atomicity edge cases.
+Each follow-up edits the running image. Your conversation history and
+generated images are saved in ``image_studio/`` so they survive
+server restarts.
 
-Friction Log (feeds the transparent-endpoint spec)
---------------------------------------------------
-1. **LLM has no Store access.** Conversation IDs and image bytes
-   both need persistence keyed by ``user_id`` / ``convo_id``, which
-   the LLM doesn't know. We push that work to the engine subclass
-   and pass the conversation ID back through the message dicts (the
-   ``_openai_conversation_id`` marker pattern).
-2. ~~Store enforces flat filenames.~~ *Resolved:* ``File`` now
-   canonicalizes nested paths (``images/0.png``) and enforces
-   containment via ``Path.resolve()`` rather than rejecting all
-   ``/``. No Store subclass needed.
-3. **No file-serving primitive in DevServer.** Sidecar files exist
-   on disk but aren't reachable over HTTP without a custom handler.
-4. **Conversation parameter binds the conversation to OpenAI.** This
-   is Tension 2 from the strategic review made concrete: switching
-   providers mid-conversation now requires migrating server-side
-   state.
+How It Works
+------------
+Three small subclasses extend the framework — one per pillar:
+
+**LLM** (``OpenAIResponses``)
+    Uses OpenAI's Responses API with the built-in ``image_generation``
+    tool (``partial_images=2``, ``quality="medium"``, ``output_format="jpeg"``).
+
+    On the first turn it mints a server-side ``conv_*`` conversation ID
+    via ``client.conversations.create()``. On every subsequent turn it
+    sends only the new user message plus ``conversation=<id>`` — OpenAI
+    prepends the full prior context server-side. No image bytes ever
+    leave the client after the first request.
+
+    The revised prompt and partial images are surfaced through
+    ``extract_stream_delta()``: partial events become ``<img
+    data-gen-partial>`` tags (reclassified as SSE ``status`` events so
+    they display progressively but don't accumulate), and the final
+    ``response.output_item.done`` event produces the permanent image tag
+    plus the revised prompt prefix.
+
+**Engine** (``ImageStudioEngine``)
+    Overrides two methods:
+
+    ``handle_message_stream()`` — intercepts partial-image ``delta``
+    events and re-emits them as ``status`` events. The browser UI
+    replaces the status area on each new ``status`` event and removes
+    it entirely on ``done``, so users see the image sharpen in place
+    rather than accumulating a stack of blurry previews.
+
+    ``_save_conversation()`` — runs between raw-log persistence and the
+    canonical save. It regex-scans the latest assistant message for
+    ``<img src="data:image/jpeg;base64,...">`` tags, decodes each one,
+    writes it to ``images/<n>.jpeg`` via the Store pillar, and rewrites
+    the src to a short ``/files/<user>/<convo>/images/<n>.jpeg`` URL.
+    Partial placeholders are stripped. The result: ``messages.json``
+    stays small (URLs, not megabytes of base64), and every image is a
+    real file on disk.
+
+**Server** (``FileServingDevServer``)
+    Adds a single ``/files/<user>/<convo>/<filename>`` GET route. The
+    handler validates the path (no ``..`` traversal), checks that the
+    requesting session owns the file, loads bytes from the Store, and
+    serves them with the correct ``image/jpeg`` content type. The
+    default chat UI's ``<img>`` tags resolve via this route with no
+    frontend changes.
+
+Why Not Inline Base64?
+----------------------
+The companion example ``openai_responses_image_generator.py`` keeps
+everything inline for simplicity — it's the "minimally complete" pitch.
+The trade-off: a 1024×1024 JPEG base64-encoded is around 200 KB, and
+it gets replayed as input on every follow-up turn. Across a multi-turn
+editing session this blows the context window. This example solves that
+by separating storage (the Store pillar, ``images/<n>.jpeg``) from
+display (short ``/files/...`` URLs in ``messages.json``).
+
+What to Explore Next
+--------------------
+- ``openai_responses_image_generator.py`` — the minimal one-file
+  version; great starting point before reading this one
+- ``starlette_quickstart.py`` — swap ``DevServer`` for a production
+  async server with one parameter change
+- ``openai_responses_website_search.py`` — same Responses API pattern
+  applied to web search instead of image generation
+- ``tool_calling.py`` — build your own Python-based tools using the
+  ``PythonTool`` pillar
 """
 
 import base64
+import re
 from functools import partial
 from http import HTTPStatus
 from http.server import HTTPServer
@@ -151,9 +162,21 @@ class OpenAIResponses(chat.llm.OpenAI):
     def extract_stream_delta(self, chunk):
         if chunk.type == "response.output_text.delta":
             return chunk.delta
+        if chunk.type == "response.image_generation_call.partial_image":
+            return self._format_partial_image(
+                chunk.partial_image_b64, chunk.partial_image_index
+            )
         if chunk.type == "response.output_item.done":
             return self._format_image(chunk.item)
         return None
+
+    def _format_partial_image(self, b64, index):
+        # Marked with data-gen-partial so _save_conversation can strip them
+        return (
+            f'\n<img data-gen-partial="1" '
+            f'src="data:image/jpeg;base64,{b64}" '
+            f'style="max-width:512px;height:auto" alt="Generating...">\n'
+        )
 
     def _format_image(self, item):
         if getattr(item, "type", None) != "image_generation_call":
@@ -161,12 +184,13 @@ class OpenAIResponses(chat.llm.OpenAI):
         result = getattr(item, "result", None)
         if not result:
             return None
-        # Inline CSS cap — generated images are 1024–1536px; render at
-        # 512px max so multi-turn edits stay comfortably on screen.
-        return (
-            f'\n\n<img src="data:image/png;base64,{result}" '
-            f'style="max-width:512px;height:auto" alt="Generated image">\n\n'
+        revised = getattr(item, "revised_prompt", None)
+        prefix = f'_Revised prompt: "{revised}"_\n\n' if revised else ""
+        img = (
+            f'\n\n<img src="data:image/jpeg;base64,{result}" '
+            'style="max-width:512px;height:auto" alt="Generated image">\n\n'
         )
+        return prefix + img
 
     def _find_conversation_id(self, messages):
         for msg in reversed(messages):
@@ -190,69 +214,93 @@ class OpenAIResponses(chat.llm.OpenAI):
 
 
 class ImageStudioEngine(chat.engine.Orchestrator):
-    def _save_conversation(self, conversation, user_id):
-        raw_responses = self.app.store.load_raw_api_responses(user_id, conversation.id)
-        if raw_responses:
-            convo_id, b64_images = self._scan_latest_response(raw_responses[-1])
-            url_replacements = self._save_images(user_id, conversation.id, b64_images)
+    def handle_message_stream(self, user_input, user_id, convo_id_from_url):
+        # Partial-image deltas must not accumulate in the browser's message
+        # bubble — they'd pile up above the final image. Instead, re-type them
+        # as `status` events: the UI replaces the status area on every new
+        # status event and strips it entirely on `done`, so users see the image
+        # progressively sharpen without any redundant copies persisting.
+        for event in super().handle_message_stream(
+            user_input, user_id, convo_id_from_url
+        ):
+            if event.get(
+                "event"
+            ) == "delta" and '<img data-gen-partial="1"' in event.get("data", ""):
+                yield {"event": "status", "data": event["data"]}
+            else:
+                yield event
 
-            last = conversation.messages[-1] if conversation.messages else None
-            if last and last.get("role") == "assistant":
-                content = last.get("content", "")
-                if isinstance(content, str):
-                    for b64, filename in url_replacements:
-                        short_url = f"/files/{user_id}/{conversation.id}/{filename}"
-                        content = content.replace(
-                            f"data:image/png;base64,{b64}", short_url
-                        )
-                    last["content"] = content
-                if convo_id:
-                    last["_openai_conversation_id"] = convo_id
+    def _save_conversation(self, conversation, user_id):
+        last = conversation.messages[-1] if conversation.messages else None
+        if last and last.get("role") == "assistant":
+            content = last.get("content", "")
+            if isinstance(content, str):
+                # Strip partial placeholders first
+                content = re.sub(
+                    r'\n?<img data-gen-partial="1"[^>]*>\n?',
+                    "",
+                    content,
+                )
+                # Save each final inline image directly from content,
+                # replacing the base64 src with a /files/... URL in-place.
+                # We extract b64 from content itself — no JSONL comparison
+                # needed, so there is no risk of a serialization mismatch.
+                existing = self.app.store.list_files(user_id, conversation.id)
+                counter = [
+                    sum(
+                        1
+                        for f in existing
+                        if f.startswith("images/") and f.endswith(".jpeg")
+                    )
+                ]
+
+                def _replace_img(match):
+                    b64 = match.group(1)
+                    try:
+                        data = base64.b64decode(b64)
+                    except (ValueError, TypeError):
+                        return match.group(0)
+                    filename = f"images/{counter[0]}.jpeg"
+                    self.app.store.save_file(user_id, conversation.id, filename, data)
+                    counter[0] += 1
+                    url = f"/files/{user_id}/{conversation.id}/{filename}"
+                    return (
+                        f'<img src="{url}" '
+                        'style="max-width:512px;height:auto" '
+                        'alt="Generated image">'
+                    )
+
+                content = re.sub(
+                    r'<img src="data:image/jpeg;base64,([A-Za-z0-9+/=]+)"'
+                    r"[^>]*>",
+                    _replace_img,
+                    content,
+                )
+                last["content"] = content
+
+        # Attach the OpenAI conversation ID from raw logs
+        raw_responses = self.app.store.load_raw_api_responses(user_id, conversation.id)
+        if raw_responses and last and last.get("role") == "assistant":
+            convo_id = self._extract_conversation_id(raw_responses[-1])
+            if convo_id:
+                last["_openai_conversation_id"] = convo_id
 
         super()._save_conversation(conversation, user_id)
 
-    def _scan_latest_response(self, latest):
+    def _extract_conversation_id(self, latest):
         chunks = latest if isinstance(latest, list) else [latest]
-        convo_id = None
-        b64_images = []
         for chunk in chunks:
-            ctype = chunk.get("type") if isinstance(chunk, dict) else None
+            if not isinstance(chunk, dict):
+                continue
+            ctype = chunk.get("type")
             if ctype == "response.completed":
                 conv = (chunk.get("response") or {}).get("conversation")
-                if isinstance(conv, dict):
-                    convo_id = conv.get("id") or convo_id
-            elif ctype == "response.output_item.done":
-                item = chunk.get("item") or {}
-                if item.get("type") == "image_generation_call" and item.get("result"):
-                    b64_images.append(item["result"])
-            elif isinstance(chunk, dict) and chunk.get("object") == "response":
-                conv = chunk.get("conversation")
-                if isinstance(conv, dict):
-                    convo_id = conv.get("id") or convo_id
-                for item in chunk.get("output", []) or []:
-                    if item.get("type") == "image_generation_call" and item.get(
-                        "result"
-                    ):
-                        b64_images.append(item["result"])
-        return convo_id, b64_images
-
-    def _save_images(self, user_id, convo_id, b64_images):
-        if not b64_images:
-            return []
-        existing = self.app.store.list_files(user_id, convo_id)
-        next_index = sum(
-            1 for f in existing if f.startswith("images/") and f.endswith(".png")
-        )
-        replacements = []
-        for offset, b64 in enumerate(b64_images):
-            try:
-                data = base64.b64decode(b64)
-            except (ValueError, TypeError):
-                continue
-            filename = f"images/{next_index + offset}.png"
-            self.app.store.save_file(user_id, convo_id, filename, data)
-            replacements.append((b64, filename))
-        return replacements
+                if isinstance(conv, dict) and conv.get("id"):
+                    return conv["id"]
+            conv = chunk.get("conversation")
+            if isinstance(conv, dict) and conv.get("id"):
+                return conv["id"]
+        return None
 
 
 # =============================================================================
@@ -284,7 +332,11 @@ class FileServingDevHandler(_DevHandler):
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         content_type = (
-            "image/png" if filename.endswith(".png") else "application/octet-stream"
+            "image/png"
+            if filename.endswith(".png")
+            else "image/jpeg"
+            if filename.endswith(".jpeg")
+            else "application/octet-stream"
         )
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type)
@@ -314,7 +366,17 @@ class FileServingDevServer(chat.server.DevServer):
 
 
 app = chat.Chatnificent(
-    llm=OpenAIResponses(tools=[{"type": "image_generation"}]),
+    llm=OpenAIResponses(
+        model="gpt-5.4",
+        tools=[
+            {
+                "type": "image_generation",
+                "partial_images": 2,
+                "quality": "medium",
+                "output_format": "jpeg",
+            }
+        ],
+    ),
     store=chat.store.File(base_dir="image_studio"),
     engine=ImageStudioEngine(),
     server=FileServingDevServer(),

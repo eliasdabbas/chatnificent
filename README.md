@@ -153,6 +153,8 @@ uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/tool_calling.py
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/system_prompt.py
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/multi_tool_agent.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/memory_tool.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/memory_tool_multi_user.py
 
 # Customization
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/single_user.py
@@ -181,7 +183,7 @@ uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/
 
 ## Examples
 
-The [`examples/`](examples/) directory has 24 standalone scripts covering basics, tool calling, display enrichment, web search, and more — each runnable with a single command:
+The [`examples/`](examples/) directory has 26 standalone scripts covering basics, tool calling, display enrichment, web search, and more — each runnable with a single command:
 
 ```bash
 uv run --script examples/quickstart.py

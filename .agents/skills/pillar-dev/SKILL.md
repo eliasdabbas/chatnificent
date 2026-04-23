@@ -156,7 +156,7 @@ before calling the API.
 This approach:
 - Preserves full provider fidelity (thinking blocks, citations, etc.)
 - Avoids lossy format translations
-- Raw API responses are also saved to `raw_api_requests.jsonl` for auditing
+- Raw API logs are saved to `raw_api_requests.jsonl` and `raw_api_responses.jsonl` for auditing
 
 ## Customization Patterns
 

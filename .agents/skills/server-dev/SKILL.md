@@ -30,7 +30,7 @@ Every Chatnificent server implementation must expose these endpoints. DevServer 
   "response": "assistant text",
   "messages": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}],
   "conversation_id": "abc123",
-  "path": "/conversations/<user_id>/<convo_id>"
+  "path": "/<user_id>/<convo_id>"
 }
 ```
 
@@ -52,7 +52,7 @@ Errors: `{"error": "message"}` with HTTP 400 or 500.
 | Property | Value |
 |----------|-------|
 | Cookie name | `chatnificent_session` |
-| Cookie attributes | `Path=/; SameSite=Lax` |
+| Cookie attributes | `Path=/; SameSite=Lax` (when mounted under a `root_path`, `Path=<root_path>/`) |
 | Session resolution | `auth.get_current_user_id(session_id=<cookie_value>)` |
 | Set-Cookie | Only on new sessions (`_new_session=True`) |
 

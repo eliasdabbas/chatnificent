@@ -19,7 +19,7 @@ Every Chatnificent server implementation must expose these endpoints. DevServer 
 |--------|------|-------------|----------|-------|
 | GET | `/` | — | HTML page (`layout.render_page()`) | Serves the chat UI |
 | GET | `/{user_id}/{convo_id}` | — | HTML page with `<script>window.__CHATNIFICENT_CONVO__="{convo_id}"</script>` injected | Pre-loads conversation |
-| GET | `/api/conversations` | — | `{"conversations": [{"id": "...", "title": "..."}]}` | Titles derived from first user message, truncated to 30 chars + "..." |
+| GET | `/api/conversations` | — | `{"conversations": [{"id": "...", "title": "..."}]}` | Titles derived from first user message, truncated to 30 chars + "…" |
 | GET | `/api/conversations/{id}` | — | `{"id": "...", "messages": [...], "path": "..."}` | Messages filtered through `layout.render_messages()`. 404 if not found |
 | POST | `/api/chat` | `{"message": "...", "conversation_id": "..."}` | JSON or SSE stream (see below) | Dispatches based on `llm.default_params["stream"]` |
 

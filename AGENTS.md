@@ -1,8 +1,6 @@
-# Coding Agent Instructions for Chatnificent
+# Chatnificent
 
 ## Quick Start for Agents
-
-**Chatnificent** 
 
 > LLM chat app framework
 > Minimally complete. Maximally hackable.
@@ -20,7 +18,7 @@ Run with: `uv run app.py`
 Chatnificent uses **dependency injection** with 9 configurable "pillars". Each pillar has an abstract base class and concrete implementations:
 
 | Pillar | File | Purpose | Default | Available |
-|--------|------|---------|---------|-----------|
+| ------ | ---- | ------- | ------- | --------- |
 | **Server** | `server.py` | HTTP transport | `DevServer` | DevServer, DashServer |
 | **Layout** | `layout.py` | UI rendering | `DefaultLayout` | DefaultLayout, Bootstrap, Mantine, Minimal |
 | **LLM** | `llm.py` | LLM API calls | `OpenAI` / `Echo` | OpenAI, Anthropic, Gemini, OpenRouter, DeepSeek, Ollama, Echo |
@@ -62,6 +60,7 @@ uv pip install -e .
 ## Agent Development Guidelines
 
 ### Core Principles
+
 - **Atomic Methods**: Each pillar method does ONE thing only
 - **Minimal Changes**: Implement exactly what's requested, nothing more
 - **Incremental Development**: Build → Test → Verify → Next feature
@@ -93,6 +92,7 @@ The current `DevServer` is single-threaded, but Chatnificent is designed to run 
 **Design philosophy:** The server handles concurrency, not the engine. The engine stays synchronous and stateless per-request. Async servers wrap engine calls in their thread pools (e.g. `asyncio.to_thread()`). This means non-server pillar code (Engine, LLM, Store, Auth, Tools, Retrieval) doesn't need `async/await` — but it *does* need to be thread-safe, because multiple threads will call into it concurrently. The Server pillar itself may use `async def` freely (e.g. FastAPI route handlers, Starlette endpoints).
 
 **Rules for all pillars:**
+
 - **No per-request state on `self`.** Never stash request-specific data on the instance (class variables, module globals, or instance variables like the old `_last_request_payload`). All pillar instances are shared across requests — mutable instance state is a race condition. Pass per-request data through the call stack or return it.
 - **Immutable config on `self` is fine.** Constructor parameters (model name, API key, db path, feature flags) are set once and never mutated — no lock needed.
 - **Lock intentionally shared state.** When a pillar *must* hold shared mutable state (e.g., InMemory store's conversation dict), protect it with `threading.Lock` or finer-grained locks. This is **data-integrity locking**, not concurrency orchestration. Reference patterns: `InMemory` store uses a single lock; `File` store uses per-conversation write locks.
@@ -103,6 +103,7 @@ The current `DevServer` is single-threaded, but Chatnificent is designed to run 
 - **Test concurrent access.** New stateful components should include a multi-threaded test (using `threading.Thread` or `concurrent.futures`) that exercises parallel access. Sequential "concurrent" tests are insufficient.
 
 ### Code Style
+
 - Dash component IDs: `snake_case`
 - CSS classes/IDs: `kebab-case`  
 - No unnecessary comments (code should be self-explanatory)
@@ -110,7 +111,8 @@ The current `DevServer` is single-threaded, but Chatnificent is designed to run 
 - Use `uv run` instead of `python`
 
 ### File Structure
-```
+
+```text
 src/chatnificent/
 ├── __init__.py          # Main Chatnificent class + pillar imports
 ├── _callbacks.py        # Dash callbacks (DashServer only)
@@ -131,10 +133,12 @@ src/chatnificent/
 ### Git Guidelines
 
 **Staging:**
+
 - Never use `git add .` or `git add -A` — always add files individually and consciously
 - Review what you're staging: each file should belong to the commit's logical purpose
 
 **Meaningful units of change:**
+
 - Each commit should represent **one logical step** — a feature + its tests is one commit; an unrelated formatting fix belongs in a separate commit
 - Ask: "if I revert this commit, does exactly one coherent thing disappear?" If not, split it
 - Tests and implementation can (and usually should) live in the same commit when they're part of the same feature
@@ -143,7 +147,7 @@ src/chatnificent/
 
 Use [Conventional Commits](https://www.conventionalcommits.org/) format. Use pillar names as scopes where applicable:
 
-```
+```bash
 feat(llm): add Gemini streaming support
 fix(store): handle empty conversation edge case
 test(engine): add tool loop coverage
@@ -167,6 +171,7 @@ All new features and bug fixes **must** follow Red/Green TDD. This is a workflow
 5. **Refactor if needed** — clean up the implementation while keeping tests green.
 
 **What "comprehensive" means:**
+
 - Test the abstract interface contract (not internal implementation details)
 - Mock pillar dependencies to keep tests isolated and fast
 - Cover edge cases: empty inputs, missing data, invalid state
@@ -183,6 +188,7 @@ uv run pytest --cov=chatnificent --cov-report=term-missing
 The `term-missing` flag highlights uncovered lines — use it to identify what still needs tests. Do not merge changes that drop coverage below the threshold.
 
 ### Development Conventions
+
 - **Modular Architecture**: Consider which pillar new functionality belongs to
 - **Docstrings**: Use [Numpy-style docstrings](https://numpydoc.readthedocs.io/en/latest/format.html) for consistency
 

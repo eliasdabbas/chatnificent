@@ -26,6 +26,8 @@ All three controls live in the toolbar, side by side.
     not a plain string — ``cast=_build_reasoning`` wraps the value.
     All six API values are available: ``none``, ``minimal``, ``low``,
     ``medium``, ``high``, ``xhigh``. Defaults to ``none`` on page load.
+    Note: ``minimal`` is excluded here — it cannot be used with the
+    ``web_search`` tool and returns a 400 error.
 
 **Domain restriction** → ``tools`` (multi-select)
     Pick one or more domains to restrict the search. The ``cast``
@@ -203,7 +205,6 @@ TOOLBAR_HTML = """
     <span class="tb-label">Reasoning effort</span>
     <select id="reasoning-effort" onchange="chatInteraction(this)">
       <option value="none" selected>None</option>
-      <option value="minimal">Minimal</option>
       <option value="low">Low</option>
       <option value="medium">Medium</option>
       <option value="high">High</option>

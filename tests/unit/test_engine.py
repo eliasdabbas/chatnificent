@@ -79,6 +79,9 @@ class TestOrchestratorEngine:
         app.tools = Mock()
         app.tools.get_tools = Mock(return_value=None)
 
+        app.layout = Mock()
+        app.layout.get_llm_kwargs = Mock(return_value={})
+
         return app
 
     @pytest.fixture
@@ -273,6 +276,8 @@ class TestEngineHooks:
         mock_app.retrieval.retrieve = Mock(return_value=None)
         mock_app.tools = Mock()
         mock_app.tools.get_tools = Mock(return_value=None)
+        mock_app.layout = Mock()
+        mock_app.layout.get_llm_kwargs = Mock(return_value={})
 
         # Create engine with tracked hooks
         class TrackedEngine(Orchestrator):
@@ -371,6 +376,8 @@ class TestHandleMessageStream:
         app.retrieval.retrieve = Mock(return_value=None)
         app.tools = Mock()
         app.tools.get_tools = Mock(return_value=None)
+        app.layout = Mock()
+        app.layout.get_llm_kwargs = Mock(return_value={})
         return app
 
     @pytest.fixture
@@ -469,6 +476,8 @@ class TestBuildRequestPayloadSeam:
         )
         app.tools = Mock()
         app.tools.get_tools = Mock(return_value=None)
+        app.layout = Mock()
+        app.layout.get_llm_kwargs = Mock(return_value={})
         return app
 
     @pytest.fixture
@@ -503,3 +512,80 @@ class TestBuildRequestPayloadSeam:
         engine._build_request_payload(payload)
         call_kwargs = mock_app.llm.build_request_payload.call_args
         assert "tools" not in (call_kwargs.kwargs or {})
+
+
+# =====================================================================
+# UI Interactions: _get_llm_kwargs seam + user_id threading
+# =====================================================================
+
+
+class TestGetLlmKwargsSeam:
+    @pytest.fixture
+    def mock_app(self):
+        app = Mock()
+        app.llm = Mock()
+        app.llm.generate_response = Mock(return_value=Mock())
+        app.llm.extract_content = Mock(return_value="reply")
+        app.llm.parse_tool_calls = Mock(return_value=[])
+        app.llm.create_assistant_message = Mock(
+            return_value={"role": "assistant", "content": "reply"}
+        )
+        app.store = Mock()
+        app.store.load_conversation = Mock(return_value=None)
+        app.store.save_conversation = Mock()
+        app.retrieval = Mock()
+        app.retrieval.retrieve = Mock(return_value=None)
+        app.tools = Mock()
+        app.tools.get_tools = Mock(return_value=None)
+        app.layout = Mock()
+        app.layout.get_llm_kwargs = Mock(return_value={})
+        return app
+
+    @pytest.fixture
+    def engine(self, mock_app):
+        return Orchestrator(mock_app)
+
+    def test_get_llm_kwargs_seam_delegates_to_layout(self, engine, mock_app):
+        mock_app.layout.get_llm_kwargs.return_value = {"temperature": 0.5}
+        result = engine._get_llm_kwargs("user1")
+        mock_app.layout.get_llm_kwargs.assert_called_once_with("user1")
+        assert result == {"temperature": 0.5}
+
+    def test_get_llm_kwargs_seam_returns_empty_by_default(self, engine, mock_app):
+        mock_app.layout.get_llm_kwargs.return_value = {}
+        result = engine._get_llm_kwargs("user1")
+        assert result == {}
+
+    def test_handle_message_merges_llm_kwargs(self, engine, mock_app):
+        mock_app.layout.get_llm_kwargs.return_value = {"max_completion_tokens": 100}
+        engine.handle_message("hello", "user1", None)
+        call_kwargs = mock_app.llm.generate_response.call_args[1]
+        assert call_kwargs.get("max_completion_tokens") == 100
+
+    def test_handle_message_stream_merges_llm_kwargs(self, engine, mock_app):
+        mock_app.layout.get_llm_kwargs.return_value = {"temperature": 0.3}
+        mock_app.llm.generate_response.return_value = iter([])
+        mock_app.llm.extract_stream_delta = Mock(return_value=None)
+        list(engine.handle_message_stream("hello", "user1", None))
+        call_kwargs = mock_app.llm.generate_response.call_args[1]
+        assert call_kwargs.get("temperature") == 0.3
+
+    def test_handle_message_no_kwargs_when_empty(self, engine, mock_app):
+        mock_app.layout.get_llm_kwargs.return_value = {}
+        engine.handle_message("hello", "user1", None)
+        call_kwargs = mock_app.llm.generate_response.call_args[1]
+        # stream=False is always passed on non-streaming path, nothing else from layout
+        assert "max_completion_tokens" not in call_kwargs
+        assert "temperature" not in call_kwargs
+
+    def test_get_llm_kwargs_called_once_per_handle_message(self, engine, mock_app):
+        engine.handle_message("hello", "user1", None)
+        mock_app.layout.get_llm_kwargs.assert_called_once_with("user1")
+
+    def test_get_llm_kwargs_called_once_per_handle_message_stream(
+        self, engine, mock_app
+    ):
+        mock_app.llm.generate_response.return_value = iter([])
+        mock_app.llm.extract_stream_delta = Mock(return_value=None)
+        list(engine.handle_message_stream("hello", "user1", None))
+        mock_app.layout.get_llm_kwargs.assert_called_once_with("user1")

@@ -166,7 +166,7 @@ class Orchestrator(Engine):
                 llm_payload = self._prepare_llm_payload(conversation, retrieval_context)
 
                 # Generation — force non-streaming since this is the sync path
-                llm_response = self._generate_response(llm_payload, stream=False)
+                llm_response = self._generate_response(llm_payload, user_id=user_id, stream=False)
                 self._after_llm_call(llm_response)
 
                 # Persist raw request/response pair for this turn
@@ -250,7 +250,7 @@ class Orchestrator(Engine):
 
                 if has_tools:
                     # Tool-calling turns always run non-streamed
-                    llm_response = self._generate_response(llm_payload, stream=False)
+                    llm_response = self._generate_response(llm_payload, user_id=user_id, stream=False)
                     self._after_llm_call(llm_response)
                     request_payload = self._build_request_payload(
                         llm_payload, stream=False
@@ -300,7 +300,7 @@ class Orchestrator(Engine):
 
                 else:
                     # No tools — stream the response token-by-token
-                    stream = self._generate_response(llm_payload)
+                    stream = self._generate_response(llm_payload, user_id=user_id)
                     for chunk in stream:
                         raw_chunks.append(chunk)
                         delta = self.app.llm.extract_stream_delta(chunk)
@@ -412,22 +412,30 @@ class Orchestrator(Engine):
             )
         return self.app.llm.build_request_payload(llm_payload, **kwargs)
 
-    def _generate_response(self, llm_payload: List[Dict[str, Any]], **kwargs) -> Any:
+    def _generate_response(self, llm_payload: List[Dict[str, Any]], user_id: Optional[str] = None, **kwargs) -> Any:
         """[Seam] Executes the call to the LLM pillar.
 
         Parameters
         ----------
         llm_payload : List[Dict[str, Any]]
             The message list to send to the LLM.
+        user_id : Optional[str]
+            The authenticated user's identifier, used to fetch UI control overrides.
         **kwargs : Any
             Additional keyword arguments forwarded to ``generate_response()``
             (e.g. ``stream=False`` to override a streaming-configured LLM).
         """
+        if user_id is not None:
+            kwargs.update(self._get_llm_kwargs(user_id))
         tools = self.app.tools.get_tools()
         if tools:
             return self.app.llm.generate_response(llm_payload, tools=tools, **kwargs)
         else:
             return self.app.llm.generate_response(llm_payload, **kwargs)
+
+    def _get_llm_kwargs(self, user_id: str) -> Dict[str, Any]:
+        """[Seam] Return LLM kwargs derived from the user's current UI control state."""
+        return self.app.layout.get_llm_kwargs(user_id)
 
     def _execute_tools(self, tool_calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """[Seam] Executes tools using the standardized protocol."""

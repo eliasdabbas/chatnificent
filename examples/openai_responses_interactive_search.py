@@ -193,7 +193,7 @@ TOOLBAR_HTML = """
   .fn-toggle-track { position:absolute; inset:0; background:var(--border);
     border-radius:22px; transition:background 0.2s; }
   .fn-toggle-thumb { position:absolute; height:16px; width:16px; left:3px; top:3px;
-    background:white; border-radius:50%; transition:transform 0.2s;
+    background:var(--btn-text); border-radius:50%; transition:transform 0.2s;
     box-shadow:0 1px 3px rgba(0,0,0,0.25); pointer-events:none; }
   .fn-toggle input:checked ~ .fn-toggle-track { background:var(--accent); }
   .fn-toggle input:checked ~ .fn-toggle-thumb { transform:translateX(16px); }

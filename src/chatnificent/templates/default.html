@@ -19,7 +19,8 @@
             --accent-ring: rgba(0, 0, 0, 0.15);
             --user-bubble: #000000;
             --user-text: #ffffff;
-            --assistant-bg: #ffffff;
+            --assistant-bg: #f0f0f0;
+            --assistant-text: #000000;
             --sidebar-bg: #f2f2f2;
             --btn-text: #ffffff;
             --sidebar-w: 280px;
@@ -40,9 +41,10 @@
             --accent-hover: #cccccc;
             --accent-subtle: rgba(255, 255, 255, 0.06);
             --accent-ring: rgba(255, 255, 255, 0.15);
-            --user-bubble: #ffffff;
+            --user-bubble: #d0d0d0;
             --user-text: #000000;
-            --assistant-bg: #0a0a0a;
+            --assistant-bg: #0f1115;
+            --assistant-text: #ffffff;
             --sidebar-bg: #0f0f0f;
             --btn-text: #000000;
         }
@@ -293,11 +295,20 @@
         .msg.assistant {
             align-self: flex-start;
             background: var(--assistant-bg);
-            color: var(--text);
+            color: var(--assistant-text);
             border-radius: var(--radius) var(--radius) var(--radius) 4px;
             border: 1px solid var(--border);
             box-shadow: var(--shadow-sm);
             white-space: normal;
+        }
+
+        .msg.assistant a {
+            color: inherit;
+            text-decoration: underline;
+        }
+
+        .msg.assistant a:hover {
+            opacity: 0.7;
         }
 
         .msg.assistant p {
@@ -507,7 +518,7 @@
             border-radius: 50%;
             background: var(--accent);
             border: none;
-            color: #fff;
+            color: var(--btn-text);
             cursor: pointer;
             display: flex;
             align-items: center;

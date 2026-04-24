@@ -683,3 +683,64 @@ class TestRootPath:
         cookie_b = r_b.headers.get("set-cookie", "")
         assert "Path=/a/" in cookie_a
         assert "Path=/b/" in cookie_b
+
+
+# =============================================================================
+# POST /api/interactions — Starlette
+# =============================================================================
+
+
+class TestPostInteractions:
+    """POST /api/interactions delegates to layout.set_control_value."""
+
+    def test_returns_ok_true(self):
+        """POST /api/interactions returns {"ok": true}."""
+        client = _client()
+        r = client.post("/api/interactions", json={"id": "token-limit", "data": "500"})
+        assert r.status_code == 200
+        assert r.json().get("ok") is True
+
+    def test_calls_set_control_value(self):
+        """POST /api/interactions calls layout.set_control_value with correct args."""
+        app = _make_app()
+        app.layout.set_control_value = Mock()
+        client = TestClient(
+            app.server.asgi_app,
+            cookies={"chatnificent_session": "user-abc"},
+        )
+        client.post("/api/interactions", json={"id": "slider", "data": "0.7"})
+        app.layout.set_control_value.assert_called_once_with(
+            "user-abc", "slider", "0.7"
+        )
+
+    def test_missing_id_returns_400(self):
+        """POST /api/interactions without 'id' returns 400."""
+        client = _client()
+        r = client.post("/api/interactions", json={"data": "500"})
+        assert r.status_code == 400
+
+    def test_missing_data_returns_400(self):
+        """POST /api/interactions without 'data' returns 400."""
+        client = _client()
+        r = client.post("/api/interactions", json={"id": "token-limit"})
+        assert r.status_code == 400
+
+    def test_null_data_accepted(self):
+        """POST /api/interactions with data=null is accepted (clears the param)."""
+        app = _make_app()
+        app.layout.set_control_value = Mock()
+        client = TestClient(app.server.asgi_app)
+        r = client.post("/api/interactions", json={"id": "token-limit", "data": None})
+        assert r.status_code == 200
+        app.layout.set_control_value.assert_called_once()
+        assert app.layout.set_control_value.call_args[0][2] is None
+
+    def test_invalid_json_returns_400(self):
+        """POST /api/interactions with non-JSON body returns 400."""
+        client = _client()
+        r = client.post(
+            "/api/interactions",
+            content=b"not-json",
+            headers={"Content-Type": "application/json"},
+        )
+        assert r.status_code == 400

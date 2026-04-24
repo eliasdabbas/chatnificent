@@ -896,3 +896,101 @@ class TestRenderConversations:
             convos, user_id="user1"
         )
         assert result == convos
+
+
+# =============================================================================
+# POST /api/interactions — DevServer
+# =============================================================================
+
+
+class TestDevHandlerInteractions:
+    """POST /api/interactions delegates to layout.set_control_value."""
+
+    @pytest.fixture
+    def app(self):
+        from chatnificent import Chatnificent
+        from chatnificent.llm import Echo
+        from chatnificent.store import InMemory
+
+        return Chatnificent(
+            llm=Echo(stream=False), store=InMemory(), server=DevServer()
+        )
+
+    def _make_handler(self, app, method, path, body=None, cookie=None):
+        from chatnificent.server import _DevHandler
+
+        raw_body = json.dumps(body).encode("utf-8") if body is not None else b""
+        wfile = io.BytesIO()
+
+        with patch.object(_DevHandler, "__init__", lambda self, _app, *a, **kw: None):
+            h = _DevHandler.__new__(_DevHandler)
+            h._app = app
+            h._new_session = False
+            h._session_id = None
+            h.rfile = io.BytesIO(raw_body)
+            h.wfile = wfile
+            h.requestline = f"{method} {path} HTTP/1.1"
+            h.command = method
+            h.path = path
+            headers = {"Content-Length": str(len(raw_body)), "Host": "localhost"}
+            if cookie:
+                headers["Cookie"] = cookie
+            h.headers = headers
+            h.request_version = "HTTP/1.1"
+            h.close_connection = True
+
+            if method == "POST":
+                h.rfile = io.BytesIO(raw_body)
+                h.do_POST()
+
+            wfile.seek(0)
+            return wfile.read().decode("utf-8", errors="replace")
+
+    def test_returns_ok_true(self, app):
+        """POST /api/interactions returns {"ok": true}."""
+        response = self._make_handler(
+            app, "POST", "/api/interactions", {"id": "token-limit", "data": "500"}
+        )
+        assert "200" in response
+        assert '"ok": true' in response or '"ok":true' in response
+
+    def test_calls_set_control_value(self, app):
+        """POST /api/interactions calls layout.set_control_value with correct args."""
+        app.layout.set_control_value = Mock()
+        self._make_handler(
+            app,
+            "POST",
+            "/api/interactions",
+            {"id": "token-limit", "data": "500"},
+            cookie="chatnificent_session=user-abc",
+        )
+        app.layout.set_control_value.assert_called_once_with(
+            "user-abc", "token-limit", "500"
+        )
+
+    def test_missing_id_returns_400(self, app):
+        """POST /api/interactions without 'id' field returns 400."""
+        response = self._make_handler(app, "POST", "/api/interactions", {"data": "500"})
+        assert "400" in response
+
+    def test_missing_data_returns_400(self, app):
+        """POST /api/interactions without 'data' field returns 400."""
+        response = self._make_handler(
+            app, "POST", "/api/interactions", {"id": "token-limit"}
+        )
+        assert "400" in response
+
+    def test_null_data_accepted(self, app):
+        """POST /api/interactions with data=null is accepted (clears the param)."""
+        app.layout.set_control_value = Mock()
+        response = self._make_handler(
+            app, "POST", "/api/interactions", {"id": "token-limit", "data": None}
+        )
+        assert "200" in response
+        app.layout.set_control_value.assert_called_once()
+        assert app.layout.set_control_value.call_args[0][2] is None
+
+    def test_empty_body_returns_400(self, app):
+        """POST /api/interactions with no body returns 400."""
+        response = self._make_handler(app, "POST", "/api/interactions")
+        assert "400" in response

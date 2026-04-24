@@ -589,8 +589,10 @@
     <div id="sidebar">
         <div id="sidebar-label">Conversations</div>
         <div id="convo-list"></div>
+        <!-- SLOT:sidebar -->
     </div>
     <div id="chat-wrap">
+        <!-- SLOT:toolbar -->
         <div id="messages">
             <div id="welcome">
                 <h2>Welcome to Chatnificent</h2>
@@ -600,6 +602,7 @@
         <div id="input-bar">
             <div id="input-inner">
                 <textarea id="input" rows="1" placeholder="Send a message..."></textarea>
+                <!-- SLOT:input-bar -->
                 <button id="send" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="22" y1="2" x2="11" y2="13" />
@@ -609,6 +612,18 @@
         </div>
     </div>
     <script>
+        window.chatnificent = {
+            beforeSend: function (message) { return message; },
+            afterSend: function (convoId) { },
+            onDelta: function (token, accumulated) { },
+        };
+        function chatInteraction(el, data) {
+            fetch("/api/interactions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: el.id, data: data !== undefined ? data : el.value })
+            }).catch(function (e) { console.warn("interaction error", e); });
+        }
         (function () {
             "use strict";
             var $ = function (s) { return document.querySelector(s) };
@@ -689,10 +704,17 @@
                 msgs.appendChild(el); msgs.scrollTop = msgs.scrollHeight;
             }
             function hideLoading() { var el = $("#loading"); if (el) el.remove(); }
+            function scrollToBottom() {
+                if (msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 100) {
+                    msgs.scrollTop = msgs.scrollHeight;
+                }
+            }
 
             async function send() {
                 var text = input.value.trim();
                 if (!text) return;
+                text = window.chatnificent.beforeSend(text);
+                if (text === null || text === undefined) return;
                 addMsg("user", text); input.value = ""; input.style.height = "auto";
                 sendBtn.disabled = true; showLoading();
                 try {
@@ -706,8 +728,7 @@
                     });
                     var ct = (r.headers.get("Content-Type") || "");
                     if (ct.indexOf("text/event-stream") !== -1) {
-                        hideLoading();
-                        var bubble = addMsg("assistant", "");
+                        var bubble = null;
                         var accumulated = "";
                         var bubbleRtl = false;
                         var rtlRe = /[\u0590-\u05ff\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb1d-\ufb4f\ufb50-\ufdff\ufe70-\ufeff]/;
@@ -726,22 +747,28 @@
                                 var payload;
                                 try { payload = JSON.parse(line.slice(6)); } catch (_) { continue; }
                                 if (payload.event === "delta") {
+                                    if (!bubble) { hideLoading(); bubble = addMsg("assistant", ""); }
                                     accumulated += payload.data;
                                     bubble.innerHTML = renderMarkdown(accumulated);
                                     if (!bubbleRtl && rtlRe.test(payload.data)) { bubbleRtl = true; bubble.dir = "rtl"; }
-                                    msgs.scrollTop = msgs.scrollHeight;
+                                    scrollToBottom();
+                                    window.chatnificent.onDelta(payload.data, accumulated);
                                 } else if (payload.event === "status") {
+                                    if (!bubble) { hideLoading(); bubble = addMsg("assistant", ""); }
                                     bubble.innerHTML = renderMarkdown(accumulated || "") +
                                         '<div class="status-indicator">' + DOMPurify.sanitize(payload.data) + '</div>';
-                                    msgs.scrollTop = msgs.scrollHeight;
+                                    scrollToBottom();
                                 } else if (payload.event === "done") {
+                                    if (!bubble) { hideLoading(); bubble = addMsg("assistant", ""); }
                                     if (payload.data && payload.data.conversation_id) {
                                         convoId = payload.data.conversation_id;
+                                        window.chatnificent.afterSend(convoId);
                                         history.replaceState({ convoId: convoId }, "", payload.data.path || apiBase + "/" + convoId);
                                         upsertSidebarEntry(convoId, text.length > 30 ? text.slice(0, 30) + "…" : text);
                                     }
                                     bubble.innerHTML = renderMarkdown(accumulated);
                                 } else if (payload.event === "error") {
+                                    if (!bubble) { hideLoading(); bubble = addMsg("assistant", ""); }
                                     bubble.innerHTML = renderMarkdown(accumulated || "Error: " + payload.data);
                                 }
                             }
@@ -752,6 +779,7 @@
                         else {
                             renderMessageList(data.messages || []);
                             convoId = data.conversation_id;
+                            window.chatnificent.afterSend(convoId);
                             history.replaceState({ convoId: convoId }, "", data.path || apiBase + "/" + convoId);
                             upsertSidebarEntry(convoId, text.length > 30 ? text.slice(0, 30) + "…" : text);
                         }

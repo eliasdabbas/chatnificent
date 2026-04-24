@@ -39,6 +39,71 @@ For detailed pillar interfaces, engine orchestration, data models, and customiza
 
 For server endpoint contracts and HTTP/SSE transport details, load the **server-dev** skill.
 
+## UI Interactions
+
+`DefaultLayout` supports binding UI controls to LLM call parameters. Declare one or more `Control` objects, pass them to `DefaultLayout(controls=[...])`, and the framework handles state storage, the `POST /api/interactions` endpoint, and engine injection automatically — no subclassing required.
+
+```python
+from chatnificent.layout import Control, DefaultLayout
+
+control = Control(
+    id="token-limit",          # must match the HTML element's id
+    html='<select id="token-limit" onchange="chatInteraction(this)">...</select>',
+    slot="toolbar",            # <!-- SLOT:toolbar --> in the template
+    llm_param="max_completion_tokens",  # exact provider kwarg name
+    cast=int,                  # converts raw browser string before the API call
+)
+
+app = chat.Chatnificent(layout=DefaultLayout(controls=[control]))
+```
+
+Pass multiple controls for multiple parameters:
+
+```python
+app = chat.Chatnificent(
+    layout=DefaultLayout(controls=[creativity_control, token_control, vocab_control])
+)
+```
+
+Subclassing `DefaultLayout` and calling `register_control()` in `__init__` remains supported for cases where controls need to be registered conditionally at runtime.
+
+**`Control` fields:**
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `id` | `str` | Unique control identifier — must match the HTML element `id` |
+| `html` | `str` | Full HTML snippet rendered into the page |
+| `slot` | `str` | Template slot name (`toolbar`, `sidebar`, `input-bar`) |
+| `llm_param` | `str` | Exact kwarg forwarded to `generate_response()` |
+| `cast` | `Optional[Callable]` | Converts raw string value (e.g. `int`, `float`). `None` = pass raw string |
+
+**Template slots** — place `<!-- SLOT:name -->` markers in custom templates:
+
+| Slot | Position |
+|------|----------|
+| `sidebar` | Bottom of the sidebar panel |
+| `toolbar` | Above the messages area |
+| `input-bar` | Between the textarea and Send button |
+
+**JS helper** — already injected by `DefaultLayout.render_page()`:
+
+```js
+chatInteraction(element, data?)  // data defaults to element.value
+```
+
+POSTs `{"id": element.id, "data": value}` to `POST /api/interactions`. Fire-and-forget — no DOM update required.
+
+**Layout API** (concrete no-ops on the `Layout` ABC; full implementation on `DefaultLayout`):
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `register_control` | `(control: Control) → None` | Register a control definition |
+| `set_control_value` | `(user_id, control_id, value) → None` | Store a user's control value |
+| `get_control_values` | `(user_id) → Dict[str, str]` | Raw per-user state |
+| `get_llm_kwargs` | `(user_id) → Dict[str, Any]` | Cast values ready for LLM kwargs |
+
+State is per-user (keyed by `user_id`), protected by `threading.Lock`. The engine seam `_get_llm_kwargs(user_id)` delegates to `layout.get_llm_kwargs(user_id)` and merges the result into every `generate_response()` call.
+
 ## Development Commands
 
 Use `uv` to run all installation, running apps, and any Python commands.

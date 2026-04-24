@@ -83,3 +83,12 @@ Route Chatnificent through OpenAI's `responses.create` endpoint via a small subc
 | 24 | [openai_responses_website_search.py](openai_responses_website_search.py) | Domain-restricted research assistant via the hosted web-search tool | `chatnificent[openai]` |
 | 25 | [openai_responses_image_generator.py](openai_responses_image_generator.py) | Inline image generation every turn via the hosted `image_generation` tool | `chatnificent[openai]` |
 | 26 | [openai_responses_image_studio.py](openai_responses_image_studio.py) | Multi-turn image studio: live streaming previews, iterative editing, revised prompt display, JPEG sidecar persistence | `chatnificent[openai]` |
+| 27 | [openai_responses_interactive_search.py](openai_responses_interactive_search.py) | Interactive web search: reasoning effort, domain presets, and force-search toggle — live UI controls wired to `responses.create` kwargs | `chatnificent[openai]` |
+
+## Tier 7 — UI Interactions
+
+Bind HTML controls directly to LLM call parameters — no page reload, no custom server code.
+
+| # | Example | Purpose | Dependencies |
+|---|---------|---------|--------------|
+| 28 | [ui_interactions.py](ui_interactions.py) | Bind a single `<select>` to `max_completion_tokens` — the minimal one-control pattern | `chatnificent[openai]` |

@@ -5,14 +5,32 @@ for Dash-based servers. Each server type uses the appropriate interface.
 """
 
 import json
+import threading
 import unicodedata
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Union
 
 from .models import SYSTEM_ROLE, USER_ROLE
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+
+# =====================================================================
+# Control dataclass
+# =====================================================================
+
+
+@dataclass
+class Control:
+    """A UI control whose value is bound to an LLM call parameter."""
+
+    id: str
+    html: str
+    slot: str
+    llm_param: str
+    cast: Optional[Callable] = None
 
 
 # =====================================================================
@@ -82,6 +100,22 @@ class Layout(ABC):
         """Return display-ready conversation list items for DevServer."""
         return [dict(conversation) for conversation in conversations]
 
+    def register_control(self, control: "Control") -> None:
+        """Register a UI control to be rendered in a slot and bound to an LLM param."""
+        pass
+
+    def set_control_value(self, user_id: str, control_id: str, value: Any) -> None:
+        """Store the latest value submitted by a user for a given control."""
+        pass
+
+    def get_control_values(self, user_id: str) -> Dict[str, Any]:
+        """Return raw {control_id: value} state for a user."""
+        return {}
+
+    def get_llm_kwargs(self, user_id: str) -> Dict[str, Any]:
+        """Return {llm_param: cast_value} kwargs to inject into the next LLM call for a user."""
+        return {}
+
     def _is_rtl(self, text: str) -> bool:
         """Check if text requires right-to-left rendering."""
         if not text or isinstance(text, list) or not text.strip():
@@ -107,9 +141,72 @@ class DefaultLayout(Layout):
     that calls render_page(). Analogous to Echo for the LLM pillar.
     """
 
+    def __init__(self, controls: Optional[List[Control]] = None) -> None:
+        self._controls: Dict[str, Control] = {}
+        self._state: Dict[str, Dict[str, Any]] = {}
+        self._lock = threading.Lock()
+        for control in controls or []:
+            self.register_control(control)
+
+    def register_control(self, control: Control) -> None:
+        """Register a UI control to be rendered in a slot and bound to an LLM param."""
+        with self._lock:
+            self._controls[control.id] = control
+
+    def set_control_value(self, user_id: str, control_id: str, value: Any) -> None:
+        """Store the latest value submitted by a user for a given control."""
+        with self._lock:
+            if user_id not in self._state:
+                self._state[user_id] = {}
+            self._state[user_id][control_id] = value
+
+    def get_control_values(self, user_id: str) -> Dict[str, Any]:
+        """Return raw {control_id: value} state for a user."""
+        with self._lock:
+            return dict(self._state.get(user_id, {}))
+
+    def get_llm_kwargs(self, user_id: str) -> Dict[str, Any]:
+        """Return {llm_param: cast_value} kwargs to inject into the next LLM call for a user."""
+        with self._lock:
+            user_state = self._state.get(user_id, {})
+            controls = dict(self._controls)
+        result = {}
+        for control_id, control in controls.items():
+            if control_id not in user_state:
+                continue
+            value = user_state[control_id]
+            if value is None:
+                continue
+            result[control.llm_param] = control.cast(value) if control.cast else value
+        return result
+
     def render_page(self) -> str:
-        """Return the complete HTML chat page."""
-        return (_TEMPLATES_DIR / "default.html").read_text(encoding="utf-8")
+        """Return the complete HTML chat page with registered controls injected into their slots."""
+        html = (_TEMPLATES_DIR / "default.html").read_text(encoding="utf-8")
+        with self._lock:
+            controls = list(self._controls.values())
+        slots: Dict[str, str] = {}
+        for control in controls:
+            slots[control.slot] = slots.get(control.slot, "") + control.html
+        for slot_name, slot_html in slots.items():
+            html = html.replace(f"<!-- SLOT:{slot_name} -->", slot_html)
+        # Remove any remaining empty slot markers
+        import re
+
+        html = re.sub(r"<!-- SLOT:[^>]+ -->", "", html)
+        if controls:
+            ids_js = ", ".join(f'"{c.id}"' for c in controls)
+            init_script = f"""
+<script>
+  document.addEventListener('DOMContentLoaded', function() {{
+    [{ids_js}].forEach(function(id) {{
+      var el = document.getElementById(id);
+      if (el) chatInteraction(el);
+    }});
+  }});
+</script>"""
+            html = html.replace("</body>", init_script + "\n</body>")
+        return html
 
 
 # =====================================================================

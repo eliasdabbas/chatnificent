@@ -268,6 +268,8 @@ class _DevHandler(SimpleHTTPRequestHandler):
                 self._handle_chat_stream()
             else:
                 self._handle_chat()
+        elif self.path == "/api/interactions":
+            self._handle_interaction()
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
 
@@ -306,6 +308,21 @@ class _DevHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             logger.exception("DevServer error in /api/chat")
             self._respond_json({"error": str(e)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def _handle_interaction(self):
+        body = self._read_json_body()
+        if body is None:
+            return
+        if "id" not in body or "data" not in body:
+            self._respond_json(
+                {"error": "Missing 'id' or 'data'"}, HTTPStatus.BAD_REQUEST
+            )
+            return
+        control_id = body["id"]
+        data = body["data"]
+        user_id = self._get_user_id()
+        self._app.layout.set_control_value(user_id, control_id, data)
+        self._respond_json({"ok": True})
 
     def _handle_chat_stream(self):
         try:
@@ -593,6 +610,9 @@ class Starlette(Server):
         framework_routes = [
             starlette.routing.Route("/api/chat", self._handle_chat, methods=["POST"]),
             starlette.routing.Route(
+                "/api/interactions", self._handle_interaction, methods=["POST"]
+            ),
+            starlette.routing.Route(
                 "/api/conversations/{convo_id:path}",
                 self._handle_load_conversation,
                 methods=["GET"],
@@ -806,6 +826,30 @@ class Starlette(Server):
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
         self._maybe_set_cookie(response, user_id, is_new, root_path)
+        return response
+
+    async def _handle_interaction(self, request):
+        import anyio
+        from starlette.responses import JSONResponse
+
+        user_id, is_new = self._get_session(request)
+
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+        control_id = body.get("id") if body else None
+        if body is None or "id" not in body or "data" not in body:
+            return JSONResponse({"error": "Missing 'id' or 'data'"}, status_code=400)
+        control_id = body["id"]
+        data = body["data"]
+
+        await anyio.to_thread.run_sync(
+            lambda: self.app.layout.set_control_value(user_id, control_id, data)
+        )
+        response = JSONResponse({"ok": True})
+        self._maybe_set_cookie(response, user_id, is_new)
         return response
 
     async def _handle_list_conversations(self, request):

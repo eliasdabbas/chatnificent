@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.0.19] — 2026-04-24
+
+UI Interactions — bind HTML controls directly to LLM call parameters with zero custom server code.
+
+### Added
+
+- **Layout**: `Control` dataclass (`id`, `html`, `slot`, `llm_param`, `cast`) — declarative binding of any HTML element to a `generate_response()` kwarg; `cast` can return any Python object (scalars, dicts, lists-of-dicts)
+- **Layout**: `DefaultLayout(controls=[...])` constructor param — register controls at construction without subclassing; `register_control()` still available for conditional runtime registration
+- **Layout**: `get_llm_kwargs(user_id)` — returns cast, per-user control state ready to inject into every LLM call; skips `None` values (null sentinel: send `null` from JS to reset a param to its default)
+- **Layout**: template slot system — `<!-- SLOT:name -->` markers (`toolbar`, `sidebar`, `input-bar`); `render_page()` injects control HTML and a DOMContentLoaded auto-init script that fires `chatInteraction(el)` for each registered control
+- **Engine**: `_get_llm_kwargs(user_id)` seam — delegates to `layout.get_llm_kwargs()` and merges the result into every `generate_response()` call
+- **Server**: `POST /api/interactions` endpoint on both DevServer and StarletteServer — fire-and-forget; accepts `{"id": ..., "data": ...}` (JSON `null` clears the param back to default)
+- **Frontend**: `chatInteraction(element, data?)` JS helper injected by `DefaultLayout.render_page()` — POSTs `{"id": element.id, "data": value}` to `/api/interactions`; `data` defaults to `element.value`
+- **Examples**: `ui_interactions.py` — single `<select>` bound to `max_completion_tokens`; the minimal one-control reference
+- **Examples**: `openai_responses_interactive_search.py` — three controls wired to the Responses API: reasoning effort (`reasoning={"effort": ...}`), domain-filter pill checkboxes (`tools`), and a CSS toggle switch for force-search (`tool_choice`)
+- **Docs**: AGENTS.md updated — `DefaultLayout(controls=[...])` documented as the primary pattern with multi-control example, JS helper API, and slot reference
+
 ## [0.0.18] — 2026-04-20
 
 OpenAI Responses API examples; `File` store accepts nested filenames for per-conversation media.

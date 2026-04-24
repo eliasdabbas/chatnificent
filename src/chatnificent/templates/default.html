@@ -8,19 +8,20 @@
     <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
     <style>
         :root {
-            --bg: #f7f8fa;
-            --surface: #ffffff;
-            --border: #e2e5e9;
-            --text: #1a1d21;
-            --text-secondary: #6b7280;
-            --accent: #2563eb;
-            --accent-hover: #1d4ed8;
-            --accent-subtle: rgba(37, 99, 235, 0.08);
-            --accent-ring: rgba(37, 99, 235, 0.15);
-            --user-bubble: #2563eb;
+            --bg: #fafafa;
+            --surface: #fafafa;
+            --border: #e5e5e5;
+            --text: #000000;
+            --text-secondary: #555555;
+            --accent: #000000;
+            --accent-hover: #333333;
+            --accent-subtle: rgba(0, 0, 0, 0.06);
+            --accent-ring: rgba(0, 0, 0, 0.15);
+            --user-bubble: #000000;
             --user-text: #ffffff;
             --assistant-bg: #ffffff;
-            --sidebar-bg: #f1f3f5;
+            --sidebar-bg: #f2f2f2;
+            --btn-text: #ffffff;
             --sidebar-w: 280px;
             --header-h: 56px;
             --radius: 16px;
@@ -30,19 +31,20 @@
         }
 
         html[data-theme="dark"] {
-            --bg: #111318;
-            --surface: #1a1d24;
-            --border: #2d3139;
-            --text: #e4e6ea;
-            --text-secondary: #8b8f96;
-            --accent: #3b82f6;
-            --accent-hover: #2563eb;
-            --accent-subtle: rgba(59, 130, 246, 0.12);
-            --accent-ring: rgba(59, 130, 246, 0.2);
-            --user-bubble: #2563eb;
-            --user-text: #ffffff;
-            --assistant-bg: #1e2128;
-            --sidebar-bg: #15171c;
+            --bg: #000000;
+            --surface: #0a0a0a;
+            --border: #1f1f1f;
+            --text: #ffffff;
+            --text-secondary: #aaaaaa;
+            --accent: #ffffff;
+            --accent-hover: #cccccc;
+            --accent-subtle: rgba(255, 255, 255, 0.06);
+            --accent-ring: rgba(255, 255, 255, 0.15);
+            --user-bubble: #ffffff;
+            --user-text: #000000;
+            --assistant-bg: #0a0a0a;
+            --sidebar-bg: #0f0f0f;
+            --btn-text: #000000;
         }
 
         *,
@@ -54,7 +56,7 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-family: 'Trebuchet MS', 'Gill Sans', 'Gill Sans MT', Calibri, sans-serif;
             background: var(--bg);
             color: var(--text);
             height: 100vh;
@@ -145,7 +147,7 @@
         #new-chat-btn {
             background: var(--accent);
             border: none;
-            color: #fff;
+            color: var(--btn-text);
             padding: 7px 16px;
             border-radius: 20px;
             font-size: 0.85rem;
@@ -217,7 +219,7 @@
             font-size: 0.72rem;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.06em;
+            letter-spacing: 0.1em;
             color: var(--text-secondary);
             padding: 8px 14px 6px;
             margin-top: 4px;
@@ -551,6 +553,7 @@
             }
         }
     </style>
+
 </head>
 
 <body>

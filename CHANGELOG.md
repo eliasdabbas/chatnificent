@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **UI**: default theme updated to Black & White (light and dark mode) with Trebuchet MS font
+
 ## [0.0.19] — 2026-04-24
 
 UI Interactions — bind HTML controls directly to LLM call parameters with zero custom server code.

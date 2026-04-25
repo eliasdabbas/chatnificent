@@ -92,3 +92,11 @@ Bind HTML controls directly to LLM call parameters — no page reload, no custom
 | # | Example | Purpose | Dependencies |
 |---|---------|---------|--------------|
 | 28 | [ui_interactions.py](ui_interactions.py) | Bind a single `<select>` to `max_completion_tokens` — the minimal one-control pattern | `chatnificent[openai]` |
+
+## OpenAI Cookbook — From Cookbook to Production
+
+Production implementations of [OpenAI Cookbook](https://github.com/openai/openai-cookbook) notebooks. The cookbook teaches the mechanics; these files are what you actually ship.
+
+| # | Example | Cookbook Notebook | Dependencies |
+|---|---------|------------------|--------------|
+| 29 | [How_to_call_functions_with_chat_models.py](How_to_call_functions_with_chat_models.py) | [How_to_call_functions_with_chat_models.ipynb](https://github.com/openai/openai-cookbook/blob/main/examples/How_to_call_functions_with_chat_models.ipynb) | `chatnificent[openai]` |

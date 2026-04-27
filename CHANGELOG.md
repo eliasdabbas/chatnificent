@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.0.20] — 2026-04-27
+
+Layout branding — own the chrome of the app without subclassing or editing the HTML template.
+
+### Added
+
+- **Layout**: `DefaultLayout(brand=..., slogan=..., logo_url=..., favicon_url=..., page_title=..., welcome_message=...)` — six branding kwargs that fully customize the page header, browser tab, and empty-state body without touching templates. `welcome_message` accepts Markdown and raw HTML (rendered through `marked.js` + `DOMPurify`), enabling fully-styled drop-ins like custom landing scaffolds
+
 ### Changed
 
 - **UI**: default theme updated to Black & White (light and dark mode) with Trebuchet MS font

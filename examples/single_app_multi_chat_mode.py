@@ -848,13 +848,19 @@ PILLS_SCRIPT = """
   // engine on first turn). The /files/ route serves it as text/plain.
   function restoreModeFromSidecar() {
     var match = window.location.pathname.match(/^\\/?([^\\/]+)\\/([^\\/]+)\\/?$/);
-    if (!match) return;
+    if (!match) {
+      // No convo in the URL → home page, default back to plain chat.
+      setActiveMode('chat');
+      return;
+    }
     fetch('/files/' + match[1] + '/' + match[2] + '/mode.txt')
       .then(function (r) { return r.ok ? r.text() : null; })
       .then(function (txt) {
-        if (txt) setActiveMode(txt.trim());
+        // Sealed convo → use its mode. Unsealed (no sidecar yet) → reset to chat
+        // so a previous convo's pill doesn't bleed into a fresh one.
+        setActiveMode(txt ? txt.trim() : 'chat');
       })
-      .catch(function () { /* no sidecar → stay on whatever pill was clicked */ });
+      .catch(function () { setActiveMode('chat'); });
   }
   // After every send, the URL changes to /<user>/<convo> — that's our cue
   // that this convo's mode is now sealed. Re-fetch the sidecar to confirm.
@@ -866,9 +872,34 @@ PILLS_SCRIPT = """
       restoreModeFromSidecar();
     };
   }
+  // The default layout switches conversations client-side via
+  // history.pushState (no full reload), so DOMContentLoaded fires only
+  // once. Patch pushState/replaceState to emit a custom event we can
+  // hook, and also listen for popstate (browser back/forward) and
+  // sidebar clicks. Any of these means "URL changed → re-resolve mode".
+  function hookUrlChanges() {
+    ['pushState', 'replaceState'].forEach(function (name) {
+      var orig = history[name];
+      history[name] = function () {
+        var ret = orig.apply(this, arguments);
+        window.dispatchEvent(new Event('chatnificent:urlchange'));
+        return ret;
+      };
+    });
+    window.addEventListener('chatnificent:urlchange', restoreModeFromSidecar);
+    window.addEventListener('popstate', restoreModeFromSidecar);
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('#new-chat-btn')) {
+        // New chat clears the URL back to "/" — reset immediately so the
+        // pill doesn't lag behind.
+        setTimeout(restoreModeFromSidecar, 0);
+      }
+    });
+  }
   document.addEventListener('DOMContentLoaded', function () {
     if (!document.body.dataset.mode) document.body.dataset.mode = 'chat';
     hookAfterSend();
+    hookUrlChanges();
     restoreModeFromSidecar();
   });
 })();

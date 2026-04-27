@@ -159,6 +159,7 @@ uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/
 # Customization
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/single_user.py
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/auto_title.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/custom_branding.py
 
 # Display enrichment
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/usage_display.py
@@ -183,6 +184,7 @@ uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/
 # UI Interactions (requires OPENAI_API_KEY)
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/ui_interactions.py
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/openai_responses_interactive_search.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/single_app_multi_chat_mode.py
 
 # OpenAI Cookbook — From Cookbook to Production (requires OPENAI_API_KEY)
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/How_to_call_functions_with_chat_models.py
@@ -190,7 +192,7 @@ uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/
 
 ## Examples
 
-The [`examples/`](examples/) directory has 29 standalone scripts covering basics, tool calling, display enrichment, web search, and more — each runnable with a single command:
+The [`examples/`](examples/) directory has 31 standalone scripts covering basics, tool calling, display enrichment, web search, and more — each runnable with a single command:
 
 ```bash
 uv run --script examples/quickstart.py

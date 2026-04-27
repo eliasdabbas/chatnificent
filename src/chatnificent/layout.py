@@ -8,7 +8,8 @@ import json
 import threading
 import unicodedata
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from html import escape as _html_escape
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Union
 
@@ -141,10 +142,60 @@ class DefaultLayout(Layout):
     that calls render_page(). Analogous to Echo for the LLM pillar.
     """
 
-    def __init__(self, controls: Optional[List[Control]] = None) -> None:
+    def __init__(
+        self,
+        brand: str = "Chatnificent",
+        slogan: str = "Minimally complete \u2013 Maximally hackable",
+        logo_url: Optional[str] = None,
+        favicon_url: Optional[str] = None,
+        page_title: Optional[str] = None,
+        welcome_message: Optional[str] = None,
+        controls: Optional[List[Control]] = None,
+    ) -> None:
+        """Configure the chat page's branding and optional UI controls.
+
+        Parameters
+        ----------
+        brand : str
+            Display name shown in the header and used as the default page-title
+            suffix. HTML-escaped on render.
+        slogan : str
+            Short tagline rendered next to the brand. HTML-escaped on render.
+        logo_url, favicon_url : str, optional
+            URLs for the header logo image and browser-tab icon. Rendered as
+            ``<img src="...">`` and ``<link rel="icon" href="...">``. Any URL
+            the browser can fetch works (absolute, relative, or ``data:`` URI).
+            DevServer does not serve static files — for local assets during
+            development, base64-encode them and pass as
+            ``data:image/...;base64,...``.
+        page_title : str, optional
+            Browser-tab title. Defaults to a Chatnificent-branded title that
+            includes ``brand``.
+        welcome_message : str, optional
+            Markdown shown in the empty chat area. Rendered client-side via
+            marked.js + DOMPurify. Defaults to a Chatnificent welcome that
+            includes the installed version and links to examples and changelog.
+        controls : list of Control, optional
+            UI controls bound to LLM call parameters. Each ``Control.html`` is
+            injected verbatim into its slot — the caller is responsible for
+            the safety of that markup.
+        """
         self._controls: Dict[str, Control] = {}
         self._state: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.Lock()
+        self.brand = brand
+        self.slogan = slogan
+        self.logo_url = logo_url
+        self.favicon_url = favicon_url
+        self.page_title = page_title
+        if welcome_message is None:
+            # Deferred import: avoids coupling to chatnificent/__init__.py import order.
+            from chatnificent import __version__
+
+            welcome_message = f"""## Welcome to Chatnificent v{__version__}
+
+Start typing below, or browse the [examples](https://github.com/eliasdabbas/chatnificent/tree/main/examples) to see what's possible. New features land in the [changelog](https://github.com/eliasdabbas/chatnificent/blob/main/CHANGELOG.md)."""
+        self.welcome_message = welcome_message
         for control in controls or []:
             self.register_control(control)
 
@@ -183,6 +234,31 @@ class DefaultLayout(Layout):
     def render_page(self) -> str:
         """Return the complete HTML chat page with registered controls injected into their slots."""
         html = (_TEMPLATES_DIR / "default.html").read_text(encoding="utf-8")
+        title = _html_escape(
+            self.page_title or f"Build an AI/LLM Chat App with Python | {self.brand}"
+        )
+        logo_html = (
+            f'<img id="header-logo" src="{_html_escape(self.logo_url)}" alt="{_html_escape(self.brand)}">'
+            if self.logo_url
+            else ""
+        )
+        favicon_html = (
+            f'<link rel="icon" href="{_html_escape(self.favicon_url)}">'
+            if self.favicon_url
+            else ""
+        )
+        html = html.replace("<!-- PAGE_TITLE -->", title)
+        html = html.replace("<!-- BRAND -->", _html_escape(self.brand))
+        html = html.replace("<!-- SLOGAN -->", _html_escape(self.slogan))
+        html = html.replace("<!-- LOGO_HTML -->", logo_html)
+        html = html.replace("<!-- FAVICON_HTML -->", favicon_html)
+        welcome_script = f"""<script>
+  document.addEventListener('DOMContentLoaded', function() {{
+    var _wm = document.getElementById('welcome-message');
+    if (_wm) _wm.innerHTML = DOMPurify.sanitize(marked.parse({json.dumps(self.welcome_message)}));
+  }});
+</script>"""
+        html = html.replace("</body>", welcome_script + "\n</body>")
         with self._lock:
             controls = list(self._controls.values())
         slots: Dict[str, str] = {}

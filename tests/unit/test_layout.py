@@ -3,6 +3,7 @@
 import threading
 from unittest.mock import Mock, patch
 
+import pytest
 from chatnificent.layout import Control, DefaultLayout, Layout
 
 
@@ -384,10 +385,10 @@ class TestGetLlmKwargsNullSentinel:
 
 class TestDefaultLayoutControlInit:
     def test_no_controls_no_init_script(self):
-        """With no registered controls, no DOMContentLoaded init block is injected."""
+        """With no registered controls, no controls chatInteraction init block is injected."""
         layout = DefaultLayout()
         html = layout.render_page()
-        assert "DOMContentLoaded" not in html
+        assert "chatInteraction(el)" not in html
 
     def test_one_control_injects_init_script(self):
         """A registered control gets a DOMContentLoaded chatInteraction call."""
@@ -427,8 +428,8 @@ class TestDefaultLayoutControlInit:
         html = layout.render_page()
         assert "ctrl-a" in html
         assert "ctrl-b" in html
-        # Both ids must appear in the same DOMContentLoaded block
-        assert html.count("DOMContentLoaded") == 1
+        # welcome-message script + controls init script = 2 DOMContentLoaded blocks
+        assert html.count("DOMContentLoaded") == 2
 
 
 # =====================================================================
@@ -491,3 +492,162 @@ class TestDefaultLayoutControlsConstructorParam:
         layout = DefaultLayout(controls=[c])
         html = layout.render_page()
         assert '<select id="tok"></select>' in html
+
+
+# =====================================================================
+# DefaultLayout branding params
+# =====================================================================
+
+
+class TestDefaultLayoutBranding:
+    def test_default_brand_in_header_link(self):
+        html = DefaultLayout().render_page()
+        assert 'href="/"' in html
+        assert ">Chatnificent<" in html
+
+    def test_default_welcome_message_in_js(self):
+        html = DefaultLayout().render_page()
+        assert "Welcome to Chatnificent" in html
+
+    def test_default_welcome_message_includes_version(self):
+        from chatnificent import __version__
+
+        html = DefaultLayout().render_page()
+        assert f"v{__version__}" in html
+
+    def test_default_welcome_message_has_examples_link(self):
+        html = DefaultLayout().render_page()
+        assert "github.com/eliasdabbas/chatnificent/tree/main/examples" in html
+
+    def test_default_welcome_message_has_changelog_link(self):
+        html = DefaultLayout().render_page()
+        assert "CHANGELOG.md" in html
+
+    def test_welcome_message_div_in_html(self):
+        html = DefaultLayout().render_page()
+        assert 'id="welcome-message"' in html
+
+    def test_custom_welcome_message(self):
+        html = DefaultLayout(
+            welcome_message="## Ask us anything\n\nWe're here to help."
+        ).render_page()
+        assert "Ask us anything" in html
+
+    def test_custom_welcome_message_replaces_default(self):
+        html = DefaultLayout(
+            welcome_message="## Custom Heading\n\nCustom body."
+        ).render_page()
+        assert "Welcome to Chatnificent" not in html
+        assert "Custom body." in html
+
+    def test_default_page_title_is_seo_string(self):
+        html = DefaultLayout().render_page()
+        assert (
+            "<title>Build an AI/LLM Chat App with Python | Chatnificent</title>" in html
+        )
+
+    def test_default_slogan_in_page(self):
+        html = DefaultLayout().render_page()
+        assert "Minimally complete \u2013 Maximally hackable" in html
+
+    def test_custom_brand_in_header_link(self):
+        html = DefaultLayout(brand="MyApp").render_page()
+        assert ">MyApp<" in html
+        assert 'href="/"' in html
+
+    def test_welcome_message_default_is_independent_of_brand(self):
+        html = DefaultLayout(brand="MyApp").render_page()
+        assert "Welcome to Chatnificent" in html
+
+    def test_custom_brand_in_page_title_fallback(self):
+        html = DefaultLayout(brand="MyApp").render_page()
+        assert "<title>Build an AI/LLM Chat App with Python | MyApp</title>" in html
+
+    def test_custom_slogan(self):
+        html = DefaultLayout(slogan="Hack everything.").render_page()
+        assert "Hack everything." in html
+
+    def test_explicit_page_title_overrides_seo_default(self):
+        html = DefaultLayout(page_title="Custom Title | My Site").render_page()
+        assert "<title>Custom Title | My Site</title>" in html
+
+    def test_explicit_page_title_does_not_contain_seo_template(self):
+        html = DefaultLayout(page_title="Custom Title | My Site").render_page()
+        assert "Build an AI/LLM Chat App with Python" not in html
+
+    def test_logo_url_renders_img_tag(self):
+        html = DefaultLayout(logo_url="/static/logo.png").render_page()
+        assert '<img id="header-logo"' in html
+        assert 'src="/static/logo.png"' in html
+
+    def test_logo_url_alt_uses_brand(self):
+        html = DefaultLayout(brand="MyApp", logo_url="/logo.svg").render_page()
+        assert 'alt="MyApp"' in html
+
+    def test_no_logo_url_no_img_tag(self):
+        html = DefaultLayout().render_page()
+        assert 'id="header-logo"' not in html
+
+    def test_brand_is_html_escaped(self):
+        html = DefaultLayout(brand="<script>alert(1)</script>").render_page()
+        assert "<script>alert(1)</script>" not in html
+        assert "&lt;script&gt;" in html
+
+    def test_slogan_is_html_escaped(self):
+        html = DefaultLayout(slogan='<img src="x" onerror="evil()">').render_page()
+        assert 'onerror="evil()"' not in html
+        assert "&lt;img" in html
+
+    def test_logo_url_is_html_escaped(self):
+        html = DefaultLayout(logo_url='"/><script>evil()</script>').render_page()
+        assert "<script>evil()</script>" not in html
+
+    def test_favicon_url_renders_link_tag(self):
+        html = DefaultLayout(favicon_url="/static/favicon.ico").render_page()
+        assert '<link rel="icon" href="/static/favicon.ico">' in html
+
+    def test_no_favicon_url_no_link_tag(self):
+        html = DefaultLayout().render_page()
+        assert 'rel="icon"' not in html
+
+    def test_favicon_url_is_html_escaped(self):
+        html = DefaultLayout(favicon_url='"><script>evil()</script>').render_page()
+        assert "<script>evil()</script>" not in html
+
+    def test_favicon_remote_url_passed_through(self):
+        html = DefaultLayout(
+            favicon_url="https://example.com/favicon.ico"
+        ).render_page()
+        assert 'href="https://example.com/favicon.ico"' in html
+
+    def test_favicon_data_uri_passed_through(self):
+        uri = "data:image/png;base64,iVBORw0KGgo="
+        html = DefaultLayout(favicon_url=uri).render_page()
+        assert uri in html
+
+    def test_default_welcome_message_has_sidebar_hint(self):
+        html = DefaultLayout().render_page()
+        assert "Start typing below" in html
+
+    def test_custom_welcome_message_plain_text(self):
+        html = DefaultLayout(welcome_message="Ask me about the weather.").render_page()
+        assert "Ask me about the weather." in html
+
+    def test_custom_welcome_message_with_html(self):
+        html = DefaultLayout(
+            welcome_message="Try asking: <b>bold text</b>"
+        ).render_page()
+        assert "Try asking:" in html
+        assert "<b>bold text</b>" in html
+
+    def test_custom_welcome_message_with_markdown(self):
+        html = DefaultLayout(
+            welcome_message="Ask about **the weather** or _anything else_."
+        ).render_page()
+        assert "the weather" in html
+        assert "marked.parse" in html
+
+    def test_welcome_message_rendered_via_marked(self):
+        html = DefaultLayout().render_page()
+        assert "marked.parse" in html
+        assert "DOMPurify.sanitize" in html

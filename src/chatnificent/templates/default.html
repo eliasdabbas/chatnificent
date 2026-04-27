@@ -3,7 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Chatnificent</title>
+    <title><!-- PAGE_TITLE --></title>
+    <!-- FAVICON_HTML -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
     <style>
@@ -24,7 +25,7 @@
             --sidebar-bg: #f2f2f2;
             --btn-text: #ffffff;
             --sidebar-w: 280px;
-            --header-h: 56px;
+            --header-h: 64px;
             --radius: 16px;
             --radius-sm: 10px;
             --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
@@ -102,9 +103,34 @@
         }
 
         #header-title {
-            font-size: 1.05rem;
+            display: flex;
+            flex-direction: column;
+            line-height: 1.2;
+            gap: 4px;
+        }
+
+        .brand-link {
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.3rem;
             font-weight: 600;
-            letter-spacing: -0.01em;
+            letter-spacing: -0.03em;
+        }
+
+        #header-logo {
+            height: 36px;
+            width: auto;
+            display: block;
+        }
+
+        #header-slogan {
+            font-size: 0.8rem;
+            color: var(--text);
+            font-weight: 400;
+            letter-spacing: 0;
         }
 
         #header-actions {
@@ -302,24 +328,24 @@
             white-space: normal;
         }
 
-        .msg.assistant a {
+        .md-content a {
             color: inherit;
             text-decoration: underline;
         }
 
-        .msg.assistant a:hover {
+        .md-content a:hover {
             opacity: 0.7;
         }
 
-        .msg.assistant p {
+        .md-content p {
             margin: 0 0 0.6em;
         }
 
-        .msg.assistant p:last-child {
+        .md-content p:last-child {
             margin-bottom: 0;
         }
 
-        .msg.assistant pre {
+        .md-content pre {
             background: var(--bg);
             border: 1px solid var(--border);
             border-radius: 8px;
@@ -327,41 +353,47 @@
             overflow-x: auto;
             margin: 0.6em 0;
             font-size: 0.88em;
+            line-height: 1.45;
         }
 
-        .msg.assistant code {
+        .md-content code {
             font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
             font-size: 0.9em;
         }
 
-        .msg.assistant :not(pre)>code {
+        .md-content :not(pre)>code {
             background: var(--accent-subtle);
             padding: 2px 6px;
             border-radius: 4px;
         }
 
-        .msg.assistant ul,
-        .msg.assistant ol {
+        .md-content ul,
+        .md-content ol {
             padding-left: 1.4em;
             margin: 0.4em 0;
         }
 
-        .msg.assistant blockquote {
+        .md-content blockquote {
             border-left: 3px solid var(--accent);
             margin: 0.6em 0;
             padding: 4px 12px;
             color: var(--text-secondary);
         }
 
-        .msg.assistant h1,
-        .msg.assistant h2,
-        .msg.assistant h3 {
+        .md-content h1,
+        .md-content h2,
+        .md-content h3 {
             margin: 0.6em 0 0.3em;
-            font-size: 1em;
             font-weight: 600;
         }
 
-        .msg.assistant table {
+        .msg.assistant h1,
+        .msg.assistant h2,
+        .msg.assistant h3 {
+            font-size: 1em;
+        }
+
+        .md-content table {
             border-collapse: collapse;
             margin: 0.6em 0;
             font-size: 0.9em;
@@ -370,19 +402,19 @@
             overflow-x: auto;
         }
 
-        .msg.assistant th,
-        .msg.assistant td {
+        .md-content th,
+        .md-content td {
             border: 1px solid var(--border);
             padding: 6px 10px;
         }
 
-        .msg.assistant th {
+        .md-content th {
             background: var(--bg);
             font-weight: 600;
         }
 
-        .msg.assistant img,
-        .msg.assistant video {
+        .md-content img,
+        .md-content video {
             max-width: 100%;
             height: auto;
             display: block;
@@ -446,22 +478,11 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 8px;
             color: var(--text-secondary);
-            text-align: center;
         }
 
-        #welcome h2 {
-            font-size: 1.4rem;
-            font-weight: 600;
-            color: var(--text);
-            margin-bottom: 2px;
-        }
-
-        #welcome p {
-            font-size: 0.92rem;
-            max-width: 360px;
-            line-height: 1.5;
+        #welcome-message {
+            width: min(560px, 100% - 32px);
         }
 
         #input-bar {
@@ -575,7 +596,10 @@
                 <line x1="3" y1="12" x2="21" y2="12" />
                 <line x1="3" y1="18" x2="21" y2="18" />
             </svg></button>
-        <span id="header-title">Chatnificent</span>
+        <div id="header-title">
+            <a href="/" class="brand-link"><!-- LOGO_HTML --><!-- BRAND --></a>
+            <span id="header-slogan"><!-- SLOGAN --></span>
+        </div>
         <div id="header-actions">
             <button id="theme-toggle" aria-label="Toggle theme"><svg class="theme-icon theme-icon-light"
                     viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
@@ -609,8 +633,7 @@
         <!-- SLOT:toolbar -->
         <div id="messages">
             <div id="welcome">
-                <h2>Welcome to Chatnificent</h2>
-                <p>Start a conversation below. Your chats will appear in the sidebar.</p>
+                <div id="welcome-message" class="md-content"></div>
             </div>
         </div>
         <div id="input-bar">
@@ -691,7 +714,7 @@
             function addMsg(role, text) {
                 if (welcome.style.display !== "none") welcome.style.display = "none";
                 var d = document.createElement("div");
-                d.className = "msg " + role;
+                d.className = "msg " + role + (role === "assistant" ? " md-content" : "");
                 if (role === "assistant") d.innerHTML = renderMarkdown(text);
                 else d.textContent = text;
                 var rtlPattern = /[\u0590-\u05ff\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb1d-\ufb4f\ufb50-\ufdff\ufe70-\ufeff]/;

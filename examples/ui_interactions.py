@@ -52,7 +52,6 @@ confirm ``max_completion_tokens`` reached the API.
 """
 
 import chatnificent as chat
-from chatnificent.layout import Control
 
 TOKEN_OPTIONS = "\n".join(
     f'<option value="{n}"{"  selected" if n == 20 else ""}>{n}</option>'
@@ -72,7 +71,7 @@ TOOLBAR_HTML = f"""
 </div>
 """
 
-control = Control(
+control = chat.layout.Control(
     id="token-limit",
     html=TOOLBAR_HTML,
     slot="toolbar",

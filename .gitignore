@@ -11,3 +11,8 @@ wheels/
 
 # Local docs
 ROADMAP.md
+
+# Runtime data produced by examples (NEVER commit user conversations / secrets)
+examples_hub_data/
+single_app_data/
+

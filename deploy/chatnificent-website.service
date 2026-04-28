@@ -1,0 +1,57 @@
+# systemd unit for the Chatnificent Website (examples/chatnificent_website.py).
+#
+# Install (run from the repo root on your local machine):
+#
+#   scp deploy/chatnificent-website.service elias@172.233.209.115:/tmp/
+#   ssh elias@172.233.209.115 \
+#     'sudo install -m 0644 /tmp/chatnificent-website.service /etc/systemd/system/ \
+#      && rm /tmp/chatnificent-website.service \
+#      && sudo systemctl daemon-reload \
+#      && sudo systemctl enable --now chatnificent-website'
+#
+# Reload after editing this file on disk: `sudo systemctl daemon-reload`
+# Apply code changes (zero-downtime):    `sudo systemctl reload chatnificent-website`
+# Apply env / unit changes (~1s 502s):   `sudo systemctl restart chatnificent-website`
+
+[Unit]
+Description=Chatnificent Website (examples/chatnificent_website.py)
+Documentation=https://github.com/Marc-Antoine-Vermette/chatnificent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=chatnificent
+Group=chatnificent
+WorkingDirectory=/srv/chatnificent/app
+
+# Provider API keys + any other runtime secrets. Leading dash makes it optional
+# so the unit can start even before the file is created.
+EnvironmentFile=-/srv/chatnificent/chatnificent.env
+
+# uv reads PEP 723 deps from the script header and runs uvicorn under the hood.
+ExecStart=/usr/local/bin/uv run --script examples/chatnificent_website.py
+
+# Zero-downtime code reload: SIGHUP makes uvicorn reload in place.
+ExecReload=/bin/kill -HUP $MAINPID
+
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/srv/chatnificent/app /srv/chatnificent/data
+
+# uv writes its cache under $HOME; chatnificent's $HOME is /srv/chatnificent.
+Environment=HOME=/srv/chatnificent
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+# Persist conversations / uploaded files OUTSIDE the git checkout so deploys
+# (which `git reset --hard`) never touch user data.
+Environment=CHATNIFICENT_WEBSITE_DATA=/srv/chatnificent/data
+
+[Install]
+WantedBy=multi-user.target

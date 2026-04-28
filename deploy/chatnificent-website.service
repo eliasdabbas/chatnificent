@@ -15,7 +15,7 @@
 
 [Unit]
 Description=Chatnificent Website (examples/chatnificent_website.py)
-Documentation=https://github.com/Marc-Antoine-Vermette/chatnificent
+Documentation=https://github.com/eliasdabbas/chatnificent
 After=network-online.target
 Wants=network-online.target
 
@@ -44,7 +44,9 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=/srv/chatnificent/app /srv/chatnificent/data
+# /srv/chatnificent must be writable so uv can populate ~/.cache/uv on first
+# run; /srv/chatnificent/data holds runtime conversations + uploaded files.
+ReadWritePaths=/srv/chatnificent
 
 # uv writes its cache under $HOME; chatnificent's $HOME is /srv/chatnificent.
 Environment=HOME=/srv/chatnificent

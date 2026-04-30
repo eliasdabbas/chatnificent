@@ -657,6 +657,16 @@ class Gemini(LLM):
             ``genai.Client``; everything else becomes default generation
             parameters.
 
+            Flat keyword arguments are the canonical interface — pass
+            ``temperature=0.3`` directly rather than wrapping fields in
+            a ``GenerateContentConfig``. As an escape hatch for users
+            porting raw SDK code, a pre-built ``GenerateContentConfig``
+            (or plain dict) may be passed under the ``config=`` key
+            (here or to ``generate_response()``); it will be unwrapped
+            and merged into the flat kwargs. Flat kwargs win on
+            overlap, so ``Gemini(config=cfg, temperature=0.6)`` keeps
+            ``temperature=0.6`` regardless of what ``cfg`` carries.
+
         Raises
         ------
         ValueError
@@ -794,6 +804,39 @@ class Gemini(LLM):
 
         return parts
 
+    @staticmethod
+    def _unwrap_explicit_config(config_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Unwrap a `config=` escape-hatch kwarg into flat config fields.
+
+        Flat kwargs are the canonical interface, but users porting raw
+        SDK code may pass a pre-built `GenerateContentConfig` (or dict)
+        under the `config=` key. Without this unwrap step the merged
+        dict reaches `GenerateContentConfig(**...)` with a stray
+        `config=` key and crashes with `extra_forbidden`.
+
+        Flat kwargs win on overlap: keys already present in
+        ``config_dict`` (the construction-time + per-call merge) take
+        precedence over fields inside the explicit config.
+
+        Note: only Gemini needs this — other providers' SDKs accept
+        loose kwargs natively. Future typed-config providers can copy
+        this pattern verbatim.
+        """
+        explicit = config_dict.pop("config", None)
+        if explicit is None:
+            return config_dict
+        if hasattr(explicit, "model_dump"):
+            base = explicit.model_dump(exclude_unset=True)
+        elif isinstance(explicit, dict):
+            base = dict(explicit)
+        else:
+            raise TypeError(
+                "Gemini `config=` must be a GenerateContentConfig or dict, "
+                f"got {type(explicit).__name__}"
+            )
+        base.update(config_dict)
+        return base
+
     def _translate_tool_schema(self, tools: List[Dict[str, Any]]) -> List[Any]:
         """Translate standard tool definitions to Gemini FunctionDeclaration format."""
         types = self._genai_types
@@ -821,6 +864,7 @@ class Gemini(LLM):
     ) -> Dict[str, Any]:
         config_dict: Dict[str, Any] = {**self.default_params, **kwargs}
         config_dict.pop("stream", None)
+        config_dict = self._unwrap_explicit_config(config_dict)
 
         contents, system_instruction = self._translate_request(messages)
 
@@ -869,6 +913,7 @@ class Gemini(LLM):
         # Gemini doesn't use a `stream` config param — streaming is controlled
         # by calling generate_content_stream() vs generate_content().
         is_streaming = config_dict.pop("stream", False)
+        config_dict = self._unwrap_explicit_config(config_dict)
 
         contents, system_instruction = self._translate_request(messages)
 

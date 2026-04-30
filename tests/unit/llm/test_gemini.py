@@ -1215,3 +1215,136 @@ class TestBuildRequestPayload:
         gemini.build_request_payload(messages)
         gemini.client.models.generate_content.assert_not_called()
         gemini.client.models.generate_content_stream.assert_not_called()
+
+
+# ===== `config=` escape hatch tests =====
+
+
+class _FakeConfig:
+    """Stand-in for a Pydantic ``GenerateContentConfig``.
+
+    Mirrors the real Pydantic behaviour where ``model_dump()`` returns
+    every field (including unset ones as ``None``), and
+    ``model_dump(exclude_unset=True)`` returns only fields the caller
+    explicitly set. The patch under test must use ``exclude_unset=True``
+    or the unset ``None`` fields will clobber other kwargs during merge.
+    """
+
+    _ALL_FIELDS = (
+        "temperature",
+        "top_p",
+        "top_k",
+        "max_output_tokens",
+        "system_instruction",
+        "stop_sequences",
+    )
+
+    def __init__(self, **set_fields):
+        self._set = dict(set_fields)
+
+    def model_dump(self, exclude_unset=False, **_):
+        if exclude_unset:
+            return dict(self._set)
+        return {**{f: None for f in self._ALL_FIELDS}, **self._set}
+
+
+class TestConfigEscapeHatch:
+    """``config=`` keyword should unwrap into flat kwargs.
+
+    Today the user-facing promise is "kwargs flow through to the
+    provider", but Gemini's SDK wraps everything in a typed
+    ``GenerateContentConfig``. Passing a pre-built config (Pydantic
+    object or dict) under the ``config=`` key currently crashes with
+    ``extra_forbidden``. These tests pin down the desired escape-hatch
+    behaviour: unwrap and merge, with flat kwargs winning on overlap.
+    """
+
+    @staticmethod
+    def _outgoing_config(gemini):
+        """Inspect kwargs handed to the (mocked) ``GenerateContentConfig``.
+
+        The ``mock_types`` fixture patches ``GenerateContentConfig`` to
+        ``lambda **kw: kw``, so the value passed to
+        ``client.models.generate_content(config=...)`` is the merged
+        kwargs dict.
+        """
+        return gemini.client.models.generate_content.call_args.kwargs["config"]
+
+    def test_pydantic_config_in_default_params(self, gemini):
+        gemini.default_params = {"config": _FakeConfig(temperature=0.3)}
+        gemini.generate_response([{"role": "user", "content": "hi"}])
+        assert self._outgoing_config(gemini) == {"temperature": 0.3}
+
+    def test_dict_config_in_default_params(self, gemini):
+        gemini.default_params = {"config": {"temperature": 0.3}}
+        gemini.generate_response([{"role": "user", "content": "hi"}])
+        assert self._outgoing_config(gemini) == {"temperature": 0.3}
+
+    def test_pydantic_config_per_call(self, gemini):
+        gemini.generate_response(
+            [{"role": "user", "content": "hi"}],
+            config=_FakeConfig(temperature=0.3),
+        )
+        assert self._outgoing_config(gemini) == {"temperature": 0.3}
+
+    def test_flat_default_param_overrides_explicit_config(self, gemini):
+        """Both at construction time: flat default beats config default."""
+        gemini.default_params = {
+            "config": _FakeConfig(temperature=0.3),
+            "temperature": 0.6,
+        }
+        gemini.generate_response([{"role": "user", "content": "hi"}])
+        out = self._outgoing_config(gemini)
+        assert out["temperature"] == 0.6
+        assert "config" not in out  # wrapper must be unwrapped, not forwarded
+
+    def test_per_call_kwarg_overrides_default_config(self, gemini):
+        """Per-call flat kwarg beats construction-time config field."""
+        gemini.default_params = {"config": _FakeConfig(temperature=0.3)}
+        gemini.generate_response(
+            [{"role": "user", "content": "hi"}],
+            temperature=0.6,
+        )
+        out = self._outgoing_config(gemini)
+        assert out["temperature"] == 0.6
+        assert "config" not in out  # wrapper must be unwrapped, not forwarded
+
+    def test_unset_pydantic_fields_excluded(self, gemini):
+        """Unset Pydantic fields must not leak into outgoing kwargs.
+
+        Without ``exclude_unset=True``, every untouched field on the
+        Pydantic model would dump as ``None`` and clobber other kwargs.
+        """
+        gemini.default_params = {"config": _FakeConfig(temperature=0.3)}
+        gemini.generate_response([{"role": "user", "content": "hi"}])
+        out = self._outgoing_config(gemini)
+        assert out == {"temperature": 0.3}
+        for unset in _FakeConfig._ALL_FIELDS:
+            if unset != "temperature":
+                assert unset not in out
+
+    def test_app_py_regression_dict_dump(self, gemini):
+        """Regression: reproduces the exact ``app.py`` shape that used to raise.
+
+        ``Gemini(config=config.model_dump())`` previously crashed with
+        ``pydantic_core ValidationError: extra_forbidden``. Now it must
+        succeed and propagate every field.
+        """
+        gemini.default_params = {
+            "config": {
+                "system_instruction": "I say high, you say low",
+                "max_output_tokens": 3,
+                "temperature": 0.3,
+            }
+        }
+        gemini.generate_response([{"role": "user", "content": "hi"}])
+        out = self._outgoing_config(gemini)
+        assert out["system_instruction"] == "I say high, you say low"
+        assert out["max_output_tokens"] == 3
+        assert out["temperature"] == 0.3
+
+    def test_unknown_config_type_raises_type_error(self, gemini):
+        """Strings, ints, etc. are clearly user error \u2014 fail loudly."""
+        gemini.default_params = {"config": "not-a-config"}
+        with pytest.raises(TypeError, match="GenerateContentConfig or dict"):
+            gemini.generate_response([{"role": "user", "content": "hi"}])

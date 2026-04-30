@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.0.22] — 2026-04-30
+
+### Fixed
+
+- **Layout**: prepend `<!DOCTYPE html>` so the page renders in standards mode
+- **Layout**: `chatInteraction()` now prefixes `window.__CHATNIFICENT_ROOT__` to `/api/interactions`, fixing UI controls under multi-mount deployments
+
 ## [0.0.21] — 2026-04-30
 
 ### Fixed

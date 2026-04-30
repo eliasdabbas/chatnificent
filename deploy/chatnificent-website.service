@@ -30,7 +30,7 @@ WorkingDirectory=/srv/chatnificent/app
 EnvironmentFile=-/srv/chatnificent/chatnificent.env
 
 # uv reads PEP 723 deps from the script header and runs uvicorn under the hood.
-ExecStart=/usr/local/bin/uv run --script examples/chatnificent_website.py
+ExecStart=/usr/local/bin/uv run --refresh-package chatnificent --script examples/chatnificent_website.py
 
 # Zero-downtime code reload: SIGHUP makes uvicorn reload in place.
 ExecReload=/bin/kill -HUP $MAINPID

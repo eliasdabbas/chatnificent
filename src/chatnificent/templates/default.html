@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><!-- PAGE_TITLE --></title>
     <!-- FAVICON_HTML -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
     <style>
         :root {
             --bg: #fafafa;
@@ -709,6 +709,7 @@
             });
 
             function renderMarkdown(text) {
+                if (typeof marked === "undefined" || typeof DOMPurify === "undefined") return text;
                 try { return DOMPurify.sanitize(marked.parse(text)); }
                 catch (e) { return DOMPurify.sanitize(text); }
             }

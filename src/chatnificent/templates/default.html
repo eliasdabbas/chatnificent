@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -656,7 +657,8 @@
             onDelta: function (token, accumulated) { },
         };
         function chatInteraction(el, data) {
-            fetch("/api/interactions", {
+            var apiBase = window.__CHATNIFICENT_ROOT__ || "";
+            fetch(apiBase + "/api/interactions", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ id: el.id, data: data !== undefined ? data : el.value })

@@ -570,6 +570,39 @@ class TestGetLlmKwargsSeam:
         call_kwargs = mock_app.llm.generate_response.call_args[1]
         assert call_kwargs.get("temperature") == 0.3
 
+    def test_handle_message_builds_request_payload_with_same_llm_kwargs(
+        self, engine, mock_app
+    ):
+        mock_app.layout.get_llm_kwargs.return_value = {"max_completion_tokens": 100}
+        mock_app.llm.build_request_payload = Mock(
+            return_value={"model": "test", "messages": []}
+        )
+
+        engine.handle_message("hello", "user1", None)
+
+        generate_kwargs = mock_app.llm.generate_response.call_args.kwargs
+        request_kwargs = mock_app.llm.build_request_payload.call_args.kwargs
+        assert generate_kwargs["max_completion_tokens"] == 100
+        assert request_kwargs["max_completion_tokens"] == 100
+        assert request_kwargs["stream"] is False
+
+    def test_explicit_call_kwargs_override_control_state(self, engine, mock_app):
+        mock_app.layout.get_llm_kwargs.return_value = {
+            "temperature": 0.9,
+            "stream": True,
+        }
+
+        engine._generate_response(
+            [{"role": "user", "content": "hello"}],
+            user_id="user1",
+            temperature=0.2,
+            stream=False,
+        )
+
+        call_kwargs = mock_app.llm.generate_response.call_args.kwargs
+        assert call_kwargs["temperature"] == 0.2
+        assert call_kwargs["stream"] is False
+
     def test_handle_message_no_kwargs_when_empty(self, engine, mock_app):
         mock_app.layout.get_llm_kwargs.return_value = {}
         engine.handle_message("hello", "user1", None)

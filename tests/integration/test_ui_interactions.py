@@ -6,7 +6,22 @@ import pytest
 from chatnificent import Chatnificent
 from chatnificent.layout import Control, DefaultLayout
 from chatnificent.llm import Echo
-from chatnificent.store import InMemory
+from chatnificent.store import File, InMemory
+
+
+class TransparentEcho(Echo):
+    """Echo variant whose request payload includes forwarded kwargs for raw-log tests."""
+
+    def build_request_payload(self, messages, model=None, tools=None, **kwargs):
+        payload = {
+            "model": model or self.model,
+            "messages": messages,
+            **self.default_params,
+            **kwargs,
+        }
+        if tools:
+            payload["tools"] = tools
+        return payload
 
 
 class TestUiInteractionsIntegration:
@@ -79,6 +94,29 @@ class TestUiInteractionsIntegration:
             list(app.engine.handle_message_stream("hello", "user1", None))
 
         assert captured.get("max_completion_tokens") == 200
+
+    def test_raw_request_log_matches_control_override(self, layout, tmp_path):
+        """Raw request logging must use the same final kwargs as the live LLM call."""
+        app = Chatnificent(
+            layout=layout,
+            llm=TransparentEcho(stream=False, max_completion_tokens=20),
+            store=File(str(tmp_path / "store")),
+        )
+        app.layout.set_control_value("user1", "max-tokens", "100")
+
+        captured = {}
+        original_generate = app.llm.generate_response
+
+        def capturing_generate(messages, **kwargs):
+            captured.update(kwargs)
+            return original_generate(messages, **kwargs)
+
+        with patch.object(app.llm, "generate_response", side_effect=capturing_generate):
+            conversation = app.engine.handle_message("hello", "user1", None)
+
+        requests = app.store.load_raw_api_requests("user1", conversation.id)
+        assert captured.get("max_completion_tokens") == 100
+        assert requests[0]["max_completion_tokens"] == 100
 
     def test_user_isolation(self, layout):
         """Two users get independent control values."""

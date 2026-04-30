@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.0.21] — 2026-04-30
+
+### Fixed
+
+- **Engine**: persisted raw request payload now reflects UI control overrides
+- **LLM (Gemini)**: accept pre-built `GenerateContentConfig` (or dict) under `config=` instead of crashing
+- **Layout**: defer `marked`/`DOMPurify` and guard `renderMarkdown` against early renders
+
 ## [0.0.20] — 2026-04-27
 
 Layout branding — own the chrome of the app without subclassing or editing the HTML template.

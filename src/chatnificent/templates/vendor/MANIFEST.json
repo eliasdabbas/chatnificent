@@ -1,0 +1,25 @@
+{
+    "_comment": "Pinned third-party JS bundles inlined into DefaultLayout's HTML at request time. Update via .github/workflows/vendor-update.yml (auto-PR) or by hand: re-run the curl + shasum commands and bump version + sha256 here.",
+    "vendored": [
+        {
+            "name": "marked",
+            "version": "15.0.12",
+            "file": "marked.min.js",
+            "sha256": "3e7e7d7feb3e5d58cb6c804f68ab5c24cc7e5eb6270fd6e5cbb9124739217d0c",
+            "source_url": "https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js",
+            "homepage": "https://github.com/markedjs/marked",
+            "license": "MIT",
+            "license_file": "LICENSE-marked.md"
+        },
+        {
+            "name": "dompurify",
+            "version": "3.4.2",
+            "file": "dompurify.min.js",
+            "sha256": "ef9a98b5b21aac33c73e316ef21f5cf06f68eff003a40ac953022129112cff3c",
+            "source_url": "https://cdn.jsdelivr.net/npm/dompurify@3.4.2/dist/purify.min.js",
+            "homepage": "https://github.com/cure53/DOMPurify",
+            "license": "MPL-2.0 OR Apache-2.0",
+            "license_file": "LICENSE-dompurify.txt"
+        }
+    ]
+}

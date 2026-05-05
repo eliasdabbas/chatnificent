@@ -5,6 +5,7 @@ for Dash-based servers. Each server type uses the appropriate interface.
 """
 
 import json
+import re
 import threading
 import unicodedata
 from abc import ABC, abstractmethod
@@ -16,6 +17,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Union
 from .models import SYSTEM_ROLE, USER_ROLE
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
+_VENDOR_DIR = _TEMPLATES_DIR / "vendor"
 
 
 # =====================================================================
@@ -51,8 +53,47 @@ class Layout(ABC):
         """Return the full HTML page as a string.
 
         Called by HTTP servers (DevServer, Starlette, etc.) to serve
-        the initial page load.
+        the initial page load. Override in a subclass to inject runtime
+        data — every pillar is reachable via ``self.app``.
         """
+
+    def inline_vendor_scripts(self, vendor_dir: Path = _VENDOR_DIR) -> str:
+        """Inline every ``*.js`` file in ``vendor_dir`` as ``<script>`` blocks.
+
+        Available on the ABC so any HTML-rendering Layout subclass
+        (DefaultLayout today, custom Starlette/FastAPI layouts tomorrow)
+        can call it. ``DashLayout`` doesn't render HTML so it never calls
+        this method.
+
+        Files are loaded in sorted filename order. Drop a new pinned bundle
+        into ``templates/vendor/`` (and update ``MANIFEST.json``) and it
+        will be inlined automatically — no Python change needed. Inlining
+        (rather than ``<script src=>``) means the libs are parsed before
+        the template's IIFE runs, so the IIFE can call them synchronously.
+
+        Parameters
+        ----------
+        vendor_dir : Path, optional
+            Directory to scan for ``*.js`` files. Defaults to Chatnificent's
+            built-in ``templates/vendor/``. Pass a different path to inline
+            your own pinned bundles.
+
+        Notes
+        -----
+        Load order: filenames are sorted alphabetically. Today's vendored
+        libs (``dompurify``, ``marked``) only define their own globals at
+        parse time and don't reference each other, so order doesn't matter.
+        If you add a library that depends on another, name it so sorting
+        puts dependencies first (e.g. ``01-base.js``, ``02-plugin.js``).
+        """
+        blocks = []
+        for path in sorted(Path(vendor_dir).glob("*.js")):
+            blocks.append(
+                f"<script>/* vendored: {path.name} */\n"
+                + path.read_text(encoding="utf-8")
+                + "\n</script>"
+            )
+        return "\n".join(blocks)
 
     def render_messages(
         self, messages: List[Dict[str, Any]], **kwargs: Any
@@ -145,7 +186,7 @@ class DefaultLayout(Layout):
     def __init__(
         self,
         brand: str = "Chatnificent",
-        slogan: str = "Minimally complete \u2013 Maximally hackable",
+        slogan: str = "Minimally complete \u00b7 Maximally hackable",
         logo_url: Optional[str] = None,
         favicon_url: Optional[str] = None,
         page_title: Optional[str] = None,
@@ -173,8 +214,17 @@ class DefaultLayout(Layout):
             includes ``brand``.
         welcome_message : str, optional
             Markdown shown in the empty chat area. Rendered client-side via
-            marked.js + DOMPurify. Defaults to a Chatnificent welcome that
-            includes the installed version and links to examples and changelog.
+            marked.js + DOMPurify, so raw HTML is allowed (subject to
+            DOMPurify's default policy). Defaults to a Chatnificent welcome
+            with four suggestion chips.
+
+            Suggestion-chip contract: any element with
+            ``data-insert-prompt="..."`` will, on click, fill the composer
+            textarea with that prompt and focus it (no auto-send). The
+            ``.suggestion`` / ``.suggestion-label`` / ``.suggestion-text`` CSS
+            classes provide ready-made glass styling, and ``#suggestions``
+            gives a 2-column grid wrapper. Use them or roll your own — the
+            ``[data-insert-prompt]`` attribute works on any element.
         controls : list of Control, optional
             UI controls bound to LLM call parameters. Each ``Control.html`` is
             injected verbatim into its slot — the caller is responsible for
@@ -194,7 +244,26 @@ class DefaultLayout(Layout):
 
             welcome_message = f"""## Welcome to Chatnificent v{__version__}
 
-Start typing below, or browse the [examples](https://github.com/eliasdabbas/chatnificent/tree/main/examples) to see what's possible. New features land in the [changelog](https://github.com/eliasdabbas/chatnificent/blob/main/CHANGELOG.md)."""
+Start typing below, or browse the [examples](https://github.com/eliasdabbas/chatnificent/tree/main/examples) to see what's possible. New features land in the [changelog](https://github.com/eliasdabbas/chatnificent/blob/main/CHANGELOG.md).
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="Explain how server-sent events work in 3 short paragraphs.">
+    <span class="suggestion-label">Learn</span>
+    <span class="suggestion-text">Explain how server-sent events work</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Write a Python function that retries a flaky HTTP call with exponential backoff.">
+    <span class="suggestion-label">Code</span>
+    <span class="suggestion-text">Retry a flaky HTTP call with backoff</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Draft a short, friendly release note for v0.0.21 of an open-source library.">
+    <span class="suggestion-label">Write</span>
+    <span class="suggestion-text">Draft a v0.0.21 release note</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Compare SQLite, DuckDB, and Postgres for a small analytics workload.">
+    <span class="suggestion-label">Compare</span>
+    <span class="suggestion-text">SQLite vs DuckDB vs Postgres</span>
+  </button>
+</div>"""
         self.welcome_message = welcome_message
         for control in controls or []:
             self.register_control(control)
@@ -252,28 +321,31 @@ Start typing below, or browse the [examples](https://github.com/eliasdabbas/chat
         html = html.replace("<!-- SLOGAN -->", _html_escape(self.slogan))
         html = html.replace("<!-- LOGO_HTML -->", logo_html)
         html = html.replace("<!-- FAVICON_HTML -->", favicon_html)
-        welcome_script = f"""<script>
-  document.addEventListener('DOMContentLoaded', function() {{
-    var _wm = document.getElementById('welcome-message');
-    if (_wm) _wm.innerHTML = DOMPurify.sanitize(marked.parse({json.dumps(self.welcome_message)}));
-  }});
-</script>"""
-        html = html.replace("</body>", welcome_script + "\n</body>")
+        html = html.replace("<!-- VENDOR_SCRIPTS -->", self.inline_vendor_scripts())
+
         with self._lock:
             controls = list(self._controls.values())
+
+        # Build per-slot content. User controls go to their declared slot;
+        # framework end-of-page scripts route through SLOT:footer rather
+        # than a string-search of </body> — vendored JS bundles (DOMPurify)
+        # contain that substring.
         slots: Dict[str, str] = {}
         for control in controls:
             slots[control.slot] = slots.get(control.slot, "") + control.html
-        for slot_name, slot_html in slots.items():
-            html = html.replace(f"<!-- SLOT:{slot_name} -->", slot_html)
-        # Remove any remaining empty slot markers
-        import re
 
-        html = re.sub(r"<!-- SLOT:[^>]+ -->", "", html)
+        footer_scripts = [
+            f"""<script>
+  document.addEventListener('DOMContentLoaded', function() {{
+    var _wm = document.getElementById('welcome-message');
+    if (_wm) _wm.innerHTML = window.chatnificent.renderMarkdown({json.dumps(self.welcome_message)});
+  }});
+</script>"""
+        ]
         if controls:
             ids_js = ", ".join(f'"{c.id}"' for c in controls)
-            init_script = f"""
-<script>
+            footer_scripts.append(
+                f"""<script>
   document.addEventListener('DOMContentLoaded', function() {{
     [{ids_js}].forEach(function(id) {{
       var el = document.getElementById(id);
@@ -281,7 +353,12 @@ Start typing below, or browse the [examples](https://github.com/eliasdabbas/chat
     }});
   }});
 </script>"""
-            html = html.replace("</body>", init_script + "\n</body>")
+            )
+        slots["footer"] = slots.get("footer", "") + "\n".join(footer_scripts)
+
+        for slot_name, slot_html in slots.items():
+            html = html.replace(f"<!-- SLOT:{slot_name} -->", slot_html)
+        html = re.sub(r"<!-- SLOT:[^>]+ -->", "", html)
         return html
 
 

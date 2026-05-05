@@ -6,49 +6,178 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><!-- PAGE_TITLE --></title>
     <!-- FAVICON_HTML -->
-    <script defer src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+    <!-- VENDOR_SCRIPTS -->
     <style>
         :root {
+            /* Surfaces */
             --bg: #fafafa;
+            --bg-elev: #ffffff;
             --surface: #fafafa;
+
+            /* Borders */
             --border: #e5e5e5;
-            --text: #000000;
+            --border-strong: #d4d4d4;
+
+            /* Text */
+            --text: #1a1a1a;
             --text-secondary: #555555;
+            --text-muted: #8f8f8f;
+
+            /* Accent — the framework's spine: black/white. Primary buttons, user pill. */
             --accent: #000000;
             --accent-hover: #333333;
             --accent-subtle: rgba(0, 0, 0, 0.06);
             --accent-ring: rgba(0, 0, 0, 0.15);
+
+            /* Brand */
+            --brand: #0f766e;
+            --brand-hover: #115e59;
+            --brand-subtle: rgba(15, 118, 110, 0.10);
+            --brand-ring: rgba(15, 118, 110, 0.28);
+
+            /* Role colors */
             --user-bubble: #000000;
             --user-text: #ffffff;
             --assistant-bg: #f0f0f0;
             --assistant-text: #000000;
+
+            /* Sidebar / button text */
             --sidebar-bg: #f2f2f2;
             --btn-text: #ffffff;
-            --sidebar-w: 280px;
-            --header-h: 64px;
-            --radius: 16px;
+
+            /* Spacing scale — 4pt grid; for padding / gap / margin */
+            --space-1: 4px;
+            --space-2: 8px;
+            --space-3: 12px;
+            --space-4: 16px;
+            --space-5: 20px;
+            --space-6: 24px;
+            --space-7: 32px;
+            --space-8: 48px;
+
+            /* Radii */
             --radius-sm: 10px;
+            --radius: 16px;
+            --radius-lg: 24px;
+            --radius-pill: 999px;
+
+            /* Shadows */
             --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+            --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
+
+            /* Motion */
             --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+
+            /* Layout dims */
+            --sidebar-w: 300px;
+            --header-h: 60px;
+            --chat-max-w: 820px;
+            --input-max-h: 280px;
+            --header-position: fixed;
+
+            /* Type scale */
+            --text-xs: 0.75rem;
+            --text-sm: 0.875rem;
+            --text-base: 1rem;
+            --text-lg: 1.125rem;
+            --text-xl: 1.25rem;
+            --text-2xl: 1.5rem;
+
+            /* Fonts */
+            --font: 'Trebuchet MS', 'Lucida Grande', 'Lucida Sans Unicode',
+                ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+            --mono-font: ui-monospace, 'SF Mono', 'JetBrains Mono',
+                'Fira Code', 'Cascadia Code', Menlo, Consolas, monospace;
+
+            /* Welcome glow
+               Two soft radial gradients (teal top-left, coral bottom-right).
+               Set to `none` to opt out; override per theme to recolor. */
+            --welcome-glow:
+                radial-gradient(42% 36% at 26% 28%, rgba(20, 184, 166, 0.10), transparent 70%),
+                radial-gradient(42% 36% at 78% 76%, rgba(251, 113, 133, 0.08), transparent 70%);
+
+            /* Glass — translucent surface used by suggestion chips. */
+            --glass-bg: rgba(255, 255, 255, 0.55);
+            --glass-bg-hover: rgba(255, 255, 255, 0.75);
+            --glass-border: rgba(255, 255, 255, 0.6);
+            --glass-border-hover: rgba(0, 0, 0, 0.12);
+            --glass-inset: rgba(255, 255, 255, 0.55);
+            --glass-shadow: 0 4px 22px rgba(0, 0, 0, 0.06);
+            --glass-shadow-strong: 0 8px 32px rgba(0, 0, 0, 0.10);
+
+            /* Long user pills collapse past this height; devs override. */
+            --user-pill-max-h: 480px;
+
+            --user-pill-max-w: 80%;
+
+            --code-bg: #f6f6f7;
+            --code-header-bg: #ececee;
+            --table-border: #d4d4d8;
+            --details-summary-bg: rgba(0, 0, 0, 0.025);
         }
 
         html[data-theme="dark"] {
+            /* Surfaces */
             --bg: #000000;
+            --bg-elev: #131316;
             --surface: #0a0a0a;
+
+            /* Borders */
             --border: #1f1f1f;
+            --border-strong: #2a2a2a;
+
+            /* Text */
             --text: #ffffff;
             --text-secondary: #aaaaaa;
+            --text-muted: #6b6b73;
+
+            /* Accent */
             --accent: #ffffff;
             --accent-hover: #cccccc;
             --accent-subtle: rgba(255, 255, 255, 0.06);
             --accent-ring: rgba(255, 255, 255, 0.15);
+
+            /* Brand */
+            --brand: #0f766e;
+            --brand-hover: #115e59;
+            --brand-subtle: rgba(15, 118, 110, 0.18);
+            --brand-ring: rgba(15, 118, 110, 0.32);
+
+            /* Roles */
             --user-bubble: #d0d0d0;
             --user-text: #000000;
             --assistant-bg: #0f1115;
             --assistant-text: #ffffff;
+
+            /* Sidebar */
             --sidebar-bg: #0f0f0f;
             --btn-text: #000000;
+
+            /* Shadows — deeper in dark */
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+            --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+
+            /* Welcome glow — brighter alphas in dark so the wash actually reads. */
+            --welcome-glow:
+                radial-gradient(42% 36% at 26% 28%, rgba(20, 184, 166, 0.20), transparent 70%),
+                radial-gradient(42% 36% at 78% 76%, rgba(251, 113, 133, 0.14), transparent 70%);
+
+            /* Glass — translucent surface for suggestion chips in dark mode. */
+            --glass-bg: rgba(255, 255, 255, 0.04);
+            --glass-bg-hover: rgba(255, 255, 255, 0.08);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-border-hover: rgba(255, 255, 255, 0.18);
+            --glass-inset: rgba(255, 255, 255, 0.06);
+            --glass-shadow: 0 4px 22px rgba(0, 0, 0, 0.4);
+            --glass-shadow-strong: 0 8px 32px rgba(0, 0, 0, 0.55);
+
+            --code-bg: #0d0d10;
+            --code-header-bg: #15151a;
+            --table-border: #2a2a2a;
+            --details-summary-bg: rgba(255, 255, 255, 0.04);
         }
 
         *,
@@ -59,12 +188,28 @@
             padding: 0;
         }
 
+        html {
+            font-size: calc(16px * var(--scale, 1));
+        }
+
         body {
-            font-family: 'Trebuchet MS', 'Gill Sans', 'Gill Sans MT', Calibri, sans-serif;
+            font-family: var(--font);
             background: var(--bg);
             color: var(--text);
             height: 100vh;
             overflow: hidden;
+            /* Grayscale AA — keeps Trebuchet's stroke slim on macOS. */
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Force form controls to inherit body's font-smoothing (WebKit doesn't by default). */
+        input,
+        textarea,
+        select,
+        button {
+            -webkit-font-smoothing: inherit;
+            -moz-osx-font-smoothing: inherit;
         }
 
         #header {
@@ -76,7 +221,7 @@
             align-items: center;
             gap: 14px;
             padding: 0 20px;
-            position: fixed;
+            position: var(--header-position);
             top: 0;
             left: 0;
             right: 0;
@@ -105,20 +250,22 @@
 
         #header-title {
             display: flex;
-            flex-direction: column;
-            line-height: 1.2;
-            gap: 4px;
+            align-items: baseline;
+            gap: 12px;
+            min-width: 0;
         }
 
         .brand-link {
             text-decoration: none;
-            color: inherit;
+            color: var(--brand);
             display: flex;
             align-items: center;
             gap: 8px;
-            font-size: 1.3rem;
-            font-weight: 600;
-            letter-spacing: -0.03em;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            line-height: 1;
+            transition: color var(--transition);
         }
 
         #header-logo {
@@ -128,10 +275,19 @@
         }
 
         #header-slogan {
-            font-size: 0.8rem;
+            font-size: 14px;
             color: var(--text);
             font-weight: 400;
             letter-spacing: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        @media (max-width: 600px) {
+            #header-slogan {
+                display: none;
+            }
         }
 
         #header-actions {
@@ -235,14 +391,24 @@
             transition: background var(--transition);
         }
 
-        .convo-item:hover {
+        .convo-item:hover,
+        .convo-item:focus-visible {
             background: var(--accent-subtle);
+            overflow-x: auto;
+            text-overflow: clip;
+            scrollbar-width: none;
+        }
+
+        .convo-item:hover::-webkit-scrollbar,
+        .convo-item:focus-visible::-webkit-scrollbar {
+            display: none;
         }
 
         .convo-item.active {
             background: var(--accent-subtle);
             font-weight: 500;
             color: var(--accent);
+            box-shadow: inset 2px 0 0 var(--brand);
         }
 
         #sidebar-label {
@@ -263,21 +429,16 @@
             right: 0;
             display: flex;
             flex-direction: column;
-            transition: left var(--transition);
-        }
-
-        #chat-wrap.shifted {
-            left: var(--sidebar-w);
         }
 
         #messages {
             flex: 1;
             overflow-y: auto;
-            padding: 24px 20px 12px;
+            padding: 24px 40px 12px;
             display: flex;
             flex-direction: column;
-            gap: 6px;
-            max-width: 720px;
+            gap: 18px;
+            max-width: var(--chat-max-w);
             margin: 0 auto;
             width: 100%;
         }
@@ -292,8 +453,8 @@
         }
 
         .msg {
-            max-width: 80%;
-            padding: 12px 16px;
+            /* Chat copy locked at 1.05rem for readability; chrome stays at body size. */
+            font-size: 1.05rem;
             line-height: 1.6;
             word-wrap: break-word;
             white-space: pre-wrap;
@@ -314,33 +475,224 @@
 
         .msg.user {
             align-self: flex-end;
+            max-width: var(--user-pill-max-w);
+            padding: 11px 16px;
             background: var(--user-bubble);
             color: var(--user-text);
-            border-radius: var(--radius) var(--radius) 4px var(--radius);
+            border-radius: var(--radius) var(--radius) 6px var(--radius);
             box-shadow: var(--shadow-sm);
         }
 
         .msg.assistant {
-            align-self: flex-start;
-            background: var(--assistant-bg);
-            color: var(--assistant-text);
-            border-radius: var(--radius) var(--radius) var(--radius) 4px;
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow-sm);
+            align-self: stretch;
+            color: var(--text);
             white-space: normal;
+        }
+
+        /* Per-message wrapper. Holds optional pre-slot above the bubble and
+           post-slot (default actions + dev-provided HTML) below. */
+        .msg-row {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            animation: msgIn 0.3s ease-out;
+        }
+
+        .msg-row-user {
+            align-items: flex-end;
+        }
+
+        .msg-row-assistant {
+            align-items: stretch;
+        }
+
+        .msg-row .msg {
+            animation: none;
+        }
+
+        .msg-pre,
+        .msg-post {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 4px;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+
+        .msg-row-user .msg-pre,
+        .msg-row-user .msg-post {
+            justify-content: flex-end;
+            max-width: var(--user-pill-max-w);
+        }
+
+        .msg-pre:empty,
+        .msg-post:empty {
+            display: none;
+        }
+
+        /* Default actions + dev-supplied content sit on the same row. */
+        .msg-action-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 6px;
+            font-family: inherit;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: background var(--transition), color var(--transition);
+        }
+
+        .msg-action-btn:hover {
+            background: var(--accent-subtle);
+            color: var(--text);
+        }
+
+        .msg-action-btn:active {
+            transform: scale(0.96);
+        }
+
+        .msg-action-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .msg-action-btn.is-copied {
+            color: var(--brand);
+        }
+
+        /* Tooltip — appears on hover/focus, themed via tokens, no native delay. */
+        .msg-action-btn[data-tooltip]::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: calc(100% + 6px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--text);
+            color: var(--bg);
+            font-size: 0.72rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity var(--transition);
+            z-index: 10;
+        }
+
+        .msg-action-btn[data-tooltip]:hover::after,
+        .msg-action-btn[data-tooltip]:focus-visible::after {
+            opacity: 1;
+        }
+
+        /* Hover-reveal on desktop; always-visible on touch (no hover state). */
+        @media (hover: hover) and (pointer: fine) {
+            .msg-post {
+                opacity: 0;
+                transition: opacity var(--transition);
+            }
+
+            .msg-row:hover .msg-post,
+            .msg-row:focus-within .msg-post {
+                opacity: 1;
+            }
+        }
+
+        /* Long user pills collapse with a fade and a chevron toggle. The
+           toggle is positioned over the fade so it reads as part of the
+           bubble's affordance, separate from the action row below. */
+        .msg.user.is-collapsed {
+            max-height: var(--user-pill-max-h);
+            overflow: hidden;
+            -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+            mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+        }
+
+        .msg-row-user {
+            position: relative;
+        }
+
+        /* Wrapper added by applyCollapse so the chevron is positioned relative
+           to the pill (which has max-width: var(--user-pill-max-w)), not the
+           full-width row. The wrapper inherits the bubble's right-alignment
+           and width cap so the bubble keeps its original size when nested. */
+        .msg-pill-wrap {
+            position: relative;
+            width: fit-content;
+            max-width: var(--user-pill-max-w);
+            align-self: flex-end;
+        }
+
+        .msg-pill-wrap>.msg.user {
+            max-width: 100%;
+            align-self: auto;
+        }
+
+        .msg-collapse-toggle {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: 8px;
+            width: 32px;
+            height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg);
+            border: 1.5px solid var(--text-secondary);
+            color: var(--text);
+            border-radius: 999px;
+            cursor: pointer;
+            padding: 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+            transition: background var(--transition), color var(--transition), transform var(--transition);
+        }
+
+        .msg-collapse-toggle:hover {
+            background: var(--accent-subtle);
+            color: var(--text);
+            transform: translateX(-50%) scale(1.05);
+        }
+
+        .msg-collapse-toggle svg {
+            width: 18px;
+            height: 18px;
+            stroke-width: 3;
+            transition: transform var(--transition);
+        }
+
+        .msg-collapse-toggle.is-expanded svg {
+            transform: rotate(180deg);
+        }
+
+        /* When expanded, the chevron drops just below the (now full-height) pill. */
+        .msg-pill-wrap:not(.is-collapsed-wrap) .msg-collapse-toggle {
+            position: static;
+            transform: none;
+            margin: 6px auto 0;
+            display: flex;
+        }
+
+        .msg-pill-wrap:not(.is-collapsed-wrap) .msg-collapse-toggle:hover {
+            transform: scale(1.05);
         }
 
         .md-content a {
             color: inherit;
             text-decoration: underline;
+            text-underline-offset: 2px;
         }
 
-        .md-content a:hover {
-            opacity: 0.7;
+        .md-content a:visited {
+            color: inherit;
         }
 
         .md-content p {
-            margin: 0 0 0.6em;
+            margin: 0 0 0.75em;
         }
 
         .md-content p:last-child {
@@ -348,19 +700,49 @@
         }
 
         .md-content pre {
-            background: var(--bg);
+            background: var(--code-bg);
             border: 1px solid var(--border);
             border-radius: 8px;
+            margin: 0.6em 0;
+            font-size: 0.92em;
+            line-height: 1.55;
+            overflow: hidden;
+        }
+
+        .md-content pre>code {
+            display: block;
             padding: 12px;
             overflow-x: auto;
-            margin: 0.6em 0;
-            font-size: 0.88em;
-            line-height: 1.45;
+        }
+
+        .md-content pre.has-lang {
+            background: var(--code-bg);
+        }
+
+        .code-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--code-header-bg);
+            border-bottom: 1px solid var(--border);
+            padding: 4px 8px 4px 12px;
+        }
+
+        .code-lang {
+            font-family: var(--mono-font);
+            font-size: 0.78em;
+            color: var(--text-secondary);
+            text-transform: lowercase;
+            letter-spacing: 0.02em;
+        }
+
+        .msg-action-btn.code-copy {
+            color: var(--text-secondary);
         }
 
         .md-content code {
-            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-            font-size: 0.9em;
+            font-family: var(--mono-font);
+            font-size: 0.92em;
         }
 
         .md-content :not(pre)>code {
@@ -372,7 +754,16 @@
         .md-content ul,
         .md-content ol {
             padding-left: 1.4em;
-            margin: 0.4em 0;
+            margin: 0.4em 0 0.8em;
+        }
+
+        .md-content li {
+            margin-bottom: 0.35em;
+            line-height: 1.55;
+        }
+
+        .md-content li::marker {
+            color: var(--text-muted);
         }
 
         .md-content blockquote {
@@ -387,6 +778,8 @@
         .md-content h3 {
             margin: 0.6em 0 0.3em;
             font-weight: 600;
+            line-height: 1.4;
+            letter-spacing: -0.02em;
         }
 
         .msg.assistant h1,
@@ -399,20 +792,29 @@
             border-collapse: collapse;
             margin: 0.6em 0;
             font-size: 0.9em;
-            display: block;
             max-width: 100%;
-            overflow-x: auto;
         }
 
         .md-content th,
         .md-content td {
-            border: 1px solid var(--border);
+            border: 1px solid var(--table-border);
             padding: 6px 10px;
         }
 
+        /* Keep short header labels on one line; let prose-heavy body cells
+           wrap so narrow tables don't force horizontal scrolling. The
+           wrapper around .md-content table still provides overflow-x: auto
+           for genuinely wide tables. */
         .md-content th {
-            background: var(--bg);
+            white-space: nowrap;
+            background: var(--accent-subtle);
             font-weight: 600;
+            text-align: left;
+        }
+
+        .md-content td {
+            white-space: normal;
+            overflow-wrap: break-word;
         }
 
         .md-content img,
@@ -420,8 +822,96 @@
             max-width: 100%;
             height: auto;
             display: block;
+            border: 1px solid var(--border);
             border-radius: 8px;
             margin: 0.4em 0;
+        }
+
+        .md-content audio {
+            display: block;
+            max-width: 100%;
+            margin: 0.4em 0;
+        }
+
+        .md-content details {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin: 0.6em 0;
+            overflow: hidden;
+        }
+
+        .md-content details>summary {
+            cursor: pointer;
+            padding: 8px 12px;
+            background: var(--details-summary-bg);
+            list-style: none;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+        }
+
+        .md-content details>summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .md-content details>summary::before {
+            content: "";
+            display: inline-block;
+            width: 0;
+            height: 0;
+            border-left: 5px solid currentColor;
+            border-top: 4px solid transparent;
+            border-bottom: 4px solid transparent;
+            transition: transform var(--transition);
+            flex-shrink: 0;
+        }
+
+        .md-content details[open]>summary::before {
+            transform: rotate(90deg);
+        }
+
+        .md-content details>summary:hover {
+            color: var(--text);
+        }
+
+        .md-content details[open]>summary {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .md-content details>*:not(summary) {
+            padding: 10px 12px;
+        }
+
+        .attachments {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .attachment-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px 4px 8px;
+            border: 1px solid var(--border-strong, var(--border));
+            border-radius: var(--radius-pill);
+            background: var(--accent-subtle);
+            font-size: 0.85em;
+            color: var(--text);
+            max-width: 240px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .attachment-chip svg {
+            width: 14px;
+            height: 14px;
+            flex-shrink: 0;
+            color: var(--text-secondary);
         }
 
         .status-indicator {
@@ -446,7 +936,7 @@
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background: var(--accent);
+            background: var(--brand);
             opacity: 0.3;
             animation: bounce 1.4s ease-in-out infinite;
         }
@@ -481,10 +971,86 @@
             align-items: center;
             justify-content: center;
             color: var(--text);
+            background: var(--welcome-glow);
         }
 
         #welcome-message {
             width: min(560px, 100% - 32px);
+        }
+
+        /* Suggestion chips — devs ship arbitrary HTML inside `welcome_message`.
+           Any element with [data-insert-prompt="..."] fills+focuses the textarea
+           on click. The .suggestion class gives glass styling for free. */
+        #suggestions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            width: min(580px, 100% - 32px);
+            margin-top: 20px;
+        }
+
+        @media (max-width: 480px) {
+            #suggestions {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .suggestion {
+            position: relative;
+            background: var(--glass-bg);
+            backdrop-filter: blur(22px) saturate(180%);
+            -webkit-backdrop-filter: blur(22px) saturate(180%);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 14px 16px;
+            cursor: pointer;
+            text-align: left;
+            font-family: inherit;
+            font-size: 0.92rem;
+            color: var(--text);
+            transition: background var(--transition), border-color var(--transition), transform 0.1s ease, box-shadow var(--transition);
+            box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-inset);
+            line-height: 1.4;
+            overflow: hidden;
+        }
+
+        .suggestion::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            pointer-events: none;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 55%);
+            opacity: 0.7;
+        }
+
+        html[data-theme="dark"] .suggestion::before {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 55%);
+        }
+
+        .suggestion:hover {
+            background: var(--glass-bg-hover);
+            border-color: var(--glass-border-hover);
+            box-shadow: var(--glass-shadow-strong), inset 0 1px 0 var(--glass-inset);
+        }
+
+        .suggestion:active {
+            transform: scale(0.99);
+        }
+
+        .suggestion-label {
+            position: relative;
+            display: block;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 5px;
+        }
+
+        .suggestion-text {
+            position: relative;
         }
 
         #input-bar {
@@ -494,7 +1060,7 @@
             display: flex;
             align-items: flex-end;
             justify-content: center;
-            padding: 12px 20px;
+            padding: 12px 20px 16px;
         }
 
         #input-inner {
@@ -502,7 +1068,7 @@
             align-items: flex-end;
             gap: 10px;
             width: 100%;
-            max-width: 720px;
+            max-width: var(--chat-max-w);
             background: var(--bg);
             border: 1px solid var(--border);
             border-radius: 26px;
@@ -511,7 +1077,7 @@
         }
 
         #input-inner:focus-within {
-            border-color: var(--accent);
+            border-color: var(--border-strong);
             box-shadow: 0 0 0 3px var(--accent-ring);
         }
 
@@ -520,12 +1086,12 @@
             border: none;
             outline: none;
             background: none;
-            font-size: 0.95rem;
+            font-size: 0.97rem;
             font-family: inherit;
             resize: none;
             line-height: 1.5;
-            max-height: 144px;
-            padding: 8px 0;
+            max-height: var(--input-max-h);
+            padding: 9px 0;
             color: var(--text);
             overflow-y: auto;
         }
@@ -574,16 +1140,26 @@
                 width: 260px;
             }
 
-            #chat-wrap.shifted {
-                left: 0;
-            }
-
             #messages {
-                padding: 16px 14px 8px;
+                padding: 16px 24px 8px;
             }
 
-            .msg {
+            .msg.user {
                 max-width: 90%;
+            }
+        }
+
+        /* Accessibility — short-circuit every animation/transition for users who
+           opt into reduced motion at the OS level. Catches caret blink, msgIn fade,
+           dot bounce, hover transitions, theme toggle, sidebar slide, etc. */
+        @media (prefers-reduced-motion: reduce) {
+
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
             }
         }
     </style>
@@ -649,13 +1225,18 @@
                     </svg></button>
             </div>
         </div>
+        <!-- SLOT:footer -->
     </div>
     <script>
-        window.chatnificent = {
-            beforeSend: function (message) { return message; },
-            afterSend: function (convoId) { },
-            onDelta: function (token, accumulated) { },
-        };
+        // Defaults for the chatnificent namespace. Devs may assign properties
+        // (e.g. window.chatnificent.renderMarkdown, .beforeSend) BEFORE this
+        // script runs; the `||` guards preserve any pre-set override.
+        window.chatnificent = window.chatnificent || {};
+        window.chatnificent.beforeSend = window.chatnificent.beforeSend || function (message) { return message; };
+        window.chatnificent.afterSend = window.chatnificent.afterSend || function (convoId) { };
+        window.chatnificent.onDelta = window.chatnificent.onDelta || function (token, accumulated) { };
+        window.chatnificent.messageSlots = window.chatnificent.messageSlots
+            || { "pre-user": "", "post-user": "", "pre-assistant": "", "post-assistant": "" };
         function chatInteraction(el, data) {
             var apiBase = window.__CHATNIFICENT_ROOT__ || "";
             fetch(apiBase + "/api/interactions", {
@@ -673,6 +1254,35 @@
             var convoId = null, sidebarOpen = false;
             var apiBase = window.__CHATNIFICENT_ROOT__ || "";
 
+            // Single source of truth for RTL detection — textarea, addMsg, stream.
+            var RTL_RE = /[\u0590-\u05ff\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb1d-\ufb4f\ufb50-\ufdff\ufe70-\ufeff]/;
+            function isRtl(text) { return !!text && RTL_RE.test(text); }
+
+            // breaks: single newlines render as <br> so malformed/streaming output
+            // doesn't collapse into a wall of text. gfm: tables, autolinks, strikethrough.
+            // silent: marked logs parse errors instead of throwing — assistant
+            // output can be malformed mid-stream; we don't want a thrown error
+            // to break rendering.
+            marked.setOptions({ breaks: true, gfm: true, silent: true });
+            DOMPurify.addHook("afterSanitizeAttributes", function (node) {
+                if (node.tagName === "A") {
+                    node.setAttribute("target", "_blank");
+                    node.setAttribute("rel", "noopener");
+                }
+            });
+
+            // Markdown rendering is exposed as an overridable seam. Devs can
+            // swap implementations (e.g. markdown-it, add highlight.js) by
+            // assigning window.chatnificent.renderMarkdown BEFORE this IIFE
+            // runs — the `||` guard preserves an earlier override.
+            window.chatnificent = window.chatnificent || {};
+            window.chatnificent.renderMarkdown = window.chatnificent.renderMarkdown
+                || function (text) {
+                    try { return DOMPurify.sanitize(marked.parse(text)); }
+                    catch (e) { return DOMPurify.sanitize(text); }
+                };
+            function renderMarkdown(text) { return window.chatnificent.renderMarkdown(text); }
+
             function setTheme(dark) {
                 document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
                 try { localStorage.setItem("chatnificent-theme", dark ? "dark" : "light") } catch (e) { }
@@ -686,44 +1296,149 @@
             })();
             $("#theme-toggle").addEventListener("click", function () {
                 setTheme(document.documentElement.getAttribute("data-theme") !== "dark");
+                input.focus();
             });
 
             function toggleSidebar() {
                 sidebarOpen = !sidebarOpen;
                 sidebar.classList.toggle("open", sidebarOpen);
-                chatWrap.classList.toggle("shifted", sidebarOpen);
             }
             $("#sidebar-toggle").addEventListener("click", toggleSidebar);
+
+            // Close sidebar on outside click only when the sidebar visually
+            // overlaps the centered chat column.
+            function sidebarOverlapsContent() {
+                var cs = getComputedStyle(document.documentElement);
+                var sw = parseFloat(cs.getPropertyValue("--sidebar-w")) || 300;
+                var cw = parseFloat(cs.getPropertyValue("--chat-max-w")) || 760;
+                return window.innerWidth < (2 * sw + cw);
+            }
+            document.addEventListener("click", function (e) {
+                if (!sidebarOpen) return;
+                if (!sidebarOverlapsContent()) return;
+                if (sidebar.contains(e.target)) return;
+                if (e.target.closest("#sidebar-toggle")) return;
+                toggleSidebar();
+            });
 
             $("#new-chat-btn").addEventListener("click", function () {
                 convoId = null; msgs.innerHTML = "";
                 msgs.appendChild(welcome); welcome.style.display = "";
                 history.pushState({ convoId: null }, "", apiBase + "/");
                 refreshConvoList();
+                input.focus();
             });
 
             input.addEventListener("input", function () {
                 this.style.height = "auto";
-                this.style.height = Math.min(this.scrollHeight, 144) + "px";
-                var rtlPattern = /[\u0590-\u05ff\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb1d-\ufb4f\ufb50-\ufdff\ufe70-\ufeff]/;
-                var isRTL = rtlPattern.test(this.value);
-                this.dir = isRTL ? "rtl" : "ltr";
+
+                this.style.height = this.scrollHeight + "px";
+                this.dir = isRtl(this.value) ? "rtl" : "ltr";
             });
 
-            function renderMarkdown(text) {
-                if (typeof marked === "undefined" || typeof DOMPurify === "undefined") return text;
-                try { return DOMPurify.sanitize(marked.parse(text)); }
-                catch (e) { return DOMPurify.sanitize(text); }
+            // SVG icons for default message actions.
+            var ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+            var ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+            var ICON_PENCIL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>';
+            var ICON_CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+
+            // Inject the language label + copy button at parse time, so fenced
+            // code blocks come out fully decorated on the first render — no
+            // post-walk of the DOM needed, and decorations appear during
+            // streaming (not just on `done`). Defers to marked's default
+            // ``code`` renderer for the actual <pre><code> escaping.
+            marked.use({
+                renderer: {
+                    code: function (token) {
+                        var html = marked.Renderer.prototype.code.call(this, token);
+                        var m = (token.lang || "").match(/^[\w.+-]+/);
+                        if (!m) return html;
+                        var header = '<div class="code-header">' +
+                            '<span class="code-lang">' + m[0] + '</span>' +
+                            '<button class="msg-action-btn code-copy" type="button" ' +
+                            'data-action="copy-code" data-tooltip="Copy" aria-label="Copy code">' +
+                            ICON_COPY + '</button></div>';
+                        return html.replace(/^<pre>/, '<pre class="has-lang">' + header);
+                    }
+                }
+            });
+
+            function defaultActionsHTML(role) {
+                if (role === "user") {
+                    return '<button class="msg-action-btn" data-action="copy" data-tooltip="Copy" aria-label="Copy">' + ICON_COPY + '</button>' +
+                        '<button class="msg-action-btn" data-action="edit" data-tooltip="Edit" aria-label="Edit prompt">' + ICON_PENCIL + '</button>';
+                }
+                return '<button class="msg-action-btn" data-action="copy" data-tooltip="Copy" aria-label="Copy as markdown">' + ICON_COPY + '</button>';
             }
+
+            function applyCollapse(bubble) {
+                if (!bubble.classList.contains("user")) return;
+                // Bubble has no max-height yet, so scrollHeight === clientHeight
+                // until we collapse it — compare against the token directly.
+                var raw = getComputedStyle(document.documentElement)
+                    .getPropertyValue("--user-pill-max-h").trim();
+                var maxH = parseFloat(raw);
+                if (!maxH || isNaN(maxH)) return;
+                if (bubble.scrollHeight <= maxH) return;
+                if (bubble.classList.contains("is-collapsed")) return;
+                // Wrap the bubble so the chevron centers on the pill, not the
+                // full-width row. The wrapper shrinks to the bubble's width.
+                var wrap = document.createElement("div");
+                wrap.className = "msg-pill-wrap is-collapsed-wrap";
+                bubble.parentNode.insertBefore(wrap, bubble);
+                wrap.appendChild(bubble);
+                bubble.classList.add("is-collapsed");
+                var toggle = document.createElement("button");
+                toggle.className = "msg-collapse-toggle";
+                toggle.type = "button";
+                toggle.setAttribute("aria-label", "Show more");
+                toggle.setAttribute("aria-expanded", "false");
+                toggle.innerHTML = ICON_CHEVRON;
+                toggle.addEventListener("click", function () {
+                    // On collapse, anchor the toggle's viewport position so
+                    // the page doesn't yank to the bottom. On expand, leave
+                    // scroll alone so the user keeps reading where they are.
+                    var willCollapse = !bubble.classList.contains("is-collapsed");
+                    var beforeTop = willCollapse ? toggle.getBoundingClientRect().top : 0;
+                    var collapsed = bubble.classList.toggle("is-collapsed");
+                    wrap.classList.toggle("is-collapsed-wrap", collapsed);
+                    toggle.classList.toggle("is-expanded", !collapsed);
+                    toggle.setAttribute("aria-expanded", String(!collapsed));
+                    toggle.setAttribute("aria-label", collapsed ? "Show more" : "Show less");
+                    if (willCollapse) {
+                        var afterTop = toggle.getBoundingClientRect().top;
+                        msgs.scrollTop += afterTop - beforeTop;
+                    }
+                });
+                wrap.appendChild(toggle);
+            }
+
             function addMsg(role, text) {
                 if (welcome.style.display !== "none") welcome.style.display = "none";
+                var slots = (window.chatnificent && window.chatnificent.messageSlots) || {};
+                var row = document.createElement("div");
+                row.className = "msg-row msg-row-" + role;
+                var pre = document.createElement("div");
+                pre.className = "msg-pre";
+                pre.innerHTML = slots["pre-" + role] || "";
                 var d = document.createElement("div");
                 d.className = "msg " + role + (role === "assistant" ? " md-content" : "");
-                if (role === "assistant") d.innerHTML = renderMarkdown(text);
-                else d.textContent = text;
-                var rtlPattern = /[\u0590-\u05ff\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb1d-\ufb4f\ufb50-\ufdff\ufe70-\ufeff]/;
-                if (rtlPattern.test(text)) d.dir = "rtl";
-                msgs.appendChild(d); msgs.scrollTop = msgs.scrollHeight;
+                if (role === "assistant") {
+                    d.innerHTML = renderMarkdown(text);
+                    d.dataset.source = text || "";
+                } else {
+                    d.textContent = text;
+                }
+                if (isRtl(text)) d.dir = "rtl";
+                var post = document.createElement("div");
+                post.className = "msg-post";
+                post.innerHTML = defaultActionsHTML(role) + (slots["post-" + role] || "");
+                row.appendChild(pre);
+                row.appendChild(d);
+                row.appendChild(post);
+                msgs.appendChild(row);
+                applyCollapse(d);
+                msgs.scrollTop = msgs.scrollHeight;
                 return d;
             }
             function renderMessageList(messages) {
@@ -772,7 +1487,6 @@
                         var bubble = null;
                         var accumulated = "";
                         var bubbleRtl = false;
-                        var rtlRe = /[\u0590-\u05ff\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb1d-\ufb4f\ufb50-\ufdff\ufe70-\ufeff]/;
                         var reader = r.body.getReader();
                         var decoder = new TextDecoder();
                         var buf = "";
@@ -791,7 +1505,8 @@
                                     if (!bubble) { hideLoading(); bubble = addMsg("assistant", ""); }
                                     accumulated += payload.data;
                                     bubble.innerHTML = renderMarkdown(accumulated);
-                                    if (!bubbleRtl && rtlRe.test(payload.data)) { bubbleRtl = true; bubble.dir = "rtl"; }
+                                    bubble.dataset.source = accumulated;
+                                    if (!bubbleRtl && isRtl(payload.data)) { bubbleRtl = true; bubble.dir = "rtl"; }
                                     scrollToBottom();
                                     window.chatnificent.onDelta(payload.data, accumulated);
                                 } else if (payload.event === "status") {
@@ -808,9 +1523,11 @@
                                         upsertSidebarEntry(convoId, text.length > 30 ? text.slice(0, 30) + "…" : text);
                                     }
                                     bubble.innerHTML = renderMarkdown(accumulated);
+                                    bubble.dataset.source = accumulated;
                                 } else if (payload.event === "error") {
                                     if (!bubble) { hideLoading(); bubble = addMsg("assistant", ""); }
                                     bubble.innerHTML = renderMarkdown(accumulated || "Error: " + payload.data);
+                                    bubble.dataset.source = accumulated || ("Error: " + payload.data);
                                 }
                             }
                         }
@@ -842,7 +1559,7 @@
                         var el = document.createElement("div");
                         el.className = "convo-item" + (id === convoId ? " active" : "");
                         el.dataset.convoId = id;
-                        el.textContent = title; el.title = title;
+                        el.textContent = title;
                         el.addEventListener("click", function () { loadConvo(id) });
                         convoList.appendChild(el);
                     });
@@ -861,7 +1578,7 @@
                     var el = document.createElement("div");
                     el.className = "convo-item active";
                     el.dataset.convoId = id;
-                    el.textContent = title || id; el.title = title || id;
+                    el.textContent = title || id;
                     el.addEventListener("click", function () { loadConvo(id) });
                     convoList.prepend(el);
                 }
@@ -875,16 +1592,95 @@
                     else history.pushState({ convoId: id }, "", data.path || apiBase + "/" + id);
                     renderMessageList(data.messages || []);
                     refreshConvoList();
+                    input.focus();
                 } catch (e) { }
             }
             window.addEventListener("popstate", function (e) {
                 var cid = e.state && e.state.convoId;
-                if (cid) loadConvo(cid); else { convoId = null; msgs.innerHTML = ""; msgs.appendChild(welcome); welcome.style.display = ""; refreshConvoList(); }
+                if (cid) loadConvo(cid); else { convoId = null; msgs.innerHTML = ""; msgs.appendChild(welcome); welcome.style.display = ""; refreshConvoList(); input.focus(); }
             });
             (function initFromURL() {
                 var initConvo = window.__CHATNIFICENT_CONVO__;
                 if (initConvo) loadConvo(initConvo); else refreshConvoList();
             })();
+
+            // Suggestion chips contract: any element with [data-insert-prompt="..."]
+            // fills the textarea and focuses it. Delegated so HTML rendered later
+            // (e.g. via marked into #welcome-message) still works without rebinding.
+            document.addEventListener("click", function (e) {
+                var target = e.target.closest("[data-insert-prompt]");
+                if (!target) return;
+                var prompt = target.getAttribute("data-insert-prompt");
+                if (prompt === null) return;
+                input.value = prompt;
+                input.dispatchEvent(new Event("input"));
+                input.focus();
+            });
+
+            // Shared copy-feedback: icon flip + tooltip swap for ~1.4s, with
+            // a re-click guard so the feedback window can't be interrupted.
+            function copyWithFeedback(btn, text) {
+                if (btn.classList.contains("is-copied")) return;
+                var prevTip = btn.getAttribute("data-tooltip");
+                var done = function () {
+                    btn.classList.add("is-copied");
+                    btn.setAttribute("data-tooltip", "Copied");
+                    var icon = btn.querySelector("svg");
+                    if (icon) icon.outerHTML = ICON_CHECK;
+                    setTimeout(function () {
+                        btn.classList.remove("is-copied");
+                        btn.setAttribute("data-tooltip", prevTip || "Copy");
+                        var newIcon = btn.querySelector("svg");
+                        if (newIcon) newIcon.outerHTML = ICON_COPY;
+                    }, 1400);
+                };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(done, function () { });
+                } else {
+                    var ta = document.createElement("textarea");
+                    ta.value = text; document.body.appendChild(ta);
+                    ta.select();
+                    try { document.execCommand("copy"); done(); } catch (_) { }
+                    document.body.removeChild(ta);
+                }
+            }
+
+            // Default Copy action on message rows. Assistant copies raw markdown
+            // source (stashed on .msg.assistant[data-source]); user copies plain text.
+            document.addEventListener("click", function (e) {
+                var btn = e.target.closest('.msg-action-btn[data-action="copy"]');
+                if (!btn) return;
+                var row = btn.closest(".msg-row");
+                var bubble = row && row.querySelector(".msg");
+                if (!bubble) return;
+                var text = bubble.classList.contains("assistant")
+                    ? (bubble.dataset.source || bubble.textContent)
+                    : bubble.textContent;
+                copyWithFeedback(btn, text);
+            });
+
+            // Per-code-block Copy on fenced blocks that carry a language tag.
+            document.addEventListener("click", function (e) {
+                var btn = e.target.closest('.msg-action-btn[data-action="copy-code"]');
+                if (!btn) return;
+                var pre = btn.closest("pre");
+                var code = pre && pre.querySelector("code");
+                if (!code) return;
+                copyWithFeedback(btn, code.textContent);
+            });
+
+            // Edit button on user pills reuses the [data-insert-prompt] contract.
+            document.addEventListener("click", function (e) {
+                var btn = e.target.closest('.msg-action-btn[data-action="edit"]');
+                if (!btn) return;
+                var row = btn.closest(".msg-row");
+                var bubble = row && row.querySelector(".msg.user");
+                if (!bubble) return;
+                input.value = bubble.textContent;
+                input.dispatchEvent(new Event("input"));
+                input.focus();
+            });
+
             input.focus();
         })();
     </script>

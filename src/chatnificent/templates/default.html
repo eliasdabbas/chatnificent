@@ -366,6 +366,85 @@
             padding: 12px 22px;
         }
 
+        /* ------------------------------------------------------------------
+           Element library — E2: Text inputs + textarea
+
+           All text-like <input> types share one ruleset (browsers refuse a
+           single `input:not([type=button|...])` shorthand here, so we
+           enumerate). <textarea> joins the base rule and adds resize +
+           min-height. Focus uses --focus-ring so devs change ring shape
+           in one place. The chat composer #input keeps its bespoke rules
+           via higher specificity.
+           ------------------------------------------------------------------ */
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        input[type="number"],
+        input[type="search"],
+        input[type="tel"],
+        input[type="url"],
+        input[type="date"],
+        input[type="time"],
+        input[type="datetime-local"],
+        input[type="month"],
+        input[type="week"],
+        textarea {
+            font-family: inherit;
+            font-size: 0.92rem;
+            line-height: 1.4;
+            padding: 9px 14px;
+            border-radius: var(--control-radius);
+            border: 1px solid var(--border);
+            background: var(--bg-elev);
+            color: var(--text);
+            outline: none;
+            width: 100%;
+            transition:
+                border-color var(--transition),
+                box-shadow var(--transition);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 72px;
+        }
+
+        input[type="text"]:focus,
+        input[type="email"]:focus,
+        input[type="password"]:focus,
+        input[type="number"]:focus,
+        input[type="search"]:focus,
+        input[type="tel"]:focus,
+        input[type="url"]:focus,
+        input[type="date"]:focus,
+        input[type="time"]:focus,
+        input[type="datetime-local"]:focus,
+        input[type="month"]:focus,
+        input[type="week"]:focus,
+        textarea:focus {
+            border-color: var(--text-secondary);
+            box-shadow: var(--focus-ring);
+        }
+
+        input::placeholder,
+        textarea::placeholder {
+            color: var(--text-muted);
+            opacity: 1;
+        }
+
+        input:disabled,
+        textarea:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: var(--accent-subtle);
+        }
+
+        /* Native browser picker icons are dark glyphs; invert in dark mode
+           so they remain readable on the elevated surface. */
+        html[data-theme="dark"] input::-webkit-calendar-picker-indicator {
+            filter: invert(1) opacity(0.7);
+        }
+
         #header {
             height: var(--header-h);
             background: var(--surface);

@@ -910,3 +910,83 @@ class TestE1Buttons:
         # for all interactive elements, including buttons. Adding a separate
         # button-only ring would create inconsistency.
         assert "button:focus-visible" not in html
+
+
+# =====================================================================
+# Element library — E2: Text inputs + textarea
+# =====================================================================
+
+
+class TestE2TextInputs:
+    """E2 of Bucket 9 — native <input> and <textarea> styling.
+
+    Covers all text-like input types plus textarea. Driven by insulation
+    tokens (`--border`, `--bg-elev`, `--accent-ring`, `--text-muted`).
+    The chat composer `#input` keeps its custom rules via specificity.
+    """
+
+    INPUT_TYPES = (
+        "text",
+        "email",
+        "password",
+        "number",
+        "search",
+        "tel",
+        "url",
+        "date",
+        "time",
+        "datetime-local",
+        "month",
+        "week",
+    )
+
+    @pytest.fixture
+    def html(self):
+        return DefaultLayout().render_page()
+
+    def test_all_text_input_types_in_base_rule(self, html):
+        for t in self.INPUT_TYPES:
+            assert f'input[type="{t}"]' in html, (
+                f"input[type=\"{t}\"] missing from element styles"
+            )
+
+    def test_inputs_use_border_token(self, html):
+        assert "border: 1px solid var(--border);" in html
+
+    def test_inputs_use_bg_elev_background(self, html):
+        # Element rules read tokens, never raw colors.
+        assert "background: var(--bg-elev);" in html
+
+    def test_textarea_in_base_rule(self, html):
+        assert "textarea {" in html or "textarea," in html
+
+    def test_textarea_resize_vertical(self, html):
+        assert "resize: vertical;" in html
+
+    def test_input_focus_uses_focus_ring_token(self, html):
+        # Focus state must consume --focus-ring (insulation token from
+        # Phase 1) so devs override the ring shape in one place.
+        assert "box-shadow: var(--focus-ring);" in html
+
+    def test_placeholder_uses_muted_text(self, html):
+        assert "input::placeholder" in html
+        assert "textarea::placeholder" in html
+        assert "color: var(--text-muted);" in html
+
+    def test_disabled_state(self, html):
+        assert "input:disabled" in html
+        assert "textarea:disabled" in html
+        assert "cursor: not-allowed;" in html
+
+    def test_dark_mode_calendar_picker_neutralized(self, html):
+        # Native browser picker icon is dark — invert it in dark mode so
+        # it remains visible against --bg-elev.
+        assert (
+            "html[data-theme=\"dark\"] input::-webkit-calendar-picker-indicator"
+            in html
+        )
+
+    def test_chat_composer_unaffected(self, html):
+        # #input must keep its specific rules; the new generic textarea
+        # rule must not collide.
+        assert "#input {" in html

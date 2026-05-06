@@ -728,3 +728,99 @@ class TestScriptsPlaceholder:
         assert html.index(second) < head_close
         # And in injection order: root first, then convo.
         assert html.index(first) < html.index(second)
+
+
+# =====================================================================
+# Insulation tokens — Bucket 9 / Phase 1
+# State colors, z-layers, focus ring, and control sizing tokens.
+# =====================================================================
+
+
+class TestInsulationTokens:
+    """Phase 1 of the Element library: token-only foundation.
+
+    These tokens are pre-requisites for the Tier 1 element styling that lands
+    in subsequent buckets (E1–E9). No element rules ship in this phase — only
+    the design-token surface that future elements will consume.
+    """
+
+    @pytest.fixture
+    def html(self):
+        return DefaultLayout().render_page()
+
+    # ----- State colors (light) -----
+
+    def test_light_state_color_success(self, html):
+        assert "--success: #047857;" in html
+        assert "--success-bg: rgba(5, 150, 105, 0.10);" in html
+        assert "--success-border: rgba(5, 150, 105, 0.28);" in html
+
+    def test_light_state_color_warning(self, html):
+        assert "--warning: #b45309;" in html
+        assert "--warning-bg: rgba(217, 119, 6, 0.10);" in html
+        assert "--warning-border: rgba(217, 119, 6, 0.28);" in html
+
+    def test_light_state_color_danger(self, html):
+        assert "--danger: #b91c1c;" in html
+        assert "--danger-bg: rgba(220, 38, 38, 0.10);" in html
+        assert "--danger-border: rgba(220, 38, 38, 0.28);" in html
+
+    def test_light_state_color_info(self, html):
+        assert "--info: #0369a1;" in html
+        assert "--info-bg: rgba(2, 132, 199, 0.10);" in html
+        assert "--info-border: rgba(2, 132, 199, 0.28);" in html
+
+    # ----- State colors (dark) -----
+
+    def test_dark_state_color_success(self, html):
+        assert "--success: #34d399;" in html
+        assert "--success-bg: rgba(52, 211, 153, 0.12);" in html
+        assert "--success-border: rgba(52, 211, 153, 0.30);" in html
+
+    def test_dark_state_color_warning(self, html):
+        assert "--warning: #fbbf24;" in html
+        assert "--warning-bg: rgba(251, 191, 36, 0.12);" in html
+        assert "--warning-border: rgba(251, 191, 36, 0.30);" in html
+
+    def test_dark_state_color_danger(self, html):
+        assert "--danger: #f87171;" in html
+        assert "--danger-bg: rgba(248, 113, 113, 0.12);" in html
+        assert "--danger-border: rgba(248, 113, 113, 0.30);" in html
+
+    def test_dark_state_color_info(self, html):
+        assert "--info: #38bdf8;" in html
+        assert "--info-bg: rgba(56, 189, 248, 0.12);" in html
+        assert "--info-border: rgba(56, 189, 248, 0.30);" in html
+
+    # ----- Z-layer tokens (mode-agnostic) -----
+
+    def test_z_layer_tokens_present(self, html):
+        assert "--z-base: 0;" in html
+        assert "--z-dropdown: 10;" in html
+        assert "--z-sticky: 100;" in html
+        assert "--z-modal: 1000;" in html
+        assert "--z-toast: 2000;" in html
+
+    # ----- Focus ring (mode-agnostic; resolves through --accent-ring cascade) -----
+
+    def test_focus_ring_token_present(self, html):
+        assert "--focus-ring: 0 0 0 3px var(--accent-ring);" in html
+
+    # ----- Control sizing (mode-agnostic) -----
+
+    def test_control_sizing_tokens_present(self, html):
+        assert "--control-h: 36px;" in html
+        assert "--control-padding-x: 12px;" in html
+        assert "--control-radius: 8px;" in html
+
+    # ----- Counts: state colors must appear in BOTH :root and dark block -----
+
+    def test_state_color_pairs_in_both_modes(self, html):
+        # Each state-color triplet ships once in light and once in dark.
+        for name in ("success", "warning", "danger", "info"):
+            assert html.count(f"--{name}-bg:") == 2, (
+                f"--{name}-bg should be defined in both :root and dark"
+            )
+            assert html.count(f"--{name}-border:") == 2, (
+                f"--{name}-border should be defined in both :root and dark"
+            )

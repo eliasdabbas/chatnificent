@@ -107,6 +107,41 @@
             --glass-shadow: 0 4px 22px rgba(0, 0, 0, 0.06);
             --glass-shadow-strong: 0 8px 32px rgba(0, 0, 0, 0.10);
 
+            /* State colors — semantic accents for status, validation,
+               and notifications. Used by future Tier 1 element styles
+               (forms, alerts, badges) and available to dev overrides. */
+            --success: #047857;
+            --success-bg: rgba(5, 150, 105, 0.10);
+            --success-border: rgba(5, 150, 105, 0.28);
+            --warning: #b45309;
+            --warning-bg: rgba(217, 119, 6, 0.10);
+            --warning-border: rgba(217, 119, 6, 0.28);
+            --danger: #b91c1c;
+            --danger-bg: rgba(220, 38, 38, 0.10);
+            --danger-border: rgba(220, 38, 38, 0.28);
+            --info: #0369a1;
+            --info-bg: rgba(2, 132, 199, 0.10);
+            --info-border: rgba(2, 132, 199, 0.28);
+
+            /* Z-layer scale — replaces magic numbers across the
+               stylesheet. Kept mode-agnostic. */
+            --z-base: 0;
+            --z-dropdown: 10;
+            --z-sticky: 100;
+            --z-modal: 1000;
+            --z-toast: 2000;
+
+            /* Focus ring — applied via :focus-visible across
+               interactive elements. Resolves through --accent-ring,
+               so it follows light/dark automatically. */
+            --focus-ring: 0 0 0 3px var(--accent-ring);
+
+            /* Control sizing — shared by buttons, inputs, selects,
+               and any future native form element styling. */
+            --control-h: 36px;
+            --control-padding-x: 12px;
+            --control-radius: 8px;
+
             /* Long user pills collapse past this height; devs override. */
             --user-pill-max-h: 480px;
 
@@ -173,6 +208,21 @@
             --glass-inset: rgba(255, 255, 255, 0.06);
             --glass-shadow: 0 4px 22px rgba(0, 0, 0, 0.4);
             --glass-shadow-strong: 0 8px 32px rgba(0, 0, 0, 0.55);
+
+            /* State colors — brighter hues for contrast against the
+               deep dark surface. */
+            --success: #34d399;
+            --success-bg: rgba(52, 211, 153, 0.12);
+            --success-border: rgba(52, 211, 153, 0.30);
+            --warning: #fbbf24;
+            --warning-bg: rgba(251, 191, 36, 0.12);
+            --warning-border: rgba(251, 191, 36, 0.30);
+            --danger: #f87171;
+            --danger-bg: rgba(248, 113, 113, 0.12);
+            --danger-border: rgba(248, 113, 113, 0.30);
+            --info: #38bdf8;
+            --info-bg: rgba(56, 189, 248, 0.12);
+            --info-border: rgba(56, 189, 248, 0.30);
 
             --code-bg: #0d0d10;
             --code-header-bg: #15151a;

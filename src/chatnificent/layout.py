@@ -245,7 +245,7 @@ class DefaultLayout(Layout):
             welcome_message = f"""## Welcome to Chatnificent v{__version__}
 
 Start typing below, or browse the [examples](https://github.com/eliasdabbas/chatnificent/tree/main/examples) to see what's possible. New features land in the [changelog](https://github.com/eliasdabbas/chatnificent/blob/main/CHANGELOG.md).
-
+<br>
 <div id="suggestions">
   <button class="suggestion" data-insert-prompt="Explain how server-sent events work in 3 short paragraphs.">
     <span class="suggestion-label">Learn</span>

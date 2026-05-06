@@ -120,7 +120,7 @@
 
         html[data-theme="dark"] {
             /* Surfaces */
-            --bg: #000000;
+            --bg: #0a0a0b;
             --bg-elev: #131316;
             --surface: #0a0a0a;
 
@@ -210,6 +210,13 @@
         button {
             -webkit-font-smoothing: inherit;
             -moz-osx-font-smoothing: inherit;
+        }
+
+        /* Brand-tinted keyboard focus ring across the page (TAB navigation). */
+        :focus-visible {
+            outline: 2px solid var(--brand);
+            outline-offset: 2px;
+            border-radius: var(--radius-sm);
         }
 
         #header {
@@ -429,6 +436,9 @@
             right: 0;
             display: flex;
             flex-direction: column;
+            background:
+                var(--welcome-glow),
+                var(--bg);
         }
 
         #messages {
@@ -965,17 +975,50 @@
         }
 
         #welcome {
-            flex: 1;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
             color: var(--text);
-            background: var(--welcome-glow);
+            padding: 56px 16px 24px;
+            gap: 24px;
         }
 
         #welcome-message {
-            width: min(560px, 100% - 32px);
+            width: min(580px, 100% - 32px);
+            text-align: center;
+        }
+
+        #welcome-message h1,
+        #welcome-message h2,
+        #welcome-message h3 {
+            font-size: 1.65rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            margin: 0 0 8px;
+            line-height: 1.25;
+        }
+
+        #welcome-message p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.55;
+            margin: 0;
+        }
+
+        #welcome-message p + p {
+            margin-top: 0.5em;
+        }
+
+        #welcome-message a {
+            color: var(--text);
+            text-decoration: underline;
+            text-underline-offset: 3px;
+            text-decoration-color: var(--border-strong);
+            transition: text-decoration-color var(--transition);
+        }
+
+        #welcome-message a:hover {
+            text-decoration-color: var(--text);
         }
 
         /* Suggestion chips — devs ship arbitrary HTML inside `welcome_message`.
@@ -986,7 +1029,6 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 12px;
             width: min(580px, 100% - 32px);
-            margin-top: 20px;
         }
 
         @media (max-width: 480px) {
@@ -1055,12 +1097,11 @@
 
         #input-bar {
             flex-shrink: 0;
-            background: var(--surface);
-            border-top: 1px solid var(--border);
+            background: transparent;
             display: flex;
             align-items: flex-end;
             justify-content: center;
-            padding: 12px 20px 16px;
+            padding: 12px 20px 18px;
         }
 
         #input-inner {
@@ -1069,16 +1110,24 @@
             gap: 10px;
             width: 100%;
             max-width: var(--chat-max-w);
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 26px;
-            padding: 6px 8px 6px 18px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(24px) saturate(180%);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-lg);
+            padding: 8px 10px 8px 20px;
+            box-shadow:
+                var(--glass-shadow-strong),
+                inset 0 1px 0 var(--glass-inset);
             transition: border-color var(--transition), box-shadow var(--transition);
         }
 
         #input-inner:focus-within {
-            border-color: var(--border-strong);
-            box-shadow: 0 0 0 3px var(--accent-ring);
+            border-color: var(--glass-border-hover);
+            box-shadow:
+                var(--glass-shadow-strong),
+                inset 0 1px 0 var(--glass-inset),
+                0 0 0 3px var(--accent-ring);
         }
 
         #input {
@@ -1090,20 +1139,23 @@
             font-family: inherit;
             resize: none;
             line-height: 1.5;
+            min-height: 0;
             max-height: var(--input-max-h);
-            padding: 9px 0;
+            padding: 12px 0;
             color: var(--text);
             overflow-y: auto;
+            transition: none;
         }
 
         #input::placeholder {
-            color: var(--text-secondary);
-            opacity: 0.6;
+            color: var(--text-muted);
+            opacity: 1;
         }
 
         #send {
-            width: 40px;
-            height: 40px;
+            width: 42px;
+            height: 42px;
+            padding: 0;
             border-radius: 50%;
             background: var(--accent);
             border: none;
@@ -1112,8 +1164,15 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: background var(--transition), transform 0.15s ease;
+            transition: background var(--transition), transform 0.12s ease, opacity var(--transition);
             flex-shrink: 0;
+            box-shadow: none;
+        }
+
+        #send svg {
+            flex-shrink: 0;
+            width: 18px;
+            height: 18px;
         }
 
         #send:hover {
@@ -1125,14 +1184,9 @@
         }
 
         #send:disabled {
-            background: var(--border);
+            opacity: 0.35;
             cursor: not-allowed;
             transform: none;
-        }
-
-        #send svg {
-            width: 18px;
-            height: 18px;
         }
 
         @media (max-width: 768px) {

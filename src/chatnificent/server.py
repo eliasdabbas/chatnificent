@@ -175,7 +175,7 @@ class Server(ABC):
             return html
         safe_root = root_path.replace("\\", "\\\\").replace('"', '\\"')
         tag = f'<script>window.__CHATNIFICENT_ROOT__="{safe_root}";</script>'
-        return html.replace("</head>", tag + "</head>")
+        return html.replace("<!-- SCRIPTS -->", tag + "<!-- SCRIPTS -->")
 
     def _build_full_conversation_path(self, root_path, user_id, convo_id):
         """Build a URL path with the mount prefix prepended.
@@ -257,7 +257,7 @@ class _DevHandler(SimpleHTTPRequestHandler):
             if url_parts.convo_id:
                 safe_id = url_parts.convo_id.replace("\\", "\\\\").replace('"', '\\"')
                 tag = f'<script>window.__CHATNIFICENT_CONVO__="{safe_id}";</script>'
-                html = html.replace("</head>", tag + "</head>")
+                html = html.replace("<!-- SCRIPTS -->", tag + "<!-- SCRIPTS -->")
             self._respond_html(html)
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
@@ -730,7 +730,7 @@ class Starlette(Server):
         if url_parts.convo_id:
             safe_id = url_parts.convo_id.replace("\\", "\\\\").replace('"', '\\"')
             tag = f'<script>window.__CHATNIFICENT_CONVO__="{safe_id}";</script>'
-            html = html.replace("</head>", tag + "</head>")
+            html = html.replace("<!-- SCRIPTS -->", tag + "<!-- SCRIPTS -->")
 
         response = HTMLResponse(html)
         self._maybe_set_cookie(response, user_id, is_new, root_path)

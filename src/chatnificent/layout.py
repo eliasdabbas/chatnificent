@@ -88,11 +88,16 @@ class Layout(ABC):
         """
         blocks = []
         for path in sorted(Path(vendor_dir).glob("*.js")):
-            blocks.append(
-                f"<script>/* vendored: {path.name} */\n"
-                + path.read_text(encoding="utf-8")
-                + "\n</script>"
-            )
+            source = path.read_text(encoding="utf-8").strip()
+            # Vendor body bytes are emitted verbatim — integrity is pinned
+            # via sha256 in MANIFEST.json. The strips below only remove an
+            # accidental outer <script>...</script> wrapper; they're a
+            # no-op on real (body-only) vendor files.
+            if source.startswith("<script>"):
+                source = source[len("<script>") :]
+            if source.endswith("</script>"):
+                source = source[: -len("</script>")]
+            blocks.append(f"<script>/* vendored: {path.name} */\n{source}\n</script>")
         return "\n".join(blocks)
 
     def render_messages(

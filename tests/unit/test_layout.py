@@ -654,3 +654,77 @@ class TestDefaultLayoutBranding:
         html = DefaultLayout().render_page()
         assert "marked.parse" in html
         assert "DOMPurify.sanitize" in html
+
+
+# =====================================================================
+# Vendor script inlining safety
+# =====================================================================
+
+
+class TestInlineVendorScripts:
+    """Vendor body bytes are inlined verbatim (integrity is pinned via
+    MANIFEST.json sha256). The only transformation is an anchored strip of
+    an accidental outer ``<script>...</script>`` wrapper."""
+
+    def test_inlines_body_bytes_verbatim(self, tmp_path):
+        """Vendor source is emitted unchanged inside our wrapper."""
+        body = 'var s = "<script>x</script>"; /* </head> */ var r = /<\\/script/i;'
+        (tmp_path / "a.js").write_text(body, encoding="utf-8")
+        out = ConcreteLayout().inline_vendor_scripts(tmp_path)
+        assert body in out
+
+    def test_strips_outer_script_wrapper(self, tmp_path):
+        """Anchored strip removes a ``<script>...</script>`` wrapper if present."""
+        (tmp_path / "a.js").write_text("<script>var x = 1;</script>", encoding="utf-8")
+        out = ConcreteLayout().inline_vendor_scripts(tmp_path)
+        # Exactly one wrapper pair (ours), and the inner body survives.
+        assert out.count("<script>") == 1
+        assert out.count("</script>") == 1
+        assert "var x = 1;" in out
+
+    def test_does_not_strip_unanchored_script_substrings(self, tmp_path):
+        """Mid-body ``<script>`` / ``</script>`` substrings are left alone."""
+        body = 'var s = "<script>"; var e = "</script>";'
+        (tmp_path / "a.js").write_text(body, encoding="utf-8")
+        out = ConcreteLayout().inline_vendor_scripts(tmp_path)
+        assert body in out
+
+    def test_does_not_anchor_on_head_close_in_vendor_source(self):
+        """DefaultLayout.render_page() must not corrupt vendored JS that
+        contains a literal ``</head>`` substring (e.g. DOMPurify)."""
+        html = DefaultLayout().render_page()
+        assert "</head>" in html
+        assert "DOMPurify" in html
+
+
+# =====================================================================
+# Runtime script injection via SCRIPTS placeholder
+# =====================================================================
+
+
+class TestScriptsPlaceholder:
+    """The template's ``<!-- SCRIPTS -->`` marker is the canonical seam
+    for runtime script injection (root path, convo id, etc.)."""
+
+    def test_template_contains_scripts_placeholder(self):
+        html = DefaultLayout().render_page()
+        assert "<!-- SCRIPTS -->" in html
+
+    def test_multiple_injections_all_land_before_placeholder(self):
+        """Repeated str.replace on the placeholder accumulates tags
+        before it (so root + convo can both inject)."""
+        html = DefaultLayout().render_page()
+        first = '<script>window.__CHATNIFICENT_ROOT__="/x";</script>'
+        second = '<script>window.__CHATNIFICENT_CONVO__="abc";</script>'
+        html = html.replace("<!-- SCRIPTS -->", first + "<!-- SCRIPTS -->")
+        html = html.replace("<!-- SCRIPTS -->", second + "<!-- SCRIPTS -->")
+        assert html.count(first) == 1
+        assert html.count(second) == 1
+        # Both runtime tags must appear before the real closing </head>
+        # (vendored JS contains a literal '</head>' inside a string constant,
+        # so use rfind to anchor on the actual document tag).
+        head_close = html.rfind("</head>")
+        assert html.index(first) < head_close
+        assert html.index(second) < head_close
+        # And in injection order: root first, then convo.
+        assert html.index(first) < html.index(second)

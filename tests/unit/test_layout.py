@@ -824,3 +824,89 @@ class TestInsulationTokens:
             assert html.count(f"--{name}-border:") == 2, (
                 f"--{name}-border should be defined in both :root and dark"
             )
+
+
+# =====================================================================
+# Element library — E1: Buttons
+# Tier 1 native element styling for <button>. Variants via [data-variant],
+# sizes via [data-size]. IDed buttons keep their styles via specificity.
+# =====================================================================
+
+
+class TestE1Buttons:
+    """E1 of Bucket 9 — native <button> styling.
+
+    Element rules consume insulation tokens (`--accent`, `--radius-pill`,
+    `--shadow-sm`, `--btn-text`, `--accent-subtle`, `--danger`) so devs can
+    re-skin via tokens without touching element rules.
+    """
+
+    @pytest.fixture
+    def html(self):
+        return DefaultLayout().render_page()
+
+    # ----- Default (primary) button -----
+
+    def test_button_base_uses_accent_background(self, html):
+        # Generic `button {}` rule must exist with token-driven background.
+        assert "background: var(--accent);" in html
+
+    def test_button_base_uses_pill_radius(self, html):
+        assert "border-radius: var(--radius-pill);" in html
+
+    def test_button_base_uses_btn_text_color(self, html):
+        assert "color: var(--btn-text);" in html
+
+    def test_button_hover_uses_accent_hover(self, html):
+        assert "button:hover" in html
+        assert "background: var(--accent-hover);" in html
+
+    def test_button_active_press_animation(self, html):
+        assert "button:active" in html
+        assert "transform: scale(0.97);" in html
+
+    def test_button_disabled_state(self, html):
+        assert "button:disabled" in html
+        assert "cursor: not-allowed;" in html
+
+    # ----- Variants via [data-variant] -----
+
+    def test_button_variant_secondary(self, html):
+        assert 'button[data-variant="secondary"]' in html
+        assert "background: var(--bg-elev);" in html
+
+    def test_button_variant_ghost(self, html):
+        assert 'button[data-variant="ghost"]' in html
+        assert "background: transparent;" in html
+
+    def test_button_variant_danger(self, html):
+        assert 'button[data-variant="danger"]' in html
+        assert "background: var(--danger);" in html
+
+    def test_button_variant_danger_dark_mode_override(self, html):
+        # Light mode: white text on red. Dark mode: bg-color text on bright red.
+        assert 'html[data-theme="dark"] button[data-variant="danger"]' in html
+
+    # ----- Size modifiers via [data-size] -----
+
+    def test_button_size_small(self, html):
+        assert 'button[data-size="sm"]' in html
+
+    def test_button_size_large(self, html):
+        assert 'button[data-size="lg"]' in html
+
+    # ----- Specificity safety: IDed buttons unaffected -----
+
+    def test_existing_ided_buttons_still_have_styles(self, html):
+        # #send and #new-chat-btn rules pre-date E1 and have higher
+        # specificity than `button {}`, so adding the generic rule must
+        # not disturb them.
+        assert "#send {" in html
+        assert "#new-chat-btn {" in html
+
+    def test_button_no_focus_visible_override(self, html):
+        # E1 deliberately does NOT add `button:focus-visible` — the page-wide
+        # `:focus-visible` rule already supplies a brand-themed focus ring
+        # for all interactive elements, including buttons. Adding a separate
+        # button-only ring would create inconsistency.
+        assert "button:focus-visible" not in html

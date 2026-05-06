@@ -269,6 +269,103 @@
             border-radius: var(--radius-sm);
         }
 
+        /* ------------------------------------------------------------------
+           Element library — E1: Buttons
+
+           Default <button> = primary pill. Override via [data-variant] for
+           secondary / ghost / danger, [data-size] for sm / lg. All rules
+           consume insulation tokens, so a dev re-themes by overriding
+           tokens (--accent, --danger, --radius-pill, etc.) — never by
+           rewriting element CSS.
+
+           Specificity note: the chat UI's IDed buttons (#send,
+           #new-chat-btn, #theme-toggle, #sidebar-toggle) carry their own
+           rules with higher specificity and are unaffected. These element
+           rules style ad-hoc <button>s in welcome content, dialogs, and
+           dev-injected slot HTML.
+           ------------------------------------------------------------------ */
+        button {
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 600;
+            line-height: 1.2;
+            padding: 9px 18px;
+            border-radius: var(--radius-pill);
+            border: 1px solid transparent;
+            background: var(--accent);
+            color: var(--btn-text);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition:
+                background var(--transition),
+                border-color var(--transition),
+                color var(--transition),
+                transform 0.1s ease,
+                box-shadow var(--transition);
+            box-shadow: var(--shadow-sm);
+        }
+
+        button:hover {
+            background: var(--accent-hover);
+        }
+
+        button:active {
+            transform: scale(0.97);
+        }
+
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        button[data-variant="secondary"] {
+            background: var(--bg-elev);
+            color: var(--text);
+            border-color: var(--border-strong);
+        }
+
+        button[data-variant="secondary"]:hover {
+            background: var(--accent-subtle);
+        }
+
+        button[data-variant="ghost"] {
+            background: transparent;
+            color: var(--text);
+            border-color: transparent;
+            box-shadow: none;
+        }
+
+        button[data-variant="ghost"]:hover {
+            background: var(--accent-subtle);
+        }
+
+        button[data-variant="danger"] {
+            background: var(--danger);
+            color: #fff;
+            border-color: transparent;
+        }
+
+        html[data-theme="dark"] button[data-variant="danger"] {
+            color: var(--bg);
+        }
+
+        button[data-variant="danger"]:hover {
+            filter: brightness(0.92);
+        }
+
+        button[data-size="sm"] {
+            font-size: 0.8rem;
+            padding: 6px 12px;
+        }
+
+        button[data-size="lg"] {
+            font-size: 1rem;
+            padding: 12px 22px;
+        }
+
         #header {
             height: var(--header-h);
             background: var(--surface);

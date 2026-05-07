@@ -151,9 +151,12 @@
             --code-header-bg: #ececee;
             --table-border: #d4d4d8;
             --details-summary-bg: rgba(0, 0, 0, 0.025);
+
+            color-scheme: light;
         }
 
         html[data-theme="dark"] {
+            color-scheme: dark;
             /* Surfaces */
             --bg: #0a0a0b;
             --bg-elev: #131316;
@@ -394,7 +397,7 @@
             line-height: 1.4;
             padding: 9px 14px;
             border-radius: var(--control-radius);
-            border: 1px solid var(--border);
+            border: 1px solid var(--border-strong);
             background: var(--bg-elev);
             color: var(--text);
             outline: none;
@@ -462,7 +465,7 @@
             line-height: 1.4;
             padding: 9px 36px 9px 14px;
             border-radius: var(--control-radius);
-            border: 1px solid var(--border);
+            border: 1px solid var(--border-strong);
             color: var(--text);
             cursor: pointer;
             outline: none;
@@ -895,6 +898,7 @@
             justify-content: center;
             width: 36px;
             height: 36px;
+            box-shadow: none;
         }
 
         #sidebar-toggle:hover {
@@ -964,6 +968,7 @@
             justify-content: center;
             width: 36px;
             height: 36px;
+            box-shadow: none;
         }
 
         #theme-toggle:hover {
@@ -997,6 +1002,7 @@
             display: flex;
             align-items: center;
             gap: 6px;
+            box-shadow: none;
         }
 
         #new-chat-btn:hover {
@@ -1675,7 +1681,8 @@
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 12px;
-            width: min(580px, 100% - 32px);
+            width: 100%;
+            margin-top: 8px;
         }
 
         @media (max-width: 480px) {
@@ -1792,6 +1799,15 @@
             color: var(--text);
             overflow-y: auto;
             transition: none;
+            box-shadow: none;
+            border-radius: 0;
+        }
+
+        #input:focus,
+        #input:disabled {
+            box-shadow: none;
+            background: none;
+            opacity: inherit;
         }
 
         #input::placeholder {

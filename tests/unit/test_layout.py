@@ -955,3 +955,40 @@ class TestElementLibraryInvariants:
         html = DefaultLayout().render_page()
         assert "linear-gradient(45deg, transparent 50%, currentColor 50%)" in html
         assert "linear-gradient(135deg, currentColor 50%, transparent 50%)" in html
+
+    @pytest.mark.parametrize(
+        "selector",
+        ["#send {", "#new-chat-btn {", "#sidebar-toggle {", "#theme-toggle {"],
+    )
+    def test_ided_chat_buttons_reset_box_shadow(self, selector):
+        """Element library E1 sets ``box-shadow: var(--shadow-sm)`` on every
+        <button>. IDed chat-UI buttons must explicitly reset it so the
+        elevated shadow does not leak into the chrome.
+        """
+        html = DefaultLayout().render_page()
+        idx = html.index(selector)
+        # Look for "box-shadow: none" within ~600 chars after the selector.
+        block = html[idx : idx + 600]
+        assert "box-shadow: none" in block, (
+            f"{selector} must explicitly reset box-shadow against E1 defaults"
+        )
+
+    def test_input_resets_textarea_focus_and_disabled(self):
+        """E2 ``textarea:focus`` paints a focus ring and ``textarea:disabled``
+        tints the surface. The composer (#input) lives inside #input-inner
+        which already owns the focus ring, so #input must reset both.
+        """
+        html = DefaultLayout().render_page()
+        # The reset rule must mention :focus and :disabled together.
+        assert "#input:focus" in html
+        assert "#input:disabled" in html
+
+    def test_color_scheme_set_for_native_form_chrome(self):
+        """Setting ``color-scheme`` per theme tells the UA to render native
+        chrome (select popups, scrollbars, calendar pickers) using matching
+        light/dark system colors. Without it, dark-mode <select> popups
+        appear with white system chrome.
+        """
+        html = DefaultLayout().render_page()
+        assert "color-scheme: light" in html
+        assert "color-scheme: dark" in html

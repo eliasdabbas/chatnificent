@@ -32,7 +32,7 @@ class Control:
     id: str
     html: str
     slot: str
-    llm_param: str
+    llm_param: Optional[str] = None
     cast: Optional[Callable] = None
 
 
@@ -298,6 +298,8 @@ Start typing below, or browse the [examples](https://github.com/eliasdabbas/chat
         result = {}
         for control_id, control in controls.items():
             if control_id not in user_state:
+                continue
+            if control.llm_param is None:
                 continue
             value = user_state[control_id]
             if value is None:

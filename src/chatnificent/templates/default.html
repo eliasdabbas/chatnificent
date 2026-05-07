@@ -524,8 +524,13 @@
             display: inline-block;
         }
 
-        input[type="checkbox"] { border-radius: 5px; }
-        input[type="radio"] { border-radius: 50%; }
+        input[type="checkbox"] {
+            border-radius: 5px;
+        }
+
+        input[type="radio"] {
+            border-radius: 50%;
+        }
 
         input[type="checkbox"]:hover:not(:disabled),
         input[type="radio"]:hover:not(:disabled) {
@@ -666,9 +671,20 @@
             overflow: hidden;
         }
 
-        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; border-radius: inherit; }
-        input[type="color"]::-webkit-color-swatch { border: none; border-radius: inherit; }
-        input[type="color"]::-moz-color-swatch { border: none; border-radius: inherit; }
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+            border-radius: inherit;
+        }
+
+        input[type="color"]::-webkit-color-swatch {
+            border: none;
+            border-radius: inherit;
+        }
+
+        input[type="color"]::-moz-color-swatch {
+            border: none;
+            border-radius: inherit;
+        }
 
         progress,
         meter {
@@ -745,7 +761,9 @@
             outline: none;
         }
 
-        summary::-webkit-details-marker { display: none; }
+        summary::-webkit-details-marker {
+            display: none;
+        }
 
         summary::after {
             content: "";
@@ -765,7 +783,7 @@
             transform: translateY(-50%) rotate(90deg);
         }
 
-        details > :not(summary) {
+        details> :not(summary) {
             padding: 0 0 14px;
             color: var(--text-secondary);
             line-height: 1.55;

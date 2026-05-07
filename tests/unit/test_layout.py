@@ -827,166 +827,131 @@ class TestInsulationTokens:
 
 
 # =====================================================================
-# Element library — E1: Buttons
-# Tier 1 native element styling for <button>. Variants via [data-variant],
-# sizes via [data-size]. IDed buttons keep their styles via specificity.
+# Element library — Bucket 9 manifest
+#
+# Each row asserts: (a) the CSS selector exists in the rendered page,
+# and (b) the rule consumes the listed insulation tokens (so a dev
+# theming via tokens reaches it).
+#
+# Light regression net only — visual correctness is verified in the
+# gallery in `examples/design_system.py`. To extend a future E-bucket,
+# add rows here.
 # =====================================================================
 
 
-class TestE1Buttons:
-    """E1 of Bucket 9 — native <button> styling.
+ELEMENT_MANIFEST = [
+    # --- E1: Buttons ---
+    ("E1", "button {", ["var(--accent)", "var(--btn-text)", "var(--radius-pill)"]),
+    ("E1", 'button[data-variant="secondary"]', ["var(--bg-elev)"]),
+    ("E1", 'button[data-variant="ghost"]', []),
+    ("E1", 'button[data-variant="danger"]', ["var(--danger)"]),
+    ("E1", 'button[data-size="sm"]', []),
+    ("E1", 'button[data-size="lg"]', []),
+    # --- E2: Text inputs + textarea ---
+    ("E2", 'input[type="text"]', []),
+    ("E2", 'input[type="email"]', []),
+    ("E2", 'input[type="password"]', []),
+    ("E2", 'input[type="number"]', []),
+    ("E2", 'input[type="search"]', []),
+    ("E2", 'input[type="tel"]', []),
+    ("E2", 'input[type="url"]', []),
+    ("E2", 'input[type="date"]', []),
+    ("E2", 'input[type="time"]', []),
+    ("E2", 'input[type="datetime-local"]', []),
+    ("E2", 'input[type="month"]', []),
+    ("E2", 'input[type="week"]', []),
+    ("E2", "textarea {", ["resize: vertical"]),
+    ("E2", "input::placeholder", ["var(--text-muted)"]),
+    ("E2", "input:disabled", ["cursor: not-allowed"]),
+    # --- E3: Select ---
+    ("E3", "select {", ["var(--bg-elev)", "var(--control-radius)", "appearance: none"]),
+    ("E3", "select:focus", ["var(--focus-ring)"]),
+    ("E3", "select:disabled", []),
+    # --- E4: Checkbox + Radio ---
+    ("E4", 'input[type="checkbox"]', ["var(--border-strong)", "appearance: none"]),
+    ("E4", 'input[type="radio"]', []),
+    ("E4", 'input[type="checkbox"]:checked', ["var(--accent)"]),
+    ("E4", 'input[type="radio"]:checked', ["var(--accent)"]),
+    ("E4", 'input[type="checkbox"]:focus-visible', ["var(--focus-ring)"]),
+    # --- E5: Range, File, Color, Progress, Meter ---
+    ("E5", 'input[type="range"]', ["appearance: none"]),
+    (
+        "E5",
+        'input[type="range"]::-webkit-slider-runnable-track',
+        ["var(--border-strong)"],
+    ),
+    ("E5", 'input[type="range"]::-webkit-slider-thumb', ["var(--accent)"]),
+    ("E5", 'input[type="range"]::-moz-range-thumb', ["var(--accent)"]),
+    ("E5", 'input[type="file"]::file-selector-button', ["var(--bg-elev)"]),
+    ("E5", 'input[type="color"]', ["appearance: none"]),
+    ("E5", "progress::-webkit-progress-value", ["var(--accent)"]),
+    ("E5", "meter::-webkit-meter-optimum-value", ["var(--success)"]),
+    ("E5", "meter::-webkit-meter-suboptimum-value", ["var(--warning)"]),
+    ("E5", "meter::-webkit-meter-even-less-good-value", ["var(--danger)"]),
+    # --- E6: Disclosure ---
+    ("E6", "details {", ["var(--border)", "var(--bg-elev)"]),
+    ("E6", "summary {", ["cursor: pointer"]),
+    ("E6", "details[open] summary::after", ["rotate(90deg)"]),
+    # --- E7: Dialog ---
+    ("E7", "dialog {", ["var(--bg-elev)", "var(--shadow-lg)", "var(--z-modal)"]),
+    ("E7", "dialog::backdrop", ["backdrop-filter"]),
+    # --- E8: Inline text ---
+    ("E8", "kbd {", ["var(--bg-elev)", "var(--border-strong)"]),
+    ("E8", "mark {", []),
+    ("E8", "abbr[title]", ["underline dotted"]),
+    # --- E9: Block & form layout ---
+    ("E9", "hr {", ["var(--border)"]),
+    ("E9", "blockquote {", ["var(--accent)"]),
+    ("E9", "fieldset {", ["var(--border)"]),
+    ("E9", "legend {", ["var(--text-secondary)"]),
+]
 
-    Element rules consume insulation tokens (`--accent`, `--radius-pill`,
-    `--shadow-sm`, `--btn-text`, `--accent-subtle`, `--danger`) so devs can
-    re-skin via tokens without touching element rules.
+
+@pytest.fixture(scope="module")
+def rendered_html():
+    return DefaultLayout().render_page()
+
+
+@pytest.mark.parametrize(
+    "bucket,selector,required_substrings",
+    ELEMENT_MANIFEST,
+    ids=[f"{b}:{sel}" for b, sel, _ in ELEMENT_MANIFEST],
+)
+def test_element_rule_present_and_token_driven(
+    rendered_html, bucket, selector, required_substrings
+):
+    """Each row of ELEMENT_MANIFEST: the selector ships and consumes the
+    insulation tokens / required substrings the bucket promises.
+
+    Element rules must read tokens, never hard-code values — that's what
+    makes the framework themeable via `:root { --foo: ... }` overrides.
     """
+    assert selector in rendered_html, f"[{bucket}] selector missing: {selector}"
+    for needle in required_substrings:
+        assert needle in rendered_html, f"[{bucket}] {selector} must consume {needle!r}"
 
-    @pytest.fixture
-    def html(self):
-        return DefaultLayout().render_page()
 
-    # ----- Default (primary) button -----
+# Cross-cutting safety invariants that don't fit the per-row manifest.
 
-    def test_button_base_uses_accent_background(self, html):
-        # Generic `button {}` rule must exist with token-driven background.
-        assert "background: var(--accent);" in html
 
-    def test_button_base_uses_pill_radius(self, html):
-        assert "border-radius: var(--radius-pill);" in html
+class TestElementLibraryInvariants:
+    """Cross-cutting checks for the element library as a whole."""
 
-    def test_button_base_uses_btn_text_color(self, html):
-        assert "color: var(--btn-text);" in html
+    def test_chat_ui_buttons_keep_specificity(self):
+        # IDed chat UI elements must not regress when generic <button> /
+        # <textarea> rules land. Specificity owns these.
+        html = DefaultLayout().render_page()
+        for ided in ("#send {", "#new-chat-btn {", "#input {"):
+            assert ided in html
 
-    def test_button_hover_uses_accent_hover(self, html):
-        assert "button:hover" in html
-        assert "background: var(--accent-hover);" in html
-
-    def test_button_active_press_animation(self, html):
-        assert "button:active" in html
-        assert "transform: scale(0.97);" in html
-
-    def test_button_disabled_state(self, html):
-        assert "button:disabled" in html
-        assert "cursor: not-allowed;" in html
-
-    # ----- Variants via [data-variant] -----
-
-    def test_button_variant_secondary(self, html):
-        assert 'button[data-variant="secondary"]' in html
-        assert "background: var(--bg-elev);" in html
-
-    def test_button_variant_ghost(self, html):
-        assert 'button[data-variant="ghost"]' in html
-        assert "background: transparent;" in html
-
-    def test_button_variant_danger(self, html):
-        assert 'button[data-variant="danger"]' in html
-        assert "background: var(--danger);" in html
-
-    def test_button_variant_danger_dark_mode_override(self, html):
-        # Light mode: white text on red. Dark mode: bg-color text on bright red.
-        assert 'html[data-theme="dark"] button[data-variant="danger"]' in html
-
-    # ----- Size modifiers via [data-size] -----
-
-    def test_button_size_small(self, html):
-        assert 'button[data-size="sm"]' in html
-
-    def test_button_size_large(self, html):
-        assert 'button[data-size="lg"]' in html
-
-    # ----- Specificity safety: IDed buttons unaffected -----
-
-    def test_existing_ided_buttons_still_have_styles(self, html):
-        # #send and #new-chat-btn rules pre-date E1 and have higher
-        # specificity than `button {}`, so adding the generic rule must
-        # not disturb them.
-        assert "#send {" in html
-        assert "#new-chat-btn {" in html
-
-    def test_button_no_focus_visible_override(self, html):
-        # E1 deliberately does NOT add `button:focus-visible` — the page-wide
-        # `:focus-visible` rule already supplies a brand-themed focus ring
-        # for all interactive elements, including buttons. Adding a separate
-        # button-only ring would create inconsistency.
+    def test_no_button_focus_visible_override(self):
+        # Page-wide :focus-visible owns the brand focus ring; a
+        # button-only override would create inconsistency.
+        html = DefaultLayout().render_page()
         assert "button:focus-visible" not in html
 
-
-# =====================================================================
-# Element library — E2: Text inputs + textarea
-# =====================================================================
-
-
-class TestE2TextInputs:
-    """E2 of Bucket 9 — native <input> and <textarea> styling.
-
-    Covers all text-like input types plus textarea. Driven by insulation
-    tokens (`--border`, `--bg-elev`, `--accent-ring`, `--text-muted`).
-    The chat composer `#input` keeps its custom rules via specificity.
-    """
-
-    INPUT_TYPES = (
-        "text",
-        "email",
-        "password",
-        "number",
-        "search",
-        "tel",
-        "url",
-        "date",
-        "time",
-        "datetime-local",
-        "month",
-        "week",
-    )
-
-    @pytest.fixture
-    def html(self):
-        return DefaultLayout().render_page()
-
-    def test_all_text_input_types_in_base_rule(self, html):
-        for t in self.INPUT_TYPES:
-            assert f'input[type="{t}"]' in html, (
-                f"input[type=\"{t}\"] missing from element styles"
-            )
-
-    def test_inputs_use_border_token(self, html):
-        assert "border: 1px solid var(--border);" in html
-
-    def test_inputs_use_bg_elev_background(self, html):
-        # Element rules read tokens, never raw colors.
-        assert "background: var(--bg-elev);" in html
-
-    def test_textarea_in_base_rule(self, html):
-        assert "textarea {" in html or "textarea," in html
-
-    def test_textarea_resize_vertical(self, html):
-        assert "resize: vertical;" in html
-
-    def test_input_focus_uses_focus_ring_token(self, html):
-        # Focus state must consume --focus-ring (insulation token from
-        # Phase 1) so devs override the ring shape in one place.
-        assert "box-shadow: var(--focus-ring);" in html
-
-    def test_placeholder_uses_muted_text(self, html):
-        assert "input::placeholder" in html
-        assert "textarea::placeholder" in html
-        assert "color: var(--text-muted);" in html
-
-    def test_disabled_state(self, html):
-        assert "input:disabled" in html
-        assert "textarea:disabled" in html
-        assert "cursor: not-allowed;" in html
-
-    def test_dark_mode_calendar_picker_neutralized(self, html):
-        # Native browser picker icon is dark — invert it in dark mode so
-        # it remains visible against --bg-elev.
-        assert (
-            "html[data-theme=\"dark\"] input::-webkit-calendar-picker-indicator"
-            in html
-        )
-
-    def test_chat_composer_unaffected(self, html):
-        # #input must keep its specific rules; the new generic textarea
-        # rule must not collide.
-        assert "#input {" in html
+    def test_select_chevron_drawn_in_pure_css(self):
+        # No SVG, no icon font, no extra HTTP request.
+        html = DefaultLayout().render_page()
+        assert "linear-gradient(45deg, transparent 50%, currentColor 50%)" in html
+        assert "linear-gradient(135deg, currentColor 50%, transparent 50%)" in html

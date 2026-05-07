@@ -445,6 +445,427 @@
             filter: invert(1) opacity(0.7);
         }
 
+        /* ------------------------------------------------------------------
+           Element library — E3: Select
+
+           Closed-state only. `appearance: none` lets us draw the chevron
+           ourselves via two CSS gradient triangles (no SVG, no font, no
+           extra request, works offline). The native dropdown panel stays
+           native — browsers refuse to let us style it, and that's fine.
+           Right-padding reserves space for the chevron. Disabled +
+           placeholder rules from E2 cover this element too via the
+           shared selector lists below.
+           ------------------------------------------------------------------ */
+        select {
+            font-family: inherit;
+            font-size: 0.92rem;
+            line-height: 1.4;
+            padding: 9px 36px 9px 14px;
+            border-radius: var(--control-radius);
+            border: 1px solid var(--border);
+            color: var(--text);
+            cursor: pointer;
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image:
+                linear-gradient(45deg, transparent 50%, currentColor 50%),
+                linear-gradient(135deg, currentColor 50%, transparent 50%);
+            background-position:
+                calc(100% - 18px) calc(50% + 1px),
+                calc(100% - 12px) calc(50% + 1px);
+            background-size: 6px 6px, 6px 6px;
+            background-repeat: no-repeat;
+            background-color: var(--bg-elev);
+            transition:
+                border-color var(--transition),
+                box-shadow var(--transition);
+            width: 100%;
+        }
+
+        select:focus {
+            border-color: var(--text-secondary);
+            box-shadow: var(--focus-ring);
+        }
+
+        select:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-color: var(--accent-subtle);
+        }
+
+        /* ------------------------------------------------------------------
+           Element library — E4: Checkbox + Radio
+
+           appearance: none + custom-drawn states. Checkmark is a CSS mask
+           on an inlined SVG data URL — no extra request, no font.
+           ------------------------------------------------------------------ */
+        input[type="checkbox"],
+        input[type="radio"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border: 1.5px solid var(--border-strong);
+            background: var(--bg-elev);
+            cursor: pointer;
+            vertical-align: -3px;
+            margin: 0;
+            transition:
+                background var(--transition),
+                border-color var(--transition),
+                box-shadow var(--transition);
+            position: relative;
+            flex-shrink: 0;
+            display: inline-block;
+        }
+
+        input[type="checkbox"] { border-radius: 5px; }
+        input[type="radio"] { border-radius: 50%; }
+
+        input[type="checkbox"]:hover:not(:disabled),
+        input[type="radio"]:hover:not(:disabled) {
+            border-color: var(--text-secondary);
+        }
+
+        input[type="checkbox"]:focus-visible,
+        input[type="radio"]:focus-visible {
+            box-shadow: var(--focus-ring);
+        }
+
+        input[type="checkbox"]:checked,
+        input[type="radio"]:checked {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        input[type="checkbox"]:checked::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: var(--btn-text);
+            -webkit-mask: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") center/12px 12px no-repeat;
+            mask: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") center/12px 12px no-repeat;
+        }
+
+        input[type="radio"]:checked::after {
+            content: "";
+            position: absolute;
+            inset: 4px;
+            background: var(--btn-text);
+            border-radius: 50%;
+        }
+
+        input[type="checkbox"]:disabled,
+        input[type="radio"]:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* ------------------------------------------------------------------
+           Element library — E5: Range, File, Color, Progress, Meter
+
+           Range thumb + track + file-selector button + color swatch +
+           progress / meter bars. All token-driven.
+           ------------------------------------------------------------------ */
+        input[type="range"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 100%;
+            height: 24px;
+            background: transparent;
+            outline: none;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 6px;
+            background: var(--border-strong);
+            border-radius: var(--radius-pill);
+        }
+
+        input[type="range"]::-moz-range-track {
+            height: 6px;
+            background: var(--border-strong);
+            border-radius: var(--radius-pill);
+            border: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 2px solid var(--bg-elev);
+            margin-top: -6px;
+            box-shadow: var(--shadow-sm);
+            cursor: pointer;
+            transition: transform 0.12s ease;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 2px solid var(--bg-elev);
+            box-shadow: var(--shadow-sm);
+            cursor: pointer;
+        }
+
+        input[type="range"]:hover::-webkit-slider-thumb {
+            transform: scale(1.12);
+        }
+
+        input[type="range"]:focus-visible::-webkit-slider-thumb {
+            box-shadow: var(--focus-ring), var(--shadow-sm);
+        }
+
+        input[type="file"] {
+            font-family: inherit;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        input[type="file"]::file-selector-button {
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 600;
+            padding: 8px 14px;
+            margin-right: 12px;
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius-pill);
+            background: var(--bg-elev);
+            color: var(--text);
+            cursor: pointer;
+            transition: background var(--transition);
+        }
+
+        input[type="file"]::file-selector-button:hover {
+            background: var(--accent-subtle);
+        }
+
+        input[type="color"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 36px;
+            height: 36px;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            padding: 0;
+            cursor: pointer;
+            background: transparent;
+            overflow: hidden;
+        }
+
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; border-radius: inherit; }
+        input[type="color"]::-webkit-color-swatch { border: none; border-radius: inherit; }
+        input[type="color"]::-moz-color-swatch { border: none; border-radius: inherit; }
+
+        progress,
+        meter {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 200px;
+            height: 8px;
+            border: none;
+            border-radius: var(--radius-pill);
+            background: var(--border-strong);
+            overflow: hidden;
+        }
+
+        progress::-webkit-progress-bar {
+            background: var(--border-strong);
+            border-radius: var(--radius-pill);
+        }
+
+        progress::-webkit-progress-value {
+            background: var(--accent);
+            border-radius: var(--radius-pill);
+            transition: width var(--transition);
+        }
+
+        progress::-moz-progress-bar {
+            background: var(--accent);
+            border-radius: var(--radius-pill);
+        }
+
+        meter::-webkit-meter-bar {
+            background: var(--border-strong);
+            border-radius: var(--radius-pill);
+            border: none;
+        }
+
+        meter::-webkit-meter-optimum-value {
+            background: var(--success);
+            border-radius: var(--radius-pill);
+        }
+
+        meter::-webkit-meter-suboptimum-value {
+            background: var(--warning);
+            border-radius: var(--radius-pill);
+        }
+
+        meter::-webkit-meter-even-less-good-value {
+            background: var(--danger);
+            border-radius: var(--radius-pill);
+        }
+
+        /* ------------------------------------------------------------------
+           Element library — E6: Disclosure (<details> / <summary>)
+
+           Native widget already covers expand/collapse, find-in-page, and
+           keyboard a11y. We add chevron + padding + hover. The .md-content
+           rules above target streamed assistant output specifically; this
+           is the global default for <details> outside markdown.
+           ------------------------------------------------------------------ */
+        details {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--bg-elev);
+            padding: 0 16px;
+            transition: background var(--transition);
+        }
+
+        summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 12px 28px 12px 0;
+            font-weight: 600;
+            font-size: 0.95rem;
+            position: relative;
+            outline: none;
+        }
+
+        summary::-webkit-details-marker { display: none; }
+
+        summary::after {
+            content: "";
+            position: absolute;
+            right: 0;
+            top: 50%;
+            width: 14px;
+            height: 14px;
+            background: currentColor;
+            -webkit-mask: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 6 15 12 9 18'/%3E%3C/svg%3E") center/contain no-repeat;
+            mask: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 6 15 12 9 18'/%3E%3C/svg%3E") center/contain no-repeat;
+            transform: translateY(-50%);
+            transition: transform var(--transition);
+        }
+
+        details[open] summary::after {
+            transform: translateY(-50%) rotate(90deg);
+        }
+
+        details > :not(summary) {
+            padding: 0 0 14px;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+
+        /* ------------------------------------------------------------------
+           Element library — E7: Dialog (<dialog>)
+
+           Pure styling — devs call dialog.showModal() / .close() themselves.
+           Backdrop blurs the content behind so the dialog reads cleanly
+           on any theme.
+           ------------------------------------------------------------------ */
+        dialog {
+            border: 1px solid var(--border);
+            background: var(--bg-elev);
+            color: var(--text);
+            border-radius: var(--radius);
+            padding: 24px;
+            max-width: min(440px, 90vw);
+            box-shadow: var(--shadow-lg);
+            font-family: inherit;
+            z-index: var(--z-modal);
+        }
+
+        dialog::backdrop {
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+
+        /* ------------------------------------------------------------------
+           Element library — E8: Inline text (kbd, mark, abbr)
+
+           samp / var / small / sub / sup keep browser defaults — they
+           already render correctly. We only style the elements where the
+           native default falls short.
+           ------------------------------------------------------------------ */
+        kbd {
+            font-family: var(--mono-font, "SF Mono", "JetBrains Mono", ui-monospace, monospace);
+            font-size: 0.82em;
+            padding: 2px 6px;
+            border-radius: 5px;
+            background: var(--bg-elev);
+            border: 1px solid var(--border-strong);
+            border-bottom-width: 2px;
+            color: var(--text);
+            line-height: 1;
+            display: inline-block;
+        }
+
+        mark {
+            background: rgba(251, 191, 36, 0.35);
+            color: inherit;
+            padding: 1px 3px;
+            border-radius: 3px;
+        }
+
+        html[data-theme="dark"] mark {
+            background: rgba(251, 191, 36, 0.28);
+        }
+
+        abbr[title] {
+            text-decoration: underline dotted;
+            text-underline-offset: 3px;
+            cursor: help;
+        }
+
+        /* ------------------------------------------------------------------
+           Element library — E9: Block & form layout
+
+           hr, blockquote (global, outside markdown), fieldset, legend.
+           ------------------------------------------------------------------ */
+        hr {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 18px 0;
+        }
+
+        blockquote {
+            border-left: 3px solid var(--accent);
+            padding: 6px 14px;
+            margin: 8px 0;
+            color: var(--text-secondary);
+            font-style: italic;
+            line-height: 1.55;
+        }
+
+        fieldset {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 14px 16px;
+            margin: 0;
+        }
+
+        legend {
+            padding: 0 8px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+        }
+
         #header {
             height: var(--header-h);
             background: var(--surface);

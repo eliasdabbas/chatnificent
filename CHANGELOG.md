@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Layout**: every native HTML element (buttons, inputs, selects, checkboxes, radios, range, etc.) is now styled by the design-token system
+
+### Changed
+
+- **Layout**: `Control.llm_param` is now optional — visual-only controls no longer need a placeholder kwarg name
+
 ## [0.0.22] — 2026-04-30
 
 ### Fixed

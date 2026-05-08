@@ -115,7 +115,7 @@ class ConversationTitleEngine(chat.engine.Orchestrator):
         )
 
 
-class ConversationTitleLayout(chat.layout.DefaultLayout):
+class ConversationTitleLayout(chat.layout.Default):
     """Render the sidebar title from ``conversation_title.txt`` when present."""
 
     def render_conversations(self, conversations, **kwargs):

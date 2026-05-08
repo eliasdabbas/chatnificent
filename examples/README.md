@@ -48,7 +48,7 @@ Extend the framework: custom engines, hooks, auth.
 |---|---------|---------|--------------|
 | 11 | [single_user.py](single_user.py) | SingleUser auth + SQLite — personal chat with history | `chatnificent[openai]` |
 | 12 | [auto_title.py](auto_title.py) | Auto-name conversations from the first exchange via `_before_save` hook | `chatnificent[openai]` |
-| 13 | [custom_branding.py](custom_branding.py) | Rebrand `DefaultLayout` — name, slogan, logo, favicon, welcome message | `chatnificent` |
+| 13 | [custom_branding.py](custom_branding.py) | Rebrand `Default` — name, slogan, logo, favicon, welcome message | `chatnificent` |
 
 ## Tier 4 — Display Enrichment
 

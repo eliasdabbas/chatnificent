@@ -61,7 +61,7 @@ from google.genai import types as gemini_types
 GROUNDING_TOOL = gemini_types.Tool(google_search=gemini_types.GoogleSearch())
 
 
-class WebSearchLayout(chat.layout.DefaultLayout):
+class WebSearchLayout(chat.layout.Default):
     """Append Gemini search sources beneath assistant messages."""
 
     @staticmethod

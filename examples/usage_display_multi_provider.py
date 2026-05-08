@@ -57,7 +57,7 @@ import chatnificent as chat
 BASE_DIR = "usage_convos_multi_provider"
 
 
-class UsageLayout(chat.layout.DefaultLayout):
+class UsageLayout(chat.layout.Default):
     """Append token usage beneath assistant messages across providers."""
 
     def render_messages(self, messages, **kwargs):

@@ -22,7 +22,7 @@ without any external calls.
 
 The default stack is:
 - **Server**: ``DevServer`` — stdlib HTTP server on http://127.0.0.1:7777
-- **Layout**: ``DefaultLayout`` — vanilla HTML/JS chat UI (no Dash needed)
+- **Layout**: ``Default`` — vanilla HTML/JS chat UI (no Dash needed)
 - **Store**: ``InMemory`` — conversations live in a dict, lost on restart
 - **Auth**: ``Anonymous`` — each browser session gets a random user ID
 - **URL**: ``PathBased`` — URLs like ``/<user_id>/<convo_id>``

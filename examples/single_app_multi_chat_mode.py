@@ -44,7 +44,7 @@ Three pillar customizations carry the entire example:
   (or, on the home page, from the user's last pill click), stamps
   ``mode.txt`` on first save, and rewrites inline base64 placeholders into
   stable ``/files/...`` URLs after each turn.
-- ``MultiChatModeLayout(DefaultLayout)`` — drops the studio HTML above the
+- ``MultiChatModeLayout(Default)`` — drops the studio HTML above the
   input bar and injects the interactivity script after ``</body>``.
 
 Running
@@ -763,7 +763,7 @@ SEARCH_STUDIO_HTML = """
 
 # --- Phase 2: interactivity --------------------------------------------------
 # DOMPurify (the sanitizer that runs over `welcome_message`) strips <script>
-# tags and inline event handlers. To wire interactivity we extend DefaultLayout
+# tags and inline event handlers. To wire interactivity we extend Default
 # and inject our JS once, after </body>. Document-level event delegation then
 # handles clicks even on nodes added later by the welcome render.
 
@@ -907,8 +907,8 @@ PILLS_SCRIPT = """
 """
 
 
-class MultiChatModeLayout(chat.layout.DefaultLayout):
-    """DefaultLayout + the persistent TTS studio + the interactivity script.
+class MultiChatModeLayout(chat.layout.Default):
+    """Default + the persistent TTS studio + the interactivity script.
 
     The studio panel must live *outside* the welcome message: when the user
     sends their first message the framework hides ``#welcome``, and we want
@@ -935,7 +935,7 @@ class MultiChatModeLayout(chat.layout.DefaultLayout):
 # --- TTS LLM -----------------------------------------------------------------
 # A minimal LLM pillar that calls OpenAI's audio.speech endpoint instead of
 # chat completions. The control values from the studio (model / voice / speed /
-# response_format / instructions) flow in as kwargs via DefaultLayout's
+# response_format / instructions) flow in as kwargs via Default's
 # `_get_llm_kwargs(user_id)` seam — nothing else to wire on this side.
 #
 # We don't stream and we don't speak chat — every assistant turn is exactly
@@ -1466,33 +1466,33 @@ def _default_chat_llm():
 CONTROLS = [
     # Mode dispatch (read by ModeAwareEngine, stripped before LLM call).
     chat.layout.Control(
-        id="active-mode", html="", slot="toolbar", llm_param="active-mode"
+        id="active-mode", html="", slot="messages-begin", llm_param="active-mode"
     ),
     # TTS studio.
-    chat.layout.Control(id="tts-model", html="", slot="toolbar", llm_param="model"),
-    chat.layout.Control(id="tts-voice", html="", slot="toolbar", llm_param="voice"),
+    chat.layout.Control(id="tts-model", html="", slot="messages-begin", llm_param="model"),
+    chat.layout.Control(id="tts-voice", html="", slot="messages-begin", llm_param="voice"),
     chat.layout.Control(
-        id="tts-speed", html="", slot="toolbar", llm_param="speed", cast=float
+        id="tts-speed", html="", slot="messages-begin", llm_param="speed", cast=float
     ),
     chat.layout.Control(
-        id="tts-format", html="", slot="toolbar", llm_param="response_format"
+        id="tts-format", html="", slot="messages-begin", llm_param="response_format"
     ),
     chat.layout.Control(
-        id="tts-instructions", html="", slot="toolbar", llm_param="instructions"
+        id="tts-instructions", html="", slot="messages-begin", llm_param="instructions"
     ),
     # Image studio. The studio is gpt-image-1-only, so we don't expose a
     # model picker — ImageLLM's __init__ default is canonical.
-    chat.layout.Control(id="image-size", html="", slot="toolbar", llm_param="size"),
+    chat.layout.Control(id="image-size", html="", slot="messages-begin", llm_param="size"),
     chat.layout.Control(
-        id="image-quality", html="", slot="toolbar", llm_param="quality"
+        id="image-quality", html="", slot="messages-begin", llm_param="quality"
     ),
     chat.layout.Control(
-        id="image-background", html="", slot="toolbar", llm_param="background"
+        id="image-background", html="", slot="messages-begin", llm_param="background"
     ),
     # Search studio.
-    chat.layout.Control(id="search-model", html="", slot="toolbar", llm_param="model"),
+    chat.layout.Control(id="search-model", html="", slot="messages-begin", llm_param="model"),
     chat.layout.Control(
-        id="search-depth", html="", slot="toolbar", llm_param="search_context_size"
+        id="search-depth", html="", slot="messages-begin", llm_param="search_context_size"
     ),
 ]
 

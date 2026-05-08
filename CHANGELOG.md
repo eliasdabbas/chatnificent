@@ -6,13 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.0.23] — 2026-05-08
+
+Folder-based templates with a locked content-address vocabulary — fork a template with `cp -r`, validate it against a public contract, and customize from build time to runtime through the same primitive.
+
 ### Added
 
+- **Templates**: each template is now a self-contained folder (`template.html`, `styles.css`, `scripts.js`, `vendor/`) under `src/chatnificent/templates/`; new `Default(template=...)` kwarg accepts a built-in name or a `Path` to any folder honoring the contract
+- **Templates**: `chatnificent.templates._contract` publishes the locked vocabulary — 16 body slots, 11 required element IDs, 3 build markers — plus `validate_template()` that any folder can be checked against
 - **Layout**: every native HTML element (buttons, inputs, selects, checkboxes, radios, range, etc.) is now styled by the design-token system
 
 ### Changed
 
+- **Layout (BREAKING)**: `chat.layout.DefaultLayout` renamed to `chat.layout.Default`. Slot vocabulary expanded from 4 names (`toolbar`/`sidebar`/`input-bar`/`footer`) to 16 `<div data-slot="...">` addresses; old names are rejected
+- **Layout**: build-time and runtime customization use the same primitive (`str.replace` against a slot div); `render_page()` returns a cached HTML string, subclasses override it for per-request data
 - **Layout**: `Control.llm_param` is now optional — visual-only controls no longer need a placeholder kwarg name
+
+### Migration
+
+- Rename `DefaultLayout` → `Default`
+- Rename `Control(slot=...)` values: `toolbar` → `messages-begin`, `sidebar` → `sidebar-end`, `input-bar` → `composer-trailing`, `footer` → `footer-end` (full list in `BODY_SLOTS`)
+- Move `register_control(...)` calls to the `controls=[...]` constructor kwarg
 
 ## [0.0.22] — 2026-04-30
 

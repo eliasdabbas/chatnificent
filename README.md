@@ -74,7 +74,7 @@ Every major function is handled by an independent pillar with an abstract interf
 | Pillar | Purpose | Default | Implementations |
 | :--- | :--- | :--- | :--- |
 | **Server** | HTTP transport | `DevServer` (stdlib) | DevServer, DashServer |
-| **Layout** | UI rendering | `DefaultLayout` (HTML/JS) | DefaultLayout, Bootstrap, Mantine, Minimal |
+| **Layout** | UI rendering | `Default` (HTML/JS) | Default, Bootstrap, Mantine, Minimal |
 | **LLM** | LLM API calls | `OpenAI` / `Echo` | OpenAI, Anthropic, Gemini, OpenRouter, DeepSeek, Ollama, Echo |
 | **Store** | Persistence | `InMemory` | InMemory, File, SQLite |
 | **Engine** | Orchestration | `Orchestrator` | Orchestrator |

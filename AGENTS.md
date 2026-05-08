@@ -20,7 +20,7 @@ Chatnificent uses **dependency injection** with 9 configurable "pillars". Each p
 | Pillar | File | Purpose | Default | Available |
 | ------ | ---- | ------- | ------- | --------- |
 | **Server** | `server.py` | HTTP transport | `DevServer` | DevServer, DashServer |
-| **Layout** | `layout.py` | UI rendering | `DefaultLayout` | DefaultLayout, Bootstrap, Mantine, Minimal |
+| **Layout** | `layout.py` | UI rendering | `Default` | Default, Bootstrap, Mantine, Minimal |
 | **LLM** | `llm.py` | LLM API calls | `OpenAI` / `Echo` | OpenAI, Anthropic, Gemini, OpenRouter, DeepSeek, Ollama, Echo |
 | **Store** | `store.py` | Conversation persistence | `InMemory` | InMemory, File, SQLite |
 | **Auth** | `auth.py` | User identification | `Anonymous` | Anonymous, SingleUser |
@@ -41,31 +41,31 @@ For server endpoint contracts and HTTP/SSE transport details, load the **server-
 
 ## UI Interactions
 
-`DefaultLayout` supports binding UI controls to LLM call parameters. Declare one or more `Control` objects, pass them to `DefaultLayout(controls=[...])`, and the framework handles state storage, the `POST /api/interactions` endpoint, and engine injection automatically — no subclassing required.
+`Default` supports binding UI controls to LLM call parameters. Declare one or more `Control` objects, pass them to `Default(controls=[...])`, and the framework handles state storage, the `POST /api/interactions` endpoint, and engine injection automatically — no subclassing required.
 
 ```python
-from chatnificent.layout import Control, DefaultLayout
+from chatnificent.layout import Control, Default
 
 control = Control(
     id="token-limit",          # must match the HTML element's id
     html='<select id="token-limit" onchange="chatInteraction(this)">...</select>',
-    slot="toolbar",            # <!-- SLOT:toolbar --> in the template
+    slot="composer-trailing",  # one of the 16 locked slot names
     llm_param="max_completion_tokens",  # exact provider kwarg name
     cast=int,                  # converts raw browser string before the API call
 )
 
-app = chat.Chatnificent(layout=DefaultLayout(controls=[control]))
+app = chat.Chatnificent(layout=Default(controls=[control]))
 ```
 
 Pass multiple controls for multiple parameters:
 
 ```python
 app = chat.Chatnificent(
-    layout=DefaultLayout(controls=[creativity_control, token_control, vocab_control])
+    layout=Default(controls=[creativity_control, token_control, vocab_control])
 )
 ```
 
-Subclassing `DefaultLayout` and calling `register_control()` in `__init__` remains supported for cases where controls need to be registered conditionally at runtime.
+For controls that need to be registered conditionally at runtime, subclass `Default` and override `render_page()` — operate on `self.HTML` with `str.replace` against the slot div for the control's slot.
 
 **`Control` fields:**
 
@@ -73,19 +73,25 @@ Subclassing `DefaultLayout` and calling `register_control()` in `__init__` remai
 |-------|------|---------|
 | `id` | `str` | Unique control identifier — must match the HTML element `id` |
 | `html` | `str` | Full HTML snippet rendered into the page |
-| `slot` | `str` | Template slot name (`toolbar`, `sidebar`, `input-bar`) |
-| `llm_param` | `str` | Exact kwarg forwarded to `generate_response()` |
+| `slot` | `str` | One of the 16 locked slot names (validated at construction) |
+| `llm_param` | `Optional[str]` | Exact kwarg forwarded to `generate_response()`. `None` = visual-only control |
 | `cast` | `Optional[Callable]` | Converts raw string value (e.g. `int`, `float`). `None` = pass raw string |
 
-**Template slots** — place `<!-- SLOT:name -->` markers in custom templates:
+**Template slots** — place `<div data-slot="name"></div>` markers in custom templates. The 16 locked names live in `chatnificent.templates._contract.BODY_SLOTS`:
 
-| Slot | Position |
-|------|----------|
-| `sidebar` | Bottom of the sidebar panel |
-| `toolbar` | Above the messages area |
-| `input-bar` | Between the textarea and Send button |
+| Slot family | Names | Position |
+|-------------|-------|----------|
+| Brand | `brand`, `slogan` | Header text |
+| Header | `header-begin`, `header-end` | Before/after default header content |
+| Sidebar | `sidebar-begin`, `sidebar-end` | Top/bottom of the sidebar panel |
+| Welcome | `welcome-message` | Inside the empty-chat welcome card |
+| Messages | `messages-begin`, `messages-end` | Above/below the message list |
+| Composer | `composer-leading`, `composer-primary`, `composer-trailing`, `composer-send`, `composer-attachments` | Around the input textarea |
+| Footer | `footer-begin`, `footer-end` | Bottom of the chat container |
 
-**JS helper** — already injected by `DefaultLayout.render_page()`:
+Standard HTML elements (`<title>`, `<link rel="icon">`, `<meta>`) are their own addresses where `<div>` isn't valid — target them with the universally known selector or regex.
+
+**JS helper** — already injected by `Default.render_page()`:
 
 ```js
 chatInteraction(element, data?)  // data defaults to element.value
@@ -93,16 +99,39 @@ chatInteraction(element, data?)  // data defaults to element.value
 
 POSTs `{"id": element.id, "data": value}` to `POST /api/interactions`. Fire-and-forget — no DOM update required.
 
-**Layout API** (concrete no-ops on the `Layout` ABC; full implementation on `DefaultLayout`):
+**Layout API** (concrete no-ops on the `Layout` ABC; full implementation on `Default`):
 
 | Method | Signature | Purpose |
 |--------|-----------|---------|
-| `register_control` | `(control: Control) → None` | Register a control definition |
+| `_register_control` | `(control: Control) → None` | Private — called by the constructor for each `controls=[...]` entry |
 | `set_control_value` | `(user_id, control_id, value) → None` | Store a user's control value |
 | `get_control_values` | `(user_id) → Dict[str, str]` | Raw per-user state |
 | `get_llm_kwargs` | `(user_id) → Dict[str, Any]` | Cast values ready for LLM kwargs |
 
 State is per-user (keyed by `user_id`), protected by `threading.Lock`. The engine seam `_get_llm_kwargs(user_id)` delegates to `layout.get_llm_kwargs(user_id)` and merges the result into every `generate_response()` call.
+
+## Templates
+
+Each template is a self-contained folder under `src/chatnificent/templates/`:
+
+```
+default/
+├── template.html      # skeleton with slot divs + build markers
+├── styles.css         # template-specific CSS
+├── scripts.js         # template-specific first-party JS
+└── vendor/            # pinned third-party libs (with MANIFEST.json)
+```
+
+**Override ladder:**
+
+| Path | Action |
+|------|--------|
+| 1. Tweak knobs | `Default(brand=..., welcome_message=..., controls=[...])` |
+| 2. Different built-in template | `Default(template="name")` |
+| 3. Fork a template | `cp -r src/chatnificent/templates/default ./my_tpl` → edit → `Default(template=Path("./my_tpl"))` |
+| 4. Subclass | Override `render_page()`, operate on `self.HTML` with `str.replace` against slot divs for runtime injection |
+
+Validate any template folder against the contract: `chatnificent.templates._contract.validate_template("default")` or `validate_template(Path("./my_tpl"))`.
 
 ## Development Commands
 
@@ -174,6 +203,7 @@ The current `DevServer` is single-threaded, but Chatnificent is designed to run 
 - No unnecessary comments (code should be self-explanatory)
 - If we are to use comments, they should be use to explain *why* we are doing something not what.
 - Use `uv run` instead of `python`
+- **Import style (consumer-facing code).** Examples, tests, and any code snippets in docs/READMEs MUST use `import chatnificent as chat`, then reference symbols via `chat.module_name.SymbolName` (e.g. `chat.llm.OpenAI`, not `from chatnificent.llm import OpenAI`). This disambiguates Chatnificent's facade classes from the third-party SDKs they wrap (e.g. `openai.OpenAI`). Internal `src/chatnificent/` modules are exempt — they use intra-package imports.
 
 ### File Structure
 
@@ -185,14 +215,15 @@ src/chatnificent/
 ├── models.py            # Conversation dataclass, role constants
 ├── auth.py              # User identification (Anonymous, SingleUser)
 ├── store.py             # Conversation persistence (InMemory, File, SQLite)
-├── layout.py            # UI rendering (DefaultLayout, Bootstrap, Mantine, Minimal)
+├── layout.py            # UI rendering (Default, Bootstrap, Mantine, Minimal)
 ├── llm.py               # LLM providers (OpenAI, Anthropic, Gemini, etc.)
 ├── engine.py            # Request orchestration (Orchestrator)
 ├── tools.py             # Function calling (PythonTool, NoTool)
 ├── retrieval.py         # RAG/context retrieval (NoRetrieval)
 ├── url.py               # URL parsing (PathBased, QueryParams)
 └── templates/
-    └── default.html     # DevServer HTML/JS chat UI
+    ├── _contract.py     # Locked slot/marker/ID vocabulary + validate_template()
+    └── default/         # Default DevServer template (template.html, styles.css, scripts.js, vendor/)
 ```
 
 ### Git Guidelines
@@ -259,7 +290,7 @@ The `term-missing` flag highlights uncovered lines — use it to identify what s
 
 ### Component IDs
 
-**DevServer / DefaultLayout** (`templates/default.html`) — kebab-case HTML IDs:
+**DevServer / `Default` layout** (`templates/default/`) — kebab-case HTML IDs:
 `sidebar-toggle`, `new-chat-btn`, `convo-list`, `messages`, `input`, `send`, `sidebar`, `theme-toggle`
 
 **DashServer / Dash layouts** (`_callbacks.py`) — snake_case Dash component IDs:

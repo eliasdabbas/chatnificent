@@ -4,7 +4,7 @@ import threading
 from unittest.mock import Mock, patch
 
 import pytest
-from chatnificent.layout import Control, DefaultLayout, Layout
+from chatnificent.layout import Control, Default, Layout
 
 
 class ConcreteLayout(Layout):
@@ -89,16 +89,22 @@ class TestLayoutRenderConversations:
 
 class TestControl:
     def test_control_required_fields(self):
-        c = Control(id="x", html="<input>", slot="toolbar", llm_param="temperature")
+        c = Control(
+            id="x", html="<input>", slot="messages-begin", llm_param="temperature"
+        )
         assert c.id == "x"
         assert c.html == "<input>"
-        assert c.slot == "toolbar"
+        assert c.slot == "messages-begin"
         assert c.llm_param == "temperature"
         assert c.cast is None
 
     def test_control_with_cast(self):
         c = Control(
-            id="x", html="<input>", slot="toolbar", llm_param="max_tokens", cast=int
+            id="x",
+            html="<input>",
+            slot="messages-begin",
+            llm_param="max_tokens",
+            cast=int,
         )
         assert c.cast is int
 
@@ -112,9 +118,9 @@ class TestLayoutControlNoOps:
     def test_register_control_is_no_op(self):
         layout = ConcreteLayout()
         control = Control(
-            id="x", html="<input>", slot="toolbar", llm_param="temperature"
+            id="x", html="<input>", slot="messages-begin", llm_param="temperature"
         )
-        layout.register_control(control)  # should not raise
+        layout._register_control(control)  # should not raise
 
     def test_set_control_value_is_no_op(self):
         layout = ConcreteLayout()
@@ -130,114 +136,133 @@ class TestLayoutControlNoOps:
 
 
 # =====================================================================
-# DefaultLayout control state API
+# Default control state API
 # =====================================================================
 
 
-class TestDefaultLayoutControls:
+class TestDefaultControls:
     def test_register_control_stores_control(self):
-        layout = DefaultLayout()
+        layout = Default()
         c = Control(
-            id="tok", html="<select>", slot="toolbar", llm_param="max_completion_tokens"
+            id="tok",
+            html="<select>",
+            slot="messages-begin",
+            llm_param="max_completion_tokens",
         )
-        layout.register_control(c)
+        layout._register_control(c)
         assert layout.get_control_values("u1") == {}  # no value set yet
 
     def test_set_control_value_stores_per_user(self):
-        layout = DefaultLayout()
+        layout = Default()
         c = Control(
-            id="tok", html="<select>", slot="toolbar", llm_param="max_completion_tokens"
+            id="tok",
+            html="<select>",
+            slot="messages-begin",
+            llm_param="max_completion_tokens",
         )
-        layout.register_control(c)
+        layout._register_control(c)
         layout.set_control_value("u1", "tok", "500")
         assert layout.get_control_values("u1") == {"tok": "500"}
 
     def test_set_control_value_isolated_between_users(self):
-        layout = DefaultLayout()
+        layout = Default()
         c = Control(
-            id="tok", html="<select>", slot="toolbar", llm_param="max_completion_tokens"
+            id="tok",
+            html="<select>",
+            slot="messages-begin",
+            llm_param="max_completion_tokens",
         )
-        layout.register_control(c)
+        layout._register_control(c)
         layout.set_control_value("u1", "tok", "100")
         layout.set_control_value("u2", "tok", "200")
         assert layout.get_control_values("u1") == {"tok": "100"}
         assert layout.get_control_values("u2") == {"tok": "200"}
 
     def test_set_control_value_upserts(self):
-        layout = DefaultLayout()
+        layout = Default()
         c = Control(
-            id="tok", html="<select>", slot="toolbar", llm_param="max_completion_tokens"
+            id="tok",
+            html="<select>",
+            slot="messages-begin",
+            llm_param="max_completion_tokens",
         )
-        layout.register_control(c)
+        layout._register_control(c)
         layout.set_control_value("u1", "tok", "100")
         layout.set_control_value("u1", "tok", "200")
         assert layout.get_control_values("u1") == {"tok": "200"}
 
     def test_get_control_values_unknown_user_returns_empty(self):
-        layout = DefaultLayout()
+        layout = Default()
         assert layout.get_control_values("nobody") == {}
 
     def test_get_llm_kwargs_maps_llm_param(self):
-        layout = DefaultLayout()
+        layout = Default()
         c = Control(
-            id="tok", html="<select>", slot="toolbar", llm_param="max_completion_tokens"
+            id="tok",
+            html="<select>",
+            slot="messages-begin",
+            llm_param="max_completion_tokens",
         )
-        layout.register_control(c)
+        layout._register_control(c)
         layout.set_control_value("u1", "tok", "500")
         assert layout.get_llm_kwargs("u1") == {"max_completion_tokens": "500"}
 
     def test_get_llm_kwargs_applies_cast(self):
-        layout = DefaultLayout()
+        layout = Default()
         c = Control(
             id="tok",
             html="<select>",
-            slot="toolbar",
+            slot="messages-begin",
             llm_param="max_completion_tokens",
             cast=int,
         )
-        layout.register_control(c)
+        layout._register_control(c)
         layout.set_control_value("u1", "tok", "500")
         result = layout.get_llm_kwargs("u1")
         assert result == {"max_completion_tokens": 500}
         assert isinstance(result["max_completion_tokens"], int)
 
     def test_get_llm_kwargs_skips_unset_controls(self):
-        layout = DefaultLayout()
+        layout = Default()
         c1 = Control(
             id="tok",
             html="<select>",
-            slot="toolbar",
+            slot="messages-begin",
             llm_param="max_completion_tokens",
             cast=int,
         )
         c2 = Control(
             id="temp",
             html="<input>",
-            slot="toolbar",
+            slot="messages-begin",
             llm_param="temperature",
             cast=float,
         )
-        layout.register_control(c1)
-        layout.register_control(c2)
+        layout._register_control(c1)
+        layout._register_control(c2)
         layout.set_control_value("u1", "tok", "500")
         result = layout.get_llm_kwargs("u1")
         assert "max_completion_tokens" in result
         assert "temperature" not in result
 
     def test_get_llm_kwargs_multiple_controls(self):
-        layout = DefaultLayout()
-        layout.register_control(
+        layout = Default()
+        layout._register_control(
             Control(
                 id="tok",
                 html="",
-                slot="toolbar",
+                slot="messages-begin",
                 llm_param="max_completion_tokens",
                 cast=int,
             )
         )
-        layout.register_control(
+        layout._register_control(
             Control(
-                id="temp", html="", slot="toolbar", llm_param="temperature", cast=float
+                id="temp",
+                html="",
+                slot="messages-begin",
+                llm_param="temperature",
+                cast=float,
             )
         )
         layout.set_control_value("u1", "tok", "300")
@@ -246,17 +271,17 @@ class TestDefaultLayoutControls:
         assert result == {"max_completion_tokens": 300, "temperature": 0.5}
 
     def test_get_llm_kwargs_unknown_user_returns_empty(self):
-        layout = DefaultLayout()
+        layout = Default()
         c = Control(
-            id="tok", html="", slot="toolbar", llm_param="max_completion_tokens"
+            id="tok", html="", slot="messages-begin", llm_param="max_completion_tokens"
         )
-        layout.register_control(c)
+        layout._register_control(c)
         assert layout.get_llm_kwargs("nobody") == {}
 
     def test_get_control_values_returns_copy(self):
-        layout = DefaultLayout()
-        layout.register_control(
-            Control(id="x", html="", slot="toolbar", llm_param="model")
+        layout = Default()
+        layout._register_control(
+            Control(id="x", html="", slot="messages-begin", llm_param="model")
         )
         layout.set_control_value("u1", "x", "gpt-4o")
         values = layout.get_control_values("u1")
@@ -264,12 +289,12 @@ class TestDefaultLayoutControls:
         assert layout.get_control_values("u1") == {"x": "gpt-4o"}
 
     def test_thread_safety_concurrent_set_and_get(self):
-        layout = DefaultLayout()
-        layout.register_control(
+        layout = Default()
+        layout._register_control(
             Control(
                 id="tok",
                 html="",
-                slot="toolbar",
+                slot="messages-begin",
                 llm_param="max_completion_tokens",
                 cast=int,
             )
@@ -305,23 +330,23 @@ class TestDefaultLayoutControls:
 
 
 # =====================================================================
-# DefaultLayout render_page slot injection
+# Default render_page slot injection
 # =====================================================================
 
 
-class TestDefaultLayoutSlotInjection:
+class TestDefaultSlotInjection:
     def test_render_page_contains_chatinteraction_function(self):
-        layout = DefaultLayout()
+        layout = Default()
         html = layout.render_page()
         assert "chatInteraction" in html
 
     def test_render_page_injects_control_html_at_slot(self):
-        layout = DefaultLayout()
-        layout.register_control(
+        layout = Default()
+        layout._register_control(
             Control(
                 id="tok",
                 html='<select id="tok"></select>',
-                slot="toolbar",
+                slot="messages-begin",
                 llm_param="max_completion_tokens",
             )
         )
@@ -329,18 +354,23 @@ class TestDefaultLayoutSlotInjection:
         assert '<select id="tok"></select>' in html
 
     def test_render_page_no_controls_removes_markers(self):
-        layout = DefaultLayout()
+        layout = Default()
         html = layout.render_page()
         assert "<!-- SLOT:" not in html
 
     def test_render_page_multiple_controls_same_slot(self):
-        layout = DefaultLayout()
-        layout.register_control(
-            Control(id="a", html="<span>A</span>", slot="toolbar", llm_param="model")
-        )
-        layout.register_control(
+        layout = Default()
+        layout._register_control(
             Control(
-                id="b", html="<span>B</span>", slot="toolbar", llm_param="temperature"
+                id="a", html="<span>A</span>", slot="messages-begin", llm_param="model"
+            )
+        )
+        layout._register_control(
+            Control(
+                id="b",
+                html="<span>B</span>",
+                slot="messages-begin",
+                llm_param="temperature",
             )
         )
         html = layout.render_page()
@@ -348,9 +378,11 @@ class TestDefaultLayoutSlotInjection:
         assert "<span>B</span>" in html
 
     def test_render_page_control_injected_in_correct_slot(self):
-        layout = DefaultLayout()
-        layout.register_control(
-            Control(id="x", html="<b>SIDEBAR</b>", slot="sidebar", llm_param="model")
+        layout = Default()
+        layout._register_control(
+            Control(
+                id="x", html="<b>SIDEBAR</b>", slot="sidebar-end", llm_param="model"
+            )
         )
         html = layout.render_page()
         assert "<b>SIDEBAR</b>" in html
@@ -359,12 +391,12 @@ class TestDefaultLayoutSlotInjection:
 class TestGetLlmKwargsNullSentinel:
     def test_none_value_skips_param(self):
         """set_control_value with None clears the param from get_llm_kwargs."""
-        layout = DefaultLayout()
-        layout.register_control(
+        layout = Default()
+        layout._register_control(
             Control(
                 id="tok",
                 html="",
-                slot="toolbar",
+                slot="messages-begin",
                 llm_param="max_completion_tokens",
                 cast=int,
             )
@@ -375,29 +407,29 @@ class TestGetLlmKwargsNullSentinel:
 
     def test_empty_string_is_not_skipped(self):
         """Empty string is a legitimate value and is not skipped."""
-        layout = DefaultLayout()
-        layout.register_control(
-            Control(id="style", html="", slot="toolbar", llm_param="style")
+        layout = Default()
+        layout._register_control(
+            Control(id="style", html="", slot="messages-begin", llm_param="style")
         )
         layout.set_control_value("user1", "style", "")
         assert layout.get_llm_kwargs("user1") == {"style": ""}
 
 
-class TestDefaultLayoutControlInit:
+class TestDefaultControlInit:
     def test_no_controls_no_init_script(self):
         """With no registered controls, no controls chatInteraction init block is injected."""
-        layout = DefaultLayout()
+        layout = Default()
         html = layout.render_page()
         assert "chatInteraction(el)" not in html
 
     def test_one_control_injects_init_script(self):
         """A registered control gets a DOMContentLoaded chatInteraction call."""
-        layout = DefaultLayout()
-        layout.register_control(
+        layout = Default()
+        layout._register_control(
             Control(
                 id="tok",
                 html="<select id='tok'></select>",
-                slot="toolbar",
+                slot="messages-begin",
                 llm_param="max_completion_tokens",
             )
         )
@@ -408,20 +440,20 @@ class TestDefaultLayoutControlInit:
 
     def test_multiple_controls_all_appear_in_init_script(self):
         """Every registered control id appears in the init script."""
-        layout = DefaultLayout()
-        layout.register_control(
+        layout = Default()
+        layout._register_control(
             Control(
                 id="ctrl-a",
                 html="<select id='ctrl-a'></select>",
-                slot="toolbar",
+                slot="messages-begin",
                 llm_param="model",
             )
         )
-        layout.register_control(
+        layout._register_control(
             Control(
                 id="ctrl-b",
                 html="<input id='ctrl-b'>",
-                slot="sidebar",
+                slot="sidebar-end",
                 llm_param="temperature",
             )
         )
@@ -436,21 +468,21 @@ class TestDefaultLayoutControlInit:
 
 
 # =====================================================================
-# DefaultLayout constructor controls= parameter
+# Default constructor controls= parameter
 # =====================================================================
 
 
-class TestDefaultLayoutControlsConstructorParam:
+class TestDefaultControlsConstructorParam:
     def test_controls_registered_via_constructor(self):
         """Controls passed to the constructor are registered and usable."""
         c = Control(
             id="tok",
             html="<select>",
-            slot="toolbar",
+            slot="messages-begin",
             llm_param="max_completion_tokens",
             cast=int,
         )
-        layout = DefaultLayout(controls=[c])
+        layout = Default(controls=[c])
         layout.set_control_value("u1", "tok", "500")
         assert layout.get_llm_kwargs("u1") == {"max_completion_tokens": 500}
 
@@ -459,14 +491,18 @@ class TestDefaultLayoutControlsConstructorParam:
         c1 = Control(
             id="tok",
             html="",
-            slot="toolbar",
+            slot="messages-begin",
             llm_param="max_completion_tokens",
             cast=int,
         )
         c2 = Control(
-            id="temp", html="", slot="toolbar", llm_param="temperature", cast=float
+            id="temp",
+            html="",
+            slot="messages-begin",
+            llm_param="temperature",
+            cast=float,
         )
-        layout = DefaultLayout(controls=[c1, c2])
+        layout = Default(controls=[c1, c2])
         layout.set_control_value("u1", "tok", "200")
         layout.set_control_value("u1", "temp", "0.7")
         assert layout.get_llm_kwargs("u1") == {
@@ -475,13 +511,13 @@ class TestDefaultLayoutControlsConstructorParam:
         }
 
     def test_no_controls_arg_is_backward_compatible(self):
-        """DefaultLayout() with no arguments still works as before."""
-        layout = DefaultLayout()
+        """Default() with no arguments still works as before."""
+        layout = Default()
         assert layout.get_llm_kwargs("u1") == {}
 
     def test_empty_controls_list_is_valid(self):
-        """DefaultLayout(controls=[]) is equivalent to DefaultLayout()."""
-        layout = DefaultLayout(controls=[])
+        """Default(controls=[]) is equivalent to Default()."""
+        layout = Default(controls=[])
         assert layout.get_llm_kwargs("u1") == {}
 
     def test_constructor_controls_appear_in_rendered_page(self):
@@ -489,169 +525,165 @@ class TestDefaultLayoutControlsConstructorParam:
         c = Control(
             id="tok",
             html='<select id="tok"></select>',
-            slot="toolbar",
+            slot="messages-begin",
             llm_param="max_completion_tokens",
         )
-        layout = DefaultLayout(controls=[c])
+        layout = Default(controls=[c])
         html = layout.render_page()
         assert '<select id="tok"></select>' in html
 
 
 # =====================================================================
-# DefaultLayout branding params
+# Default branding params
 # =====================================================================
 
 
-class TestDefaultLayoutBranding:
+class TestDefaultBranding:
     def test_default_brand_in_header_link(self):
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         assert 'href="/"' in html
         assert ">Chatnificent<" in html
 
     def test_default_welcome_message_in_js(self):
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         assert "Welcome to Chatnificent" in html
 
     def test_default_welcome_message_includes_version(self):
         from chatnificent import __version__
 
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         assert f"v{__version__}" in html
 
     def test_default_welcome_message_has_examples_link(self):
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         assert "github.com/eliasdabbas/chatnificent/tree/main/examples" in html
 
     def test_default_welcome_message_has_changelog_link(self):
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         assert "CHANGELOG.md" in html
 
     def test_welcome_message_div_in_html(self):
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         assert 'id="welcome-message"' in html
 
     def test_custom_welcome_message(self):
-        html = DefaultLayout(
+        html = Default(
             welcome_message="## Ask us anything\n\nWe're here to help."
         ).render_page()
         assert "Ask us anything" in html
 
     def test_custom_welcome_message_replaces_default(self):
-        html = DefaultLayout(
+        html = Default(
             welcome_message="## Custom Heading\n\nCustom body."
         ).render_page()
         assert "Welcome to Chatnificent" not in html
         assert "Custom body." in html
 
     def test_default_page_title_is_seo_string(self):
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         assert (
             "<title>Build an AI/LLM Chat App with Python | Chatnificent</title>" in html
         )
 
     def test_default_slogan_in_page(self):
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         assert "Minimally complete \u00b7 Maximally hackable" in html
 
     def test_custom_brand_in_header_link(self):
-        html = DefaultLayout(brand="MyApp").render_page()
+        html = Default(brand="MyApp").render_page()
         assert ">MyApp<" in html
         assert 'href="/"' in html
 
     def test_welcome_message_default_is_independent_of_brand(self):
-        html = DefaultLayout(brand="MyApp").render_page()
+        html = Default(brand="MyApp").render_page()
         assert "Welcome to Chatnificent" in html
 
     def test_custom_brand_in_page_title_fallback(self):
-        html = DefaultLayout(brand="MyApp").render_page()
+        html = Default(brand="MyApp").render_page()
         assert "<title>Build an AI/LLM Chat App with Python | MyApp</title>" in html
 
     def test_custom_slogan(self):
-        html = DefaultLayout(slogan="Hack everything.").render_page()
+        html = Default(slogan="Hack everything.").render_page()
         assert "Hack everything." in html
 
     def test_explicit_page_title_overrides_seo_default(self):
-        html = DefaultLayout(page_title="Custom Title | My Site").render_page()
+        html = Default(page_title="Custom Title | My Site").render_page()
         assert "<title>Custom Title | My Site</title>" in html
 
     def test_explicit_page_title_does_not_contain_seo_template(self):
-        html = DefaultLayout(page_title="Custom Title | My Site").render_page()
+        html = Default(page_title="Custom Title | My Site").render_page()
         assert "Build an AI/LLM Chat App with Python" not in html
 
     def test_logo_url_renders_img_tag(self):
-        html = DefaultLayout(logo_url="/static/logo.png").render_page()
+        html = Default(logo_url="/static/logo.png").render_page()
         assert '<img id="header-logo"' in html
         assert 'src="/static/logo.png"' in html
 
     def test_logo_url_alt_uses_brand(self):
-        html = DefaultLayout(brand="MyApp", logo_url="/logo.svg").render_page()
+        html = Default(brand="MyApp", logo_url="/logo.svg").render_page()
         assert 'alt="MyApp"' in html
 
     def test_no_logo_url_no_img_tag(self):
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         assert 'id="header-logo"' not in html
 
     def test_brand_is_html_escaped(self):
-        html = DefaultLayout(brand="<script>alert(1)</script>").render_page()
+        html = Default(brand="<script>alert(1)</script>").render_page()
         assert "<script>alert(1)</script>" not in html
         assert "&lt;script&gt;" in html
 
     def test_slogan_is_html_escaped(self):
-        html = DefaultLayout(slogan='<img src="x" onerror="evil()">').render_page()
+        html = Default(slogan='<img src="x" onerror="evil()">').render_page()
         assert 'onerror="evil()"' not in html
         assert "&lt;img" in html
 
     def test_logo_url_is_html_escaped(self):
-        html = DefaultLayout(logo_url='"/><script>evil()</script>').render_page()
+        html = Default(logo_url='"/><script>evil()</script>').render_page()
         assert "<script>evil()</script>" not in html
 
     def test_favicon_url_renders_link_tag(self):
-        html = DefaultLayout(favicon_url="/static/favicon.ico").render_page()
+        html = Default(favicon_url="/static/favicon.ico").render_page()
         assert '<link rel="icon" href="/static/favicon.ico">' in html
 
     def test_no_favicon_url_no_link_tag(self):
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         assert 'rel="icon"' not in html
 
     def test_favicon_url_is_html_escaped(self):
-        html = DefaultLayout(favicon_url='"><script>evil()</script>').render_page()
+        html = Default(favicon_url='"><script>evil()</script>').render_page()
         assert "<script>evil()</script>" not in html
 
     def test_favicon_remote_url_passed_through(self):
-        html = DefaultLayout(
-            favicon_url="https://example.com/favicon.ico"
-        ).render_page()
+        html = Default(favicon_url="https://example.com/favicon.ico").render_page()
         assert 'href="https://example.com/favicon.ico"' in html
 
     def test_favicon_data_uri_passed_through(self):
         uri = "data:image/png;base64,iVBORw0KGgo="
-        html = DefaultLayout(favicon_url=uri).render_page()
+        html = Default(favicon_url=uri).render_page()
         assert uri in html
 
     def test_default_welcome_message_has_sidebar_hint(self):
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         assert "Start typing below" in html
 
     def test_custom_welcome_message_plain_text(self):
-        html = DefaultLayout(welcome_message="Ask me about the weather.").render_page()
+        html = Default(welcome_message="Ask me about the weather.").render_page()
         assert "Ask me about the weather." in html
 
     def test_custom_welcome_message_with_html(self):
-        html = DefaultLayout(
-            welcome_message="Try asking: <b>bold text</b>"
-        ).render_page()
+        html = Default(welcome_message="Try asking: <b>bold text</b>").render_page()
         assert "Try asking:" in html
         assert "<b>bold text</b>" in html
 
     def test_custom_welcome_message_with_markdown(self):
-        html = DefaultLayout(
+        html = Default(
             welcome_message="Ask about **the weather** or _anything else_."
         ).render_page()
         assert "the weather" in html
         assert "marked.parse" in html
 
     def test_welcome_message_rendered_via_marked(self):
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         assert "marked.parse" in html
         assert "DOMPurify.sanitize" in html
 
@@ -690,9 +722,9 @@ class TestInlineVendorScripts:
         assert body in out
 
     def test_does_not_anchor_on_head_close_in_vendor_source(self):
-        """DefaultLayout.render_page() must not corrupt vendored JS that
+        """Default.render_page() must not corrupt vendored JS that
         contains a literal ``</head>`` substring (e.g. DOMPurify)."""
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         assert "</head>" in html
         assert "DOMPurify" in html
 
@@ -707,27 +739,48 @@ class TestScriptsPlaceholder:
     for runtime script injection (root path, convo id, etc.)."""
 
     def test_template_contains_scripts_placeholder(self):
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         assert "<!-- SCRIPTS -->" in html
 
     def test_multiple_injections_all_land_before_placeholder(self):
         """Repeated str.replace on the placeholder accumulates tags
         before it (so root + convo can both inject)."""
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         first = '<script>window.__CHATNIFICENT_ROOT__="/x";</script>'
         second = '<script>window.__CHATNIFICENT_CONVO__="abc";</script>'
         html = html.replace("<!-- SCRIPTS -->", first + "<!-- SCRIPTS -->")
         html = html.replace("<!-- SCRIPTS -->", second + "<!-- SCRIPTS -->")
         assert html.count(first) == 1
         assert html.count(second) == 1
-        # Both runtime tags must appear before the real closing </head>
-        # (vendored JS contains a literal '</head>' inside a string constant,
-        # so use rfind to anchor on the actual document tag).
-        head_close = html.rfind("</head>")
-        assert html.index(first) < head_close
-        assert html.index(second) < head_close
+        # Both runtime tags must appear before the surviving placeholder
+        # (which itself sits right before </body> in the default template).
+        marker_pos = html.index("<!-- SCRIPTS -->")
+        assert html.index(first) < marker_pos
+        assert html.index(second) < marker_pos
         # And in injection order: root first, then convo.
         assert html.index(first) < html.index(second)
+
+    def test_framework_script_runs_after_marker(self):
+        """The framework ``scripts.js`` IIFE captures
+        ``window.__CHATNIFICENT_ROOT__`` at parse time, so it must execute
+        AFTER the runtime injection seam. In the built HTML, the framework
+        ``<script>`` block must be positioned strictly after the surviving
+        ``<!-- SCRIPTS -->`` marker — otherwise mounted apps see
+        ``apiBase = ""`` and POST to the wrong URL."""
+        html = Default().render_page()
+        marker_pos = html.index("<!-- SCRIPTS -->")
+        # A unique substring from scripts.js that lives inside the IIFE.
+        framework_pos = html.index("function chatInteraction")
+        assert framework_pos > marker_pos
+
+    def test_runtime_injection_runs_before_framework_iife(self):
+        """End-to-end ordering invariant: when a server prepends a runtime
+        tag to the marker, that tag must appear before the framework IIFE
+        in the final document."""
+        html = Default().render_page()
+        injected = '<script>window.__CHATNIFICENT_ROOT__="/myapp";</script>'
+        html = html.replace("<!-- SCRIPTS -->", injected + "<!-- SCRIPTS -->")
+        assert html.index(injected) < html.index("function chatInteraction")
 
 
 # =====================================================================
@@ -746,7 +799,7 @@ class TestInsulationTokens:
 
     @pytest.fixture
     def html(self):
-        return DefaultLayout().render_page()
+        return Default().render_page()
 
     # ----- State colors (light) -----
 
@@ -909,7 +962,7 @@ ELEMENT_MANIFEST = [
 
 @pytest.fixture(scope="module")
 def rendered_html():
-    return DefaultLayout().render_page()
+    return Default().render_page()
 
 
 @pytest.mark.parametrize(
@@ -940,19 +993,19 @@ class TestElementLibraryInvariants:
     def test_chat_ui_buttons_keep_specificity(self):
         # IDed chat UI elements must not regress when generic <button> /
         # <textarea> rules land. Specificity owns these.
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         for ided in ("#send {", "#new-chat-btn {", "#input {"):
             assert ided in html
 
     def test_no_button_focus_visible_override(self):
         # Page-wide :focus-visible owns the brand focus ring; a
         # button-only override would create inconsistency.
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         assert "button:focus-visible" not in html
 
     def test_select_chevron_drawn_in_pure_css(self):
         # No SVG, no icon font, no extra HTTP request.
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         assert "linear-gradient(45deg, transparent 50%, currentColor 50%)" in html
         assert "linear-gradient(135deg, currentColor 50%, transparent 50%)" in html
 
@@ -965,7 +1018,7 @@ class TestElementLibraryInvariants:
         <button>. IDed chat-UI buttons must explicitly reset it so the
         elevated shadow does not leak into the chrome.
         """
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         idx = html.index(selector)
         # Look for "box-shadow: none" within ~600 chars after the selector.
         block = html[idx : idx + 600]
@@ -978,7 +1031,7 @@ class TestElementLibraryInvariants:
         tints the surface. The composer (#input) lives inside #input-inner
         which already owns the focus ring, so #input must reset both.
         """
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         # The reset rule must mention :focus and :disabled together.
         assert "#input:focus" in html
         assert "#input:disabled" in html
@@ -989,6 +1042,6 @@ class TestElementLibraryInvariants:
         light/dark system colors. Without it, dark-mode <select> popups
         appear with white system chrome.
         """
-        html = DefaultLayout().render_page()
+        html = Default().render_page()
         assert "color-scheme: light" in html
         assert "color-scheme: dark" in html

@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 from chatnificent import Chatnificent
-from chatnificent.layout import Control, DefaultLayout
+from chatnificent.layout import Control, Default
 from chatnificent.llm import Echo
 from chatnificent.store import File, InMemory
 
@@ -29,12 +29,12 @@ class TestUiInteractionsIntegration:
 
     @pytest.fixture
     def layout(self):
-        lo = DefaultLayout()
-        lo.register_control(
+        lo = Default()
+        lo._register_control(
             Control(
                 id="max-tokens",
                 html='<input id="max-tokens" type="number" value="256">',
-                slot="toolbar",
+                slot="messages-begin",
                 llm_param="max_completion_tokens",
                 cast=int,
             )
@@ -127,12 +127,12 @@ class TestUiInteractionsIntegration:
 
     def test_no_cast_passes_raw_string(self):
         """Control without cast passes raw string value."""
-        lo = DefaultLayout()
-        lo.register_control(
+        lo = Default()
+        lo._register_control(
             Control(
                 id="model",
                 html='<select id="model"><option>gpt-4o</option></select>',
-                slot="toolbar",
+                slot="messages-begin",
                 llm_param="model",
             )
         )

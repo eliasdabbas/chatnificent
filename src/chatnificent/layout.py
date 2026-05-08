@@ -61,7 +61,7 @@ class Layout(ABC):
         """Inline every ``*.js`` file in ``vendor_dir`` as ``<script>`` blocks.
 
         Available on the ABC so any HTML-rendering Layout subclass
-        (DefaultLayout today, custom Starlette/FastAPI layouts tomorrow)
+        (``Default`` today, custom Starlette/FastAPI layouts tomorrow)
         can call it. ``DashLayout`` doesn't render HTML so it never calls
         this method.
 
@@ -85,14 +85,15 @@ class Layout(ABC):
         parse time and don't reference each other, so order doesn't matter.
         If you add a library that depends on another, name it so sorting
         puts dependencies first (e.g. ``01-base.js``, ``02-plugin.js``).
+
+        Vendor body bytes are emitted verbatim — integrity is pinned via
+        sha256 in ``MANIFEST.json``. The wrapper-strip below only removes
+        an accidental outer ``<script>...</script>`` wrapper; it is a
+        no-op on real (body-only) vendor files.
         """
         blocks = []
         for path in sorted(Path(vendor_dir).glob("*.js")):
             source = path.read_text(encoding="utf-8").strip()
-            # Vendor body bytes are emitted verbatim — integrity is pinned
-            # via sha256 in MANIFEST.json. The strips below only remove an
-            # accidental outer <script>...</script> wrapper; they're a
-            # no-op on real (body-only) vendor files.
             if source.startswith("<script>"):
                 source = source[len("<script>") :]
             if source.endswith("</script>"):
@@ -147,7 +148,7 @@ class Layout(ABC):
         """Return display-ready conversation list items for DevServer."""
         return [dict(conversation) for conversation in conversations]
 
-    def register_control(self, control: "Control") -> None:
+    def _register_control(self, control: "Control") -> None:
         """Register a UI control to be rendered in a slot and bound to an LLM param."""
         pass
 
@@ -177,11 +178,11 @@ class Layout(ABC):
 
 
 # =====================================================================
-# DefaultLayout — zero-dependency HTML layout
+# Default — zero-dependency HTML layout
 # =====================================================================
 
 
-class DefaultLayout(Layout):
+class Default(Layout):
     """Full-featured HTML chat layout using vanilla JS.
 
     Zero external dependencies. Works with DevServer and any HTTP server
@@ -271,9 +272,9 @@ Start typing below, or browse the [examples](https://github.com/eliasdabbas/chat
 </div>"""
         self.welcome_message = welcome_message
         for control in controls or []:
-            self.register_control(control)
+            self._register_control(control)
 
-    def register_control(self, control: Control) -> None:
+    def _register_control(self, control: Control) -> None:
         """Register a UI control to be rendered in a slot and bound to an LLM param."""
         with self._lock:
             self._controls[control.id] = control
@@ -308,8 +309,20 @@ Start typing below, or browse the [examples](https://github.com/eliasdabbas/chat
         return result
 
     def render_page(self) -> str:
-        """Return the complete HTML chat page with registered controls injected into their slots."""
-        html = (_TEMPLATES_DIR / "default.html").read_text(encoding="utf-8")
+        """Return the complete HTML chat page assembled from the folder template.
+
+        Reads ``templates/default/template.html`` and inlines the sibling
+        ``vendor/*.js``, ``styles.css``, and ``scripts.js`` files at the
+        ``<!-- VENDOR -->``, ``<!-- STYLES -->``, and ``<!-- SCRIPTS -->``
+        build markers. The ``<!-- SCRIPTS -->`` marker is preserved in the
+        output as the canonical seam for runtime injection (root path,
+        convo id) by the Server pillar — the framework's per-instance
+        scripts (welcome markdown, control init) are placed AFTER it so
+        runtime injections always run before the IIFE.
+        """
+        template_dir = _TEMPLATES_DIR / "default"
+        html = (template_dir / "template.html").read_text(encoding="utf-8")
+
         title = _html_escape(
             self.page_title or f"Build an AI/LLM Chat App with Python | {self.brand}"
         )
@@ -323,35 +336,35 @@ Start typing below, or browse the [examples](https://github.com/eliasdabbas/chat
             if self.favicon_url
             else ""
         )
-        html = html.replace("<!-- PAGE_TITLE -->", title)
-        html = html.replace("<!-- BRAND -->", _html_escape(self.brand))
-        html = html.replace("<!-- SLOGAN -->", _html_escape(self.slogan))
-        html = html.replace("<!-- LOGO_HTML -->", logo_html)
-        html = html.replace("<!-- FAVICON_HTML -->", favicon_html)
-        html = html.replace("<!-- VENDOR_SCRIPTS -->", self.inline_vendor_scripts())
+
+        # Build markers — vendor + styles consumed; SCRIPTS preserved as seam.
+        vendor_html = self.inline_vendor_scripts(template_dir / "vendor")
+        styles_html = (
+            "<style>\n"
+            + (template_dir / "styles.css").read_text(encoding="utf-8")
+            + "\n</style>"
+        )
+        framework_script = (
+            "<script>\n"
+            + (template_dir / "scripts.js").read_text(encoding="utf-8")
+            + "\n</script>"
+        )
 
         with self._lock:
             controls = list(self._controls.values())
 
-        # Build per-slot content. User controls go to their declared slot;
-        # framework end-of-page scripts route through SLOT:footer rather
-        # than a string-search of </body> — vendored JS bundles (DOMPurify)
-        # contain that substring.
-        slots: Dict[str, str] = {}
-        for control in controls:
-            slots[control.slot] = slots.get(control.slot, "") + control.html
-
-        footer_scripts = [
+        per_instance_scripts: List[str] = []
+        per_instance_scripts.append(
             f"""<script>
   document.addEventListener('DOMContentLoaded', function() {{
     var _wm = document.getElementById('welcome-message');
     if (_wm) _wm.innerHTML = window.chatnificent.renderMarkdown({json.dumps(self.welcome_message)});
   }});
 </script>"""
-        ]
+        )
         if controls:
             ids_js = ", ".join(f'"{c.id}"' for c in controls)
-            footer_scripts.append(
+            per_instance_scripts.append(
                 f"""<script>
   document.addEventListener('DOMContentLoaded', function() {{
     [{ids_js}].forEach(function(id) {{
@@ -361,11 +374,45 @@ Start typing below, or browse the [examples](https://github.com/eliasdabbas/chat
   }});
 </script>"""
             )
-        slots["footer"] = slots.get("footer", "") + "\n".join(footer_scripts)
 
-        for slot_name, slot_html in slots.items():
-            html = html.replace(f"<!-- SLOT:{slot_name} -->", slot_html)
-        html = re.sub(r"<!-- SLOT:[^>]+ -->", "", html)
+        # Inline framework + per-instance scripts AFTER the marker so any
+        # server-side runtime injection that prepends to the marker still
+        # runs before the framework IIFE.
+        scripts_replacement = (
+            "<!-- SCRIPTS -->\n"
+            + framework_script
+            + "\n"
+            + "\n".join(per_instance_scripts)
+        )
+
+        html = html.replace("<!-- VENDOR -->", vendor_html)
+        html = html.replace("<!-- STYLES -->", styles_html)
+        html = html.replace("<!-- SCRIPTS -->", scripts_replacement)
+
+        # HTML-comment defaults inside slot divs (and outside them for
+        # title / favicon / logo).
+        html = html.replace("<!-- PAGE_TITLE -->", title)
+        html = html.replace("<!-- BRAND -->", _html_escape(self.brand))
+        html = html.replace("<!-- SLOGAN -->", _html_escape(self.slogan))
+        html = html.replace("<!-- LOGO_HTML -->", logo_html)
+        html = html.replace("<!-- FAVICON_HTML -->", favicon_html)
+
+        # User control slots — replace the entire slot div (with any default
+        # contents) with the controls' concatenated HTML. Multiple controls
+        # registered to the same slot are concatenated in registration order.
+        # Pattern is permissive about attribute order so e.g.
+        # ``<div id="welcome-message" data-slot="..." class="...">`` matches.
+        slot_html: Dict[str, str] = {}
+        for control in controls:
+            slot_html[control.slot] = slot_html.get(control.slot, "") + control.html
+        for slot_name, replacement in slot_html.items():
+            pattern = (
+                r'<div\b[^>]*\bdata-slot="'
+                + re.escape(slot_name)
+                + r'"[^>]*>.*?</div>'
+            )
+            html = re.sub(pattern, replacement, html, count=1, flags=re.DOTALL)
+
         return html
 
 

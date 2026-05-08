@@ -18,7 +18,7 @@ The pattern has two parts:
    and which LLM kwarg it maps to. An optional ``cast`` converts the raw
    browser string to the right Python type before it reaches the API.
 
-2. **Pass it to ``DefaultLayout(controls=[...])``** — no subclassing needed.
+2. **Pass it to ``Default(controls=[...])``** — no subclassing needed.
    Everything else (state storage, thread-safety, ``POST /api/interactions``
    endpoint, engine injection) is handled by the framework.
 
@@ -74,12 +74,12 @@ TOOLBAR_HTML = f"""
 control = chat.layout.Control(
     id="token-limit",
     html=TOOLBAR_HTML,
-    slot="toolbar",
+    slot="messages-begin",
     llm_param="max_completion_tokens",
     cast=int,
 )
 
-app = chat.Chatnificent(layout=chat.layout.DefaultLayout(controls=[control]))
+app = chat.Chatnificent(layout=chat.layout.Default(controls=[control]))
 
 if __name__ == "__main__":
     app.run()

@@ -429,10 +429,10 @@ def _load_framework_theme_css():
     """Read :root and dark-mode CSS variable blocks from the framework template."""
     from chatnificent.layout import _TEMPLATES_DIR
 
-    template = (_TEMPLATES_DIR / "default.html").read_text(encoding="utf-8")
+    styles = (_TEMPLATES_DIR / "default" / "styles.css").read_text(encoding="utf-8")
     match = re.search(
         r'(:root \{.*?\})\s*(html\[data-theme=["\']dark["\']\] \{.*?\})',
-        template,
+        styles,
         re.DOTALL,
     )
     if not match:

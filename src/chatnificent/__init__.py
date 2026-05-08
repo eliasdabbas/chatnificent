@@ -12,7 +12,7 @@ __version__ = _get_version("chatnificent")
 
 from typing import Optional
 
-from . import auth, engine, layout, llm, models, retrieval, server, store, tools, url
+from . import auth, engine, layout, llm, models, retrieval, server, store, templates, tools, url
 
 
 class Chatnificent:
@@ -74,9 +74,9 @@ class Chatnificent:
         if layout:
             self.layout = layout
         else:
-            from .layout import DefaultLayout
+            from .layout import Default as _Default
 
-            self.layout = DefaultLayout()
+            self.layout = _Default()
         self.layout.app = self
 
         if llm:

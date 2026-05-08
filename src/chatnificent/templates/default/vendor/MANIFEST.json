@@ -1,5 +1,5 @@
 {
-    "_comment": "Pinned third-party JS bundles inlined into DefaultLayout's HTML at request time. Update via .github/workflows/vendor-update.yml (auto-PR) or by hand: re-run the curl + shasum commands and bump version + sha256 here.",
+    "_comment": "Pinned third-party JS bundles inlined into Default layout's HTML at build time. Update via .github/workflows/vendor-update.yml (auto-PR) or by hand: re-run the curl + shasum commands and bump version + sha256 here.",
     "vendored": [
         {
             "name": "marked",

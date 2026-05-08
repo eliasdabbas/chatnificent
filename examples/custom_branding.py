@@ -18,7 +18,7 @@ branding immediately, without any API keys.
 
 What You Configure
 ------------------
-``DefaultLayout`` accepts six pure-content branding parameters:
+``Default`` accepts six pure-content branding parameters:
 
 - ``brand`` — header display name (also used as the default page-title suffix)
 - ``slogan`` — short tagline rendered next to the brand
@@ -78,7 +78,7 @@ rather [talk to a human](https://example.com/contact)."""
 
 
 app = chat.Chatnificent(
-    layout=chat.layout.DefaultLayout(
+    layout=chat.layout.Default(
         brand="Acme Support",
         slogan="We're here to help",
         logo_url=LOGO,

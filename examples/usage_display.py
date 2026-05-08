@@ -66,7 +66,7 @@ def _openai_usage_line(raw_response):
     return None
 
 
-class UsageLayout(chat.layout.DefaultLayout):
+class UsageLayout(chat.layout.Default):
     """Append OpenAI token usage beneath each assistant message."""
 
     def render_messages(self, messages, **kwargs):

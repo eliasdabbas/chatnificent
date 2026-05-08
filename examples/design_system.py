@@ -895,7 +895,7 @@ PICKER_HTML = f"""
 PICKER_CONTROL = chat.layout.Control(
     id="theme-pickers",
     html=PICKER_HTML,
-    slot="toolbar",
+    slot="messages-begin",
 )
 
 
@@ -907,7 +907,7 @@ PICKER_CONTROL = chat.layout.Control(
 # input bar off-screen.
 GALLERY_TOGGLE_CONTROL = chat.layout.Control(
     id="gallery-toggle-toolbar",
-    slot="toolbar",
+    slot="messages-begin",
     html="""
 <style>
 #gallery-wrap {
@@ -1043,11 +1043,11 @@ GALLERY_TOGGLE_CONTROL = chat.layout.Control(
 
 
 # ---------------------------------------------------------------------------
-# Wire it up — Chatnificent with DefaultLayout and gallery controls.
+# Wire it up — Chatnificent with Default and gallery controls.
 # ---------------------------------------------------------------------------
 
 app = chat.Chatnificent(
-    layout=chat.layout.DefaultLayout(
+    layout=chat.layout.Default(
         brand="Chatnificent design system",
         slogan="Theme × Brand × Font × Scale × Mode",
         welcome_message=WELCOME,

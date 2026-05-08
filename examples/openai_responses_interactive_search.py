@@ -10,7 +10,7 @@ Interactive Web Search — Live UI Controls for the Responses API
 
 An AI research assistant where every search parameter is a live UI
 control. Three knobs, wired directly to ``responses.create`` kwargs
-through the ``Control`` + ``DefaultLayout`` system — no custom server
+through the ``Control`` + ``Default`` system — no custom server
 code, no per-request plumbing.
 
 Controls
@@ -112,7 +112,7 @@ What to hack next
 """
 
 import chatnificent as chat
-from chatnificent.layout import Control, DefaultLayout
+from chatnificent.layout import Control, Default
 
 # ---------------------------------------------------------------------------
 # LLM subclass — routes through the Responses API + citation extraction
@@ -273,26 +273,26 @@ def _build_tools(v):
 
 app = chat.Chatnificent(
     llm=InteractiveSearch(),
-    layout=DefaultLayout(
+    layout=Default(
         controls=[
             Control(
                 id="reasoning-effort",
                 html=TOOLBAR_HTML,
-                slot="toolbar",
+                slot="messages-begin",
                 llm_param="reasoning",
                 cast=_build_reasoning,
             ),
             Control(
                 id="domain-select",
                 html="",  # pills rendered inside TOOLBAR_HTML; chatInteraction fires with this id
-                slot="toolbar",
+                slot="messages-begin",
                 llm_param="tools",
                 cast=_build_tools,
             ),
             Control(
                 id="search-mode",
                 html="",  # rendered inside TOOLBAR_HTML above
-                slot="toolbar",
+                slot="messages-begin",
                 llm_param="tool_choice",
                 cast=None,
             ),

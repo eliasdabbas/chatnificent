@@ -116,7 +116,7 @@ def _redact_text(text: str) -> str:
     return redacted
 
 
-class RedactionLayout(chat.layout.DefaultLayout):
+class RedactionLayout(chat.layout.Default):
     """Redact common sensitive data at display time only."""
 
     def render_page(self) -> str:

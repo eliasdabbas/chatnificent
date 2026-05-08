@@ -179,7 +179,7 @@ class ConversationSummaryEngine(chat.engine.Orchestrator):
         )
 
 
-class ConversationSummaryLayout(chat.layout.DefaultLayout):
+class ConversationSummaryLayout(chat.layout.Default):
     """Prepend the latest summary block to the rendered transcript."""
 
     def render_messages(self, messages, **kwargs):

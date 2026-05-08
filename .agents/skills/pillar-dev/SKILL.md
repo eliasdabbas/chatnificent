@@ -63,7 +63,7 @@ class Layout(ABC):
         """Render the layout. Returns HTML string (DevServer) or Dash component tree (DashServer)."""
 ```
 
-`DefaultLayout` renders `templates/default.html` — a zero-dep vanilla HTML/JS chat UI for DevServer.
+`Default` renders the `templates/default/` folder (template.html, styles.css, scripts.js, vendor/) — a zero-dep vanilla HTML/JS chat UI for DevServer.
 Dash-based layouts (`Bootstrap`, `Mantine`, `Minimal`) build Dash component trees and require `DashServer`.
 
 ## Engine Orchestration
@@ -236,7 +236,7 @@ app = chat.Chatnificent(store=RedisStore("redis://localhost:6379"))
 |------|-----|
 | New LLM provider | Subclass `llm.LLM`, implement `generate_response()` and `extract_content()` |
 | Custom storage | Subclass `store.Store`, implement save/load methods |
-| UI changes (DevServer) | Edit `templates/default.html` |
+| UI changes (DevServer) | Edit `templates/default/{template.html, styles.css, scripts.js}` |
 | UI changes (Dash) | Subclass `layout.DashLayout` |
 | Request lifecycle | Subclass `engine.Orchestrator`, override hooks/seams |
 | Tool integration | Subclass `tools.Tool`, handle tool call dicts -> tool result dicts |

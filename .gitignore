@@ -11,6 +11,7 @@ wheels/
 
 # Local docs
 ROADMAP.md
+uv.lock
 
 # Runtime data produced by examples (NEVER commit user conversations / secrets)
 examples_hub_data/

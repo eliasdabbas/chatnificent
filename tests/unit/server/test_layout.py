@@ -211,9 +211,9 @@ class TestLayoutUtilities:
 
     def test_rtl_text_detection(self):
         """Test RTL (Right-To-Left) text detection utility."""
-        from chatnificent.layout import DefaultLayout
+        from chatnificent.layout import Default
 
-        layout = DefaultLayout()
+        layout = Default()
 
         # Test cases for RTL detection
         test_cases = [

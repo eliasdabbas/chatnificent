@@ -1,0 +1,1901 @@
+/* ------------------------------------------------------------------
+   Slot primitive — every <div data-slot="..."> renders as if it
+   weren't there. The slot div remains in the DOM as a stable
+   address for build-time and runtime injection; CSS treats its
+   children as direct children of the parent for layout purposes.
+   Devs replacing slot content can override `display` on a specific
+   [data-slot="X"] selector if they need a real container.
+   ------------------------------------------------------------------ */
+[data-slot] {
+    display: contents;
+}
+
+:root {
+    /* Surfaces */
+    --bg: #fafafa;
+    --bg-elev: #ffffff;
+    --surface: #fafafa;
+
+    /* Borders */
+    --border: #e5e5e5;
+    --border-strong: #d4d4d4;
+
+    /* Text */
+    --text: #1a1a1a;
+    --text-secondary: #555555;
+    --text-muted: #8f8f8f;
+
+    /* Accent — the framework's spine: black/white. Primary buttons, user pill. */
+    --accent: #000000;
+    --accent-hover: #333333;
+    --accent-subtle: rgba(0, 0, 0, 0.06);
+    --accent-ring: rgba(0, 0, 0, 0.15);
+
+    /* Brand */
+    --brand: #0f766e;
+    --brand-hover: #115e59;
+    --brand-subtle: rgba(15, 118, 110, 0.10);
+    --brand-ring: rgba(15, 118, 110, 0.28);
+
+    /* Role colors */
+    --user-bubble: #000000;
+    --user-text: #ffffff;
+    --assistant-bg: #f0f0f0;
+    --assistant-text: #000000;
+
+    /* Sidebar / button text */
+    --sidebar-bg: #f2f2f2;
+    --btn-text: #ffffff;
+
+    /* Spacing scale — 4pt grid; for padding / gap / margin */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-7: 32px;
+    --space-8: 48px;
+
+    /* Radii */
+    --radius-sm: 10px;
+    --radius: 16px;
+    --radius-lg: 24px;
+    --radius-pill: 999px;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
+
+    /* Motion */
+    --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Layout dims */
+    --sidebar-w: 300px;
+    --header-h: 60px;
+    --chat-max-w: 820px;
+    --input-max-h: 280px;
+    --header-position: fixed;
+
+    /* Type scale */
+    --text-xs: 0.75rem;
+    --text-sm: 0.875rem;
+    --text-base: 1rem;
+    --text-lg: 1.125rem;
+    --text-xl: 1.25rem;
+    --text-2xl: 1.5rem;
+
+    /* Fonts */
+    --font: 'Trebuchet MS', 'Lucida Grande', 'Lucida Sans Unicode',
+        ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono-font: ui-monospace, 'SF Mono', 'JetBrains Mono',
+        'Fira Code', 'Cascadia Code', Menlo, Consolas, monospace;
+
+    /* Welcome glow
+       Two soft radial gradients (teal top-left, coral bottom-right).
+       Set to `none` to opt out; override per theme to recolor. */
+    --welcome-glow:
+        radial-gradient(42% 36% at 26% 28%, rgba(20, 184, 166, 0.10), transparent 70%),
+        radial-gradient(42% 36% at 78% 76%, rgba(251, 113, 133, 0.08), transparent 70%);
+
+    /* Glass — translucent surface used by suggestion chips. */
+    --glass-bg: rgba(255, 255, 255, 0.55);
+    --glass-bg-hover: rgba(255, 255, 255, 0.75);
+    --glass-border: rgba(255, 255, 255, 0.6);
+    --glass-border-hover: rgba(0, 0, 0, 0.12);
+    --glass-inset: rgba(255, 255, 255, 0.55);
+    --glass-shadow: 0 4px 22px rgba(0, 0, 0, 0.06);
+    --glass-shadow-strong: 0 8px 32px rgba(0, 0, 0, 0.10);
+
+    /* State colors — semantic accents for status, validation,
+       and notifications. Used by future Tier 1 element styles
+       (forms, alerts, badges) and available to dev overrides. */
+    --success: #047857;
+    --success-bg: rgba(5, 150, 105, 0.10);
+    --success-border: rgba(5, 150, 105, 0.28);
+    --warning: #b45309;
+    --warning-bg: rgba(217, 119, 6, 0.10);
+    --warning-border: rgba(217, 119, 6, 0.28);
+    --danger: #b91c1c;
+    --danger-bg: rgba(220, 38, 38, 0.10);
+    --danger-border: rgba(220, 38, 38, 0.28);
+    --info: #0369a1;
+    --info-bg: rgba(2, 132, 199, 0.10);
+    --info-border: rgba(2, 132, 199, 0.28);
+
+    /* Z-layer scale — replaces magic numbers across the
+       stylesheet. Kept mode-agnostic. */
+    --z-base: 0;
+    --z-dropdown: 10;
+    --z-sticky: 100;
+    --z-modal: 1000;
+    --z-toast: 2000;
+
+    /* Focus ring — applied via :focus-visible across
+       interactive elements. Resolves through --accent-ring,
+       so it follows light/dark automatically. */
+    --focus-ring: 0 0 0 3px var(--accent-ring);
+
+    /* Control sizing — shared by buttons, inputs, selects,
+       and any future native form element styling. */
+    --control-h: 36px;
+    --control-padding-x: 12px;
+    --control-radius: 8px;
+
+    /* Long user pills collapse past this height; devs override. */
+    --user-pill-max-h: 480px;
+
+    --user-pill-max-w: 80%;
+
+    --code-bg: #f6f6f7;
+    --code-header-bg: #ececee;
+    --table-border: #d4d4d8;
+    --details-summary-bg: rgba(0, 0, 0, 0.025);
+
+    color-scheme: light;
+}
+
+html[data-theme="dark"] {
+    color-scheme: dark;
+    /* Surfaces */
+    --bg: #0a0a0b;
+    --bg-elev: #131316;
+    --surface: #0a0a0a;
+
+    /* Borders */
+    --border: #1f1f1f;
+    --border-strong: #2a2a2a;
+
+    /* Text */
+    --text: #ffffff;
+    --text-secondary: #aaaaaa;
+    --text-muted: #6b6b73;
+
+    /* Accent */
+    --accent: #ffffff;
+    --accent-hover: #cccccc;
+    --accent-subtle: rgba(255, 255, 255, 0.06);
+    --accent-ring: rgba(255, 255, 255, 0.15);
+
+    /* Brand */
+    --brand: #0f766e;
+    --brand-hover: #115e59;
+    --brand-subtle: rgba(15, 118, 110, 0.18);
+    --brand-ring: rgba(15, 118, 110, 0.32);
+
+    /* Roles */
+    --user-bubble: #d0d0d0;
+    --user-text: #000000;
+    --assistant-bg: #0f1115;
+    --assistant-text: #ffffff;
+
+    /* Sidebar */
+    --sidebar-bg: #0f0f0f;
+    --btn-text: #000000;
+
+    /* Shadows — deeper in dark */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+
+    /* Welcome glow — brighter alphas in dark so the wash actually reads. */
+    --welcome-glow:
+        radial-gradient(42% 36% at 26% 28%, rgba(20, 184, 166, 0.20), transparent 70%),
+        radial-gradient(42% 36% at 78% 76%, rgba(251, 113, 133, 0.14), transparent 70%);
+
+    /* Glass — translucent surface for suggestion chips in dark mode. */
+    --glass-bg: rgba(255, 255, 255, 0.04);
+    --glass-bg-hover: rgba(255, 255, 255, 0.08);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-border-hover: rgba(255, 255, 255, 0.18);
+    --glass-inset: rgba(255, 255, 255, 0.06);
+    --glass-shadow: 0 4px 22px rgba(0, 0, 0, 0.4);
+    --glass-shadow-strong: 0 8px 32px rgba(0, 0, 0, 0.55);
+
+    /* State colors — brighter hues for contrast against the
+       deep dark surface. */
+    --success: #34d399;
+    --success-bg: rgba(52, 211, 153, 0.12);
+    --success-border: rgba(52, 211, 153, 0.30);
+    --warning: #fbbf24;
+    --warning-bg: rgba(251, 191, 36, 0.12);
+    --warning-border: rgba(251, 191, 36, 0.30);
+    --danger: #f87171;
+    --danger-bg: rgba(248, 113, 113, 0.12);
+    --danger-border: rgba(248, 113, 113, 0.30);
+    --info: #38bdf8;
+    --info-bg: rgba(56, 189, 248, 0.12);
+    --info-border: rgba(56, 189, 248, 0.30);
+
+    --code-bg: #0d0d10;
+    --code-header-bg: #15151a;
+    --table-border: #2a2a2a;
+    --details-summary-bg: rgba(255, 255, 255, 0.04);
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    font-size: calc(16px * var(--scale, 1));
+}
+
+body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    /* Grayscale AA — keeps Trebuchet's stroke slim on macOS. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Force form controls to inherit body's font-smoothing (WebKit doesn't by default). */
+input,
+textarea,
+select,
+button {
+    -webkit-font-smoothing: inherit;
+    -moz-osx-font-smoothing: inherit;
+}
+
+/* Brand-tinted keyboard focus ring across the page (TAB navigation). */
+:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+/* ------------------------------------------------------------------
+   Element library — E1: Buttons
+
+   Default <button> = primary pill. Override via [data-variant] for
+   secondary / ghost / danger, [data-size] for sm / lg. All rules
+   consume insulation tokens, so a dev re-themes by overriding
+   tokens (--accent, --danger, --radius-pill, etc.) — never by
+   rewriting element CSS.
+
+   Specificity note: the chat UI's IDed buttons (#send,
+   #new-chat-btn, #theme-toggle, #sidebar-toggle) carry their own
+   rules with higher specificity and are unaffected. These element
+   rules style ad-hoc <button>s in welcome content, dialogs, and
+   dev-injected slot HTML.
+   ------------------------------------------------------------------ */
+button {
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.2;
+    padding: 9px 18px;
+    border-radius: var(--radius-pill);
+    border: 1px solid transparent;
+    background: var(--accent);
+    color: var(--btn-text);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition:
+        background var(--transition),
+        border-color var(--transition),
+        color var(--transition),
+        transform 0.1s ease,
+        box-shadow var(--transition);
+    box-shadow: var(--shadow-sm);
+}
+
+button:hover {
+    background: var(--accent-hover);
+}
+
+button:active {
+    transform: scale(0.97);
+}
+
+button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+}
+
+button[data-variant="secondary"] {
+    background: var(--bg-elev);
+    color: var(--text);
+    border-color: var(--border-strong);
+}
+
+button[data-variant="secondary"]:hover {
+    background: var(--accent-subtle);
+}
+
+button[data-variant="ghost"] {
+    background: transparent;
+    color: var(--text);
+    border-color: transparent;
+    box-shadow: none;
+}
+
+button[data-variant="ghost"]:hover {
+    background: var(--accent-subtle);
+}
+
+button[data-variant="danger"] {
+    background: var(--danger);
+    color: #fff;
+    border-color: transparent;
+}
+
+html[data-theme="dark"] button[data-variant="danger"] {
+    color: var(--bg);
+}
+
+button[data-variant="danger"]:hover {
+    filter: brightness(0.92);
+}
+
+button[data-size="sm"] {
+    font-size: 0.8rem;
+    padding: 6px 12px;
+}
+
+button[data-size="lg"] {
+    font-size: 1rem;
+    padding: 12px 22px;
+}
+
+/* ------------------------------------------------------------------
+   Element library — E2: Text inputs + textarea
+
+   All text-like <input> types share one ruleset (browsers refuse a
+   single `input:not([type=button|...])` shorthand here, so we
+   enumerate). <textarea> joins the base rule and adds resize +
+   min-height. Focus uses --focus-ring so devs change ring shape
+   in one place. The chat composer #input keeps its bespoke rules
+   via higher specificity.
+   ------------------------------------------------------------------ */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="search"],
+input[type="tel"],
+input[type="url"],
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="week"],
+textarea {
+    font-family: inherit;
+    font-size: 0.92rem;
+    line-height: 1.4;
+    padding: 9px 14px;
+    border-radius: var(--control-radius);
+    border: 1px solid var(--border-strong);
+    background: var(--bg-elev);
+    color: var(--text);
+    outline: none;
+    width: 100%;
+    transition:
+        border-color var(--transition),
+        box-shadow var(--transition);
+}
+
+textarea {
+    resize: vertical;
+    min-height: 72px;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="number"]:focus,
+input[type="search"]:focus,
+input[type="tel"]:focus,
+input[type="url"]:focus,
+input[type="date"]:focus,
+input[type="time"]:focus,
+input[type="datetime-local"]:focus,
+input[type="month"]:focus,
+input[type="week"]:focus,
+textarea:focus {
+    border-color: var(--text-secondary);
+    box-shadow: var(--focus-ring);
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+}
+
+input:disabled,
+textarea:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--accent-subtle);
+}
+
+/* Native browser picker icons are dark glyphs; invert in dark mode
+   so they remain readable on the elevated surface. */
+html[data-theme="dark"] input::-webkit-calendar-picker-indicator {
+    filter: invert(1) opacity(0.7);
+}
+
+/* ------------------------------------------------------------------
+   Element library — E3: Select
+
+   Closed-state only. `appearance: none` lets us draw the chevron
+   ourselves via two CSS gradient triangles (no SVG, no font, no
+   extra request, works offline). The native dropdown panel stays
+   native — browsers refuse to let us style it, and that's fine.
+   Right-padding reserves space for the chevron. Disabled +
+   placeholder rules from E2 cover this element too via the
+   shared selector lists below.
+   ------------------------------------------------------------------ */
+select {
+    font-family: inherit;
+    font-size: 0.92rem;
+    line-height: 1.4;
+    padding: 9px 36px 9px 14px;
+    border-radius: var(--control-radius);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    cursor: pointer;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image:
+        linear-gradient(45deg, transparent 50%, currentColor 50%),
+        linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position:
+        calc(100% - 18px) calc(50% + 1px),
+        calc(100% - 12px) calc(50% + 1px);
+    background-size: 6px 6px, 6px 6px;
+    background-repeat: no-repeat;
+    background-color: var(--bg-elev);
+    transition:
+        border-color var(--transition),
+        box-shadow var(--transition);
+    width: 100%;
+}
+
+select:focus {
+    border-color: var(--text-secondary);
+    box-shadow: var(--focus-ring);
+}
+
+select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: var(--accent-subtle);
+}
+
+/* ------------------------------------------------------------------
+   Element library — E4: Checkbox + Radio
+
+   appearance: none + custom-drawn states. Checkmark is a CSS mask
+   on an inlined SVG data URL — no extra request, no font.
+   ------------------------------------------------------------------ */
+input[type="checkbox"],
+input[type="radio"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 1.5px solid var(--border-strong);
+    background: var(--bg-elev);
+    cursor: pointer;
+    vertical-align: -3px;
+    margin: 0;
+    transition:
+        background var(--transition),
+        border-color var(--transition),
+        box-shadow var(--transition);
+    position: relative;
+    flex-shrink: 0;
+    display: inline-block;
+}
+
+input[type="checkbox"] {
+    border-radius: 5px;
+}
+
+input[type="radio"] {
+    border-radius: 50%;
+}
+
+input[type="checkbox"]:hover:not(:disabled),
+input[type="radio"]:hover:not(:disabled) {
+    border-color: var(--text-secondary);
+}
+
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+    box-shadow: var(--focus-ring);
+}
+
+input[type="checkbox"]:checked,
+input[type="radio"]:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+input[type="checkbox"]:checked::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--btn-text);
+    -webkit-mask: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") center/12px 12px no-repeat;
+    mask: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") center/12px 12px no-repeat;
+}
+
+input[type="radio"]:checked::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    background: var(--btn-text);
+    border-radius: 50%;
+}
+
+input[type="checkbox"]:disabled,
+input[type="radio"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------------
+   Element library — E5: Range, File, Color, Progress, Meter
+
+   Range thumb + track + file-selector button + color swatch +
+   progress / meter bars. All token-driven.
+   ------------------------------------------------------------------ */
+input[type="range"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    height: 24px;
+    background: transparent;
+    outline: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+    height: 6px;
+    background: var(--border-strong);
+    border-radius: var(--radius-pill);
+}
+
+input[type="range"]::-moz-range-track {
+    height: 6px;
+    background: var(--border-strong);
+    border-radius: var(--radius-pill);
+    border: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--bg-elev);
+    margin-top: -6px;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    transition: transform 0.12s ease;
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--bg-elev);
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+}
+
+input[type="range"]:hover::-webkit-slider-thumb {
+    transform: scale(1.12);
+}
+
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+    box-shadow: var(--focus-ring), var(--shadow-sm);
+}
+
+input[type="file"] {
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+input[type="file"]::file-selector-button {
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 8px 14px;
+    margin-right: 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-pill);
+    background: var(--bg-elev);
+    color: var(--text);
+    cursor: pointer;
+    transition: background var(--transition);
+}
+
+input[type="file"]::file-selector-button:hover {
+    background: var(--accent-subtle);
+}
+
+input[type="color"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    padding: 0;
+    cursor: pointer;
+    background: transparent;
+    overflow: hidden;
+}
+
+input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+    border-radius: inherit;
+}
+
+input[type="color"]::-webkit-color-swatch {
+    border: none;
+    border-radius: inherit;
+}
+
+input[type="color"]::-moz-color-swatch {
+    border: none;
+    border-radius: inherit;
+}
+
+progress,
+meter {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 200px;
+    height: 8px;
+    border: none;
+    border-radius: var(--radius-pill);
+    background: var(--border-strong);
+    overflow: hidden;
+}
+
+progress::-webkit-progress-bar {
+    background: var(--border-strong);
+    border-radius: var(--radius-pill);
+}
+
+progress::-webkit-progress-value {
+    background: var(--accent);
+    border-radius: var(--radius-pill);
+    transition: width var(--transition);
+}
+
+progress::-moz-progress-bar {
+    background: var(--accent);
+    border-radius: var(--radius-pill);
+}
+
+meter::-webkit-meter-bar {
+    background: var(--border-strong);
+    border-radius: var(--radius-pill);
+    border: none;
+}
+
+meter::-webkit-meter-optimum-value {
+    background: var(--success);
+    border-radius: var(--radius-pill);
+}
+
+meter::-webkit-meter-suboptimum-value {
+    background: var(--warning);
+    border-radius: var(--radius-pill);
+}
+
+meter::-webkit-meter-even-less-good-value {
+    background: var(--danger);
+    border-radius: var(--radius-pill);
+}
+
+/* ------------------------------------------------------------------
+   Element library — E6: Disclosure (<details> / <summary>)
+
+   Native widget already covers expand/collapse, find-in-page, and
+   keyboard a11y. We add chevron + padding + hover. The .md-content
+   rules above target streamed assistant output specifically; this
+   is the global default for <details> outside markdown.
+   ------------------------------------------------------------------ */
+details {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-elev);
+    padding: 0 16px;
+    transition: background var(--transition);
+}
+
+summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 12px 28px 12px 0;
+    font-weight: 600;
+    font-size: 0.95rem;
+    position: relative;
+    outline: none;
+}
+
+summary::-webkit-details-marker {
+    display: none;
+}
+
+summary::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    background: currentColor;
+    -webkit-mask: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 6 15 12 9 18'/%3E%3C/svg%3E") center/contain no-repeat;
+    mask: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 6 15 12 9 18'/%3E%3C/svg%3E") center/contain no-repeat;
+    transform: translateY(-50%);
+    transition: transform var(--transition);
+}
+
+details[open] summary::after {
+    transform: translateY(-50%) rotate(90deg);
+}
+
+details> :not(summary) {
+    padding: 0 0 14px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+}
+
+/* ------------------------------------------------------------------
+   Element library — E7: Dialog (<dialog>)
+
+   Pure styling — devs call dialog.showModal() / .close() themselves.
+   Backdrop blurs the content behind so the dialog reads cleanly
+   on any theme.
+   ------------------------------------------------------------------ */
+dialog {
+    border: 1px solid var(--border);
+    background: var(--bg-elev);
+    color: var(--text);
+    border-radius: var(--radius);
+    padding: 24px;
+    max-width: min(440px, 90vw);
+    box-shadow: var(--shadow-lg);
+    font-family: inherit;
+    z-index: var(--z-modal);
+}
+
+dialog::backdrop {
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+/* ------------------------------------------------------------------
+   Element library — E8: Inline text (kbd, mark, abbr)
+
+   samp / var / small / sub / sup keep browser defaults — they
+   already render correctly. We only style the elements where the
+   native default falls short.
+   ------------------------------------------------------------------ */
+kbd {
+    font-family: var(--mono-font, "SF Mono", "JetBrains Mono", ui-monospace, monospace);
+    font-size: 0.82em;
+    padding: 2px 6px;
+    border-radius: 5px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border-strong);
+    border-bottom-width: 2px;
+    color: var(--text);
+    line-height: 1;
+    display: inline-block;
+}
+
+mark {
+    background: rgba(251, 191, 36, 0.35);
+    color: inherit;
+    padding: 1px 3px;
+    border-radius: 3px;
+}
+
+html[data-theme="dark"] mark {
+    background: rgba(251, 191, 36, 0.28);
+}
+
+abbr[title] {
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    cursor: help;
+}
+
+/* ------------------------------------------------------------------
+   Element library — E9: Block & form layout
+
+   hr, blockquote (global, outside markdown), fieldset, legend.
+   ------------------------------------------------------------------ */
+hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 18px 0;
+}
+
+blockquote {
+    border-left: 3px solid var(--accent);
+    padding: 6px 14px;
+    margin: 8px 0;
+    color: var(--text-secondary);
+    font-style: italic;
+    line-height: 1.55;
+}
+
+fieldset {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    margin: 0;
+}
+
+legend {
+    padding: 0 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+#header {
+    height: var(--header-h);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 20px;
+    position: var(--header-position);
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+}
+
+#sidebar-toggle {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    transition: background var(--transition), color var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    box-shadow: none;
+}
+
+#sidebar-toggle:hover {
+    background: var(--accent-subtle);
+    color: var(--accent);
+}
+
+#header-title {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    min-width: 0;
+}
+
+.brand-link {
+    text-decoration: none;
+    color: var(--brand);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1;
+    transition: color var(--transition);
+}
+
+#header-logo {
+    height: 36px;
+    width: auto;
+    display: block;
+}
+
+#header-slogan {
+    font-size: 14px;
+    color: var(--text);
+    font-weight: 400;
+    letter-spacing: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 600px) {
+    #header-slogan {
+        display: none;
+    }
+}
+
+#header-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#theme-toggle {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    transition: background var(--transition), color var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    box-shadow: none;
+}
+
+#theme-toggle:hover {
+    background: var(--accent-subtle);
+    color: var(--accent);
+}
+
+.theme-icon {
+    display: none;
+}
+
+html:not([data-theme="dark"]) .theme-icon-light {
+    display: block;
+}
+
+html[data-theme="dark"] .theme-icon-dark {
+    display: block;
+}
+
+#new-chat-btn {
+    background: var(--accent);
+    border: none;
+    color: var(--btn-text);
+    padding: 7px 16px;
+    border-radius: 20px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: none;
+}
+
+#new-chat-btn:hover {
+    background: var(--accent-hover);
+}
+
+#sidebar {
+    position: fixed;
+    top: var(--header-h);
+    left: 0;
+    bottom: 0;
+    width: var(--sidebar-w);
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
+    transform: translateX(-100%);
+    transition: transform var(--transition);
+    z-index: 90;
+    overflow-y: auto;
+    padding: 12px;
+}
+
+#sidebar.open {
+    transform: translateX(0);
+}
+
+#sidebar::-webkit-scrollbar {
+    width: 4px;
+}
+
+#sidebar::-webkit-scrollbar-thumb {
+    background: var(--text-secondary);
+    opacity: 0.3;
+    border-radius: 4px;
+}
+
+.convo-item {
+    padding: 10px 14px;
+    margin-bottom: 4px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.88rem;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background var(--transition);
+}
+
+.convo-item:hover,
+.convo-item:focus-visible {
+    background: var(--accent-subtle);
+    overflow-x: auto;
+    text-overflow: clip;
+    scrollbar-width: none;
+}
+
+.convo-item:hover::-webkit-scrollbar,
+.convo-item:focus-visible::-webkit-scrollbar {
+    display: none;
+}
+
+.convo-item.active {
+    background: var(--accent-subtle);
+    font-weight: 500;
+    color: var(--accent);
+    box-shadow: inset 2px 0 0 var(--brand);
+}
+
+#sidebar-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-secondary);
+    padding: 8px 14px 6px;
+    margin-top: 4px;
+}
+
+#chat-wrap {
+    position: fixed;
+    top: var(--header-h);
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    background:
+        var(--welcome-glow),
+        var(--bg);
+}
+
+#messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 40px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    max-width: var(--chat-max-w);
+    margin: 0 auto;
+    width: 100%;
+}
+
+#messages::-webkit-scrollbar {
+    width: 5px;
+}
+
+#messages::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 5px;
+}
+
+.msg {
+    /* Chat copy locked at 1.05rem for readability; chrome stays at body size. */
+    font-size: 1.05rem;
+    line-height: 1.6;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    animation: msgIn 0.3s ease-out;
+}
+
+@keyframes msgIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.msg.user {
+    align-self: flex-end;
+    max-width: var(--user-pill-max-w);
+    padding: 11px 16px;
+    background: var(--user-bubble);
+    color: var(--user-text);
+    border-radius: var(--radius) var(--radius) 6px var(--radius);
+    box-shadow: var(--shadow-sm);
+}
+
+.msg.assistant {
+    align-self: stretch;
+    color: var(--text);
+    white-space: normal;
+}
+
+/* Per-message wrapper. Holds optional pre-slot above the bubble and
+   post-slot (default actions + dev-provided HTML) below. */
+.msg-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    animation: msgIn 0.3s ease-out;
+}
+
+.msg-row-user {
+    align-items: flex-end;
+}
+
+.msg-row-assistant {
+    align-items: stretch;
+}
+
+.msg-row .msg {
+    animation: none;
+}
+
+.msg-pre,
+.msg-post {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.msg-row-user .msg-pre,
+.msg-row-user .msg-post {
+    justify-content: flex-end;
+    max-width: var(--user-pill-max-w);
+}
+
+.msg-pre:empty,
+.msg-post:empty {
+    display: none;
+}
+
+/* Default actions + dev-supplied content sit on the same row. */
+.msg-action-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: background var(--transition), color var(--transition);
+}
+
+.msg-action-btn:hover {
+    background: var(--accent-subtle);
+    color: var(--text);
+}
+
+.msg-action-btn:active {
+    transform: scale(0.96);
+}
+
+.msg-action-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.msg-action-btn.is-copied {
+    color: var(--brand);
+}
+
+/* Tooltip — appears on hover/focus, themed via tokens, no native delay. */
+.msg-action-btn[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text);
+    color: var(--bg);
+    font-size: 0.72rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--transition);
+    z-index: 10;
+}
+
+.msg-action-btn[data-tooltip]:hover::after,
+.msg-action-btn[data-tooltip]:focus-visible::after {
+    opacity: 1;
+}
+
+/* Hover-reveal on desktop; always-visible on touch (no hover state). */
+@media (hover: hover) and (pointer: fine) {
+    .msg-post {
+        opacity: 0;
+        transition: opacity var(--transition);
+    }
+
+    .msg-row:hover .msg-post,
+    .msg-row:focus-within .msg-post {
+        opacity: 1;
+    }
+}
+
+/* Long user pills collapse with a fade and a chevron toggle. The
+   toggle is positioned over the fade so it reads as part of the
+   bubble's affordance, separate from the action row below. */
+.msg.user.is-collapsed {
+    max-height: var(--user-pill-max-h);
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+}
+
+.msg-row-user {
+    position: relative;
+}
+
+/* Wrapper added by applyCollapse so the chevron is positioned relative
+   to the pill (which has max-width: var(--user-pill-max-w)), not the
+   full-width row. The wrapper inherits the bubble's right-alignment
+   and width cap so the bubble keeps its original size when nested. */
+.msg-pill-wrap {
+    position: relative;
+    width: fit-content;
+    max-width: var(--user-pill-max-w);
+    align-self: flex-end;
+}
+
+.msg-pill-wrap>.msg.user {
+    max-width: 100%;
+    align-self: auto;
+}
+
+.msg-collapse-toggle {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 8px;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    border: 1.5px solid var(--text-secondary);
+    color: var(--text);
+    border-radius: 999px;
+    cursor: pointer;
+    padding: 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    transition: background var(--transition), color var(--transition), transform var(--transition);
+}
+
+.msg-collapse-toggle:hover {
+    background: var(--accent-subtle);
+    color: var(--text);
+    transform: translateX(-50%) scale(1.05);
+}
+
+.msg-collapse-toggle svg {
+    width: 18px;
+    height: 18px;
+    stroke-width: 3;
+    transition: transform var(--transition);
+}
+
+.msg-collapse-toggle.is-expanded svg {
+    transform: rotate(180deg);
+}
+
+/* When expanded, the chevron drops just below the (now full-height) pill. */
+.msg-pill-wrap:not(.is-collapsed-wrap) .msg-collapse-toggle {
+    position: static;
+    transform: none;
+    margin: 6px auto 0;
+    display: flex;
+}
+
+.msg-pill-wrap:not(.is-collapsed-wrap) .msg-collapse-toggle:hover {
+    transform: scale(1.05);
+}
+
+.md-content a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.md-content a:visited {
+    color: inherit;
+}
+
+.md-content p {
+    margin: 0 0 0.75em;
+}
+
+.md-content p:last-child {
+    margin-bottom: 0;
+}
+
+.md-content pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin: 0.6em 0;
+    font-size: 0.92em;
+    line-height: 1.55;
+    overflow: hidden;
+}
+
+.md-content pre>code {
+    display: block;
+    padding: 12px;
+    overflow-x: auto;
+}
+
+.md-content pre.has-lang {
+    background: var(--code-bg);
+}
+
+.code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--code-header-bg);
+    border-bottom: 1px solid var(--border);
+    padding: 4px 8px 4px 12px;
+}
+
+.code-lang {
+    font-family: var(--mono-font);
+    font-size: 0.78em;
+    color: var(--text-secondary);
+    text-transform: lowercase;
+    letter-spacing: 0.02em;
+}
+
+.msg-action-btn.code-copy {
+    color: var(--text-secondary);
+}
+
+.md-content code {
+    font-family: var(--mono-font);
+    font-size: 0.92em;
+}
+
+.md-content :not(pre)>code {
+    background: var(--accent-subtle);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.md-content ul,
+.md-content ol {
+    padding-left: 1.4em;
+    margin: 0.4em 0 0.8em;
+}
+
+.md-content li {
+    margin-bottom: 0.35em;
+    line-height: 1.55;
+}
+
+.md-content li::marker {
+    color: var(--text-muted);
+}
+
+.md-content blockquote {
+    border-left: 3px solid var(--accent);
+    margin: 0.6em 0;
+    padding: 4px 12px;
+    color: var(--text-secondary);
+}
+
+.md-content h1,
+.md-content h2,
+.md-content h3 {
+    margin: 0.6em 0 0.3em;
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: -0.02em;
+}
+
+.msg.assistant h1,
+.msg.assistant h2,
+.msg.assistant h3 {
+    font-size: 1em;
+}
+
+.md-content table {
+    border-collapse: collapse;
+    margin: 0.6em 0;
+    font-size: 0.9em;
+    max-width: 100%;
+}
+
+.md-content th,
+.md-content td {
+    border: 1px solid var(--table-border);
+    padding: 6px 10px;
+}
+
+/* Keep short header labels on one line; let prose-heavy body cells
+   wrap so narrow tables don't force horizontal scrolling. The
+   wrapper around .md-content table still provides overflow-x: auto
+   for genuinely wide tables. */
+.md-content th {
+    white-space: nowrap;
+    background: var(--accent-subtle);
+    font-weight: 600;
+    text-align: left;
+}
+
+.md-content td {
+    white-space: normal;
+    overflow-wrap: break-word;
+}
+
+.md-content img,
+.md-content video {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin: 0.4em 0;
+}
+
+.md-content audio {
+    display: block;
+    max-width: 100%;
+    margin: 0.4em 0;
+}
+
+.md-content details {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin: 0.6em 0;
+    overflow: hidden;
+}
+
+.md-content details>summary {
+    cursor: pointer;
+    padding: 8px 12px;
+    background: var(--details-summary-bg);
+    list-style: none;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+
+.md-content details>summary::-webkit-details-marker {
+    display: none;
+}
+
+.md-content details>summary::before {
+    content: "";
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-left: 5px solid currentColor;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    transition: transform var(--transition);
+    flex-shrink: 0;
+}
+
+.md-content details[open]>summary::before {
+    transform: rotate(90deg);
+}
+
+.md-content details>summary:hover {
+    color: var(--text);
+}
+
+.md-content details[open]>summary {
+    border-bottom: 1px solid var(--border);
+}
+
+.md-content details>*:not(summary) {
+    padding: 10px 12px;
+}
+
+.attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.attachment-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px 4px 8px;
+    border: 1px solid var(--border-strong, var(--border));
+    border-radius: var(--radius-pill);
+    background: var(--accent-subtle);
+    font-size: 0.85em;
+    color: var(--text);
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attachment-chip svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: var(--text-secondary);
+}
+
+.status-indicator {
+    color: var(--text-secondary);
+    font-size: 0.85em;
+    font-style: italic;
+    margin-top: 0.4em;
+}
+
+#loading {
+    align-self: flex-start;
+    padding: 14px 20px;
+    display: none;
+    gap: 5px;
+}
+
+#loading.visible {
+    display: flex;
+}
+
+.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--brand);
+    opacity: 0.3;
+    animation: bounce 1.4s ease-in-out infinite;
+}
+
+.dot:nth-child(2) {
+    animation-delay: 0.16s;
+}
+
+.dot:nth-child(3) {
+    animation-delay: 0.32s;
+}
+
+@keyframes bounce {
+
+    0%,
+    80%,
+    100% {
+        opacity: 0.3;
+        transform: scale(1);
+    }
+
+    40% {
+        opacity: 1;
+        transform: scale(1.2);
+    }
+}
+
+#welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: var(--text);
+    padding: 56px 16px 24px;
+    gap: 24px;
+}
+
+#welcome-message {
+    width: min(580px, 100% - 32px);
+    text-align: center;
+}
+
+#welcome-message h1,
+#welcome-message h2,
+#welcome-message h3 {
+    font-size: 1.65rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    margin: 0 0 8px;
+    line-height: 1.25;
+}
+
+#welcome-message p {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.55;
+    margin: 0;
+}
+
+#welcome-message p+p {
+    margin-top: 0.5em;
+}
+
+#welcome-message a {
+    color: var(--text);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--border-strong);
+    transition: text-decoration-color var(--transition);
+}
+
+#welcome-message a:hover {
+    text-decoration-color: var(--text);
+}
+
+/* Suggestion chips — devs ship arbitrary HTML inside `welcome_message`.
+   Any element with [data-insert-prompt="..."] fills+focuses the textarea
+   on click. The .suggestion class gives glass styling for free. */
+#suggestions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    width: 100%;
+    margin-top: 8px;
+}
+
+@media (max-width: 480px) {
+    #suggestions {
+        grid-template-columns: 1fr;
+    }
+}
+
+.suggestion {
+    position: relative;
+    background: var(--glass-bg);
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 14px 16px;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    font-size: 0.92rem;
+    color: var(--text);
+    transition: background var(--transition), border-color var(--transition), transform 0.1s ease, box-shadow var(--transition);
+    box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-inset);
+    line-height: 1.4;
+    overflow: hidden;
+}
+
+.suggestion::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 55%);
+    opacity: 0.7;
+}
+
+html[data-theme="dark"] .suggestion::before {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 55%);
+}
+
+.suggestion:hover {
+    background: var(--glass-bg-hover);
+    border-color: var(--glass-border-hover);
+    box-shadow: var(--glass-shadow-strong), inset 0 1px 0 var(--glass-inset);
+}
+
+.suggestion:active {
+    transform: scale(0.99);
+}
+
+.suggestion-label {
+    position: relative;
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+}
+
+.suggestion-text {
+    position: relative;
+}
+
+#input-bar {
+    flex-shrink: 0;
+    background: transparent;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 12px 20px 18px;
+}
+
+#input-inner {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    width: 100%;
+    max-width: var(--chat-max-w);
+    background: var(--glass-bg);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: 8px 10px 8px 20px;
+    box-shadow:
+        var(--glass-shadow-strong),
+        inset 0 1px 0 var(--glass-inset);
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+#input-inner:focus-within {
+    border-color: var(--glass-border-hover);
+    box-shadow:
+        var(--glass-shadow-strong),
+        inset 0 1px 0 var(--glass-inset),
+        0 0 0 3px var(--accent-ring);
+}
+
+#input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: none;
+    font-size: 0.97rem;
+    font-family: inherit;
+    resize: none;
+    line-height: 1.5;
+    min-height: 0;
+    max-height: var(--input-max-h);
+    padding: 12px 0;
+    color: var(--text);
+    overflow-y: auto;
+    transition: none;
+    box-shadow: none;
+    border-radius: 0;
+}
+
+#input:focus,
+#input:disabled {
+    box-shadow: none;
+    background: none;
+    opacity: inherit;
+}
+
+#input::placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+}
+
+#send {
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--accent);
+    border: none;
+    color: var(--btn-text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--transition), transform 0.12s ease, opacity var(--transition);
+    flex-shrink: 0;
+    box-shadow: none;
+}
+
+#send svg {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+}
+
+#send:hover {
+    background: var(--accent-hover);
+}
+
+#send:active {
+    transform: scale(0.92);
+}
+
+#send:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    transform: none;
+}
+
+@media (max-width: 768px) {
+    #sidebar {
+        width: 260px;
+    }
+
+    #messages {
+        padding: 16px 24px 8px;
+    }
+
+    .msg.user {
+        max-width: 90%;
+    }
+}
+
+/* Accessibility — short-circuit every animation/transition for users who
+   opt into reduced motion at the OS level. Catches caret blink, msgIn fade,
+   dot bounce, hover transitions, theme toggle, sidebar slide, etc. */
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

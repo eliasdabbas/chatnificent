@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><!-- PAGE_TITLE --></title>
+    <!-- FAVICON_HTML -->
+    <!-- VENDOR -->
+    <!-- STYLES -->
+</head>
+
+<body>
+    <div id="header">
+        <div data-slot="header-begin"></div>
+        <button id="sidebar-toggle" aria-label="Toggle sidebar"><svg viewBox="0 0 24 24" width="22" height="22"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+            </svg></button>
+        <div id="header-title">
+            <a href="/" class="brand-link"><!-- LOGO_HTML -->
+                <div data-slot="brand"><!-- BRAND --></div>
+            </a>
+            <span id="header-slogan">
+                <div data-slot="slogan"><!-- SLOGAN --></div>
+            </span>
+        </div>
+        <div id="header-actions">
+            <button id="theme-toggle" aria-label="Toggle theme"><svg class="theme-icon theme-icon-light"
+                    viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round">
+                    <circle cx="12" cy="12" r="5" />
+                    <line x1="12" y1="1" x2="12" y2="3" />
+                    <line x1="12" y1="21" x2="12" y2="23" />
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                    <line x1="1" y1="12" x2="3" y2="12" />
+                    <line x1="21" y1="12" x2="23" y2="12" />
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg><svg class="theme-icon theme-icon-dark" viewBox="0 0 24 24" width="20" height="20" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg></button>
+            <button id="new-chat-btn"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                    stroke-width="2.2" stroke-linecap="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                </svg> New chat</button>
+        </div>
+        <div data-slot="header-end"></div>
+    </div>
+    <div id="sidebar">
+        <div data-slot="sidebar-begin"></div>
+        <div id="sidebar-label">Conversations</div>
+        <div id="convo-list"></div>
+        <div data-slot="sidebar-end"></div>
+    </div>
+    <div id="chat-wrap">
+        <div data-slot="messages-begin"></div>
+        <div id="messages">
+            <div id="welcome">
+                <div id="welcome-message" data-slot="welcome-message" class="md-content"></div>
+            </div>
+        </div>
+        <div data-slot="messages-end"></div>
+        <div id="input-bar">
+            <div id="input-inner">
+                <div data-slot="composer-attachments"></div>
+                <div data-slot="composer-leading"></div>
+                <textarea id="input" rows="1" placeholder="Send a message..."></textarea>
+                <div data-slot="composer-primary"></div>
+                <div data-slot="composer-trailing"></div>
+                <div data-slot="composer-send"><button id="send" aria-label="Send"><svg viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13" />
+                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                        </svg></button></div>
+            </div>
+        </div>
+        <div data-slot="footer-begin"></div>
+        <div data-slot="footer-end"></div>
+    </div>
+    <!-- SCRIPTS -->
+</body>
+
+</html>

@@ -407,9 +407,7 @@ Start typing below, or browse the [examples](https://github.com/eliasdabbas/chat
             slot_html[control.slot] = slot_html.get(control.slot, "") + control.html
         for slot_name, replacement in slot_html.items():
             pattern = (
-                r'<div\b[^>]*\bdata-slot="'
-                + re.escape(slot_name)
-                + r'"[^>]*>.*?</div>'
+                r'<div\b[^>]*\bdata-slot="' + re.escape(slot_name) + r'"[^>]*>.*?</div>'
             )
             html = re.sub(pattern, replacement, html, count=1, flags=re.DOTALL)
 

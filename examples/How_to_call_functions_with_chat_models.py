@@ -64,6 +64,7 @@ Then open http://127.0.0.1:7777 and try:
 import json
 import urllib.parse
 import urllib.request
+from typing import Literal
 
 import chatnificent as chat
 
@@ -114,7 +115,9 @@ def _geocode(location: str) -> tuple:
     return results[0]["latitude"], results[0]["longitude"]
 
 
-def get_current_weather(location: str, format: str = "celsius") -> str:
+def get_current_weather(
+    location: str, format: Literal["celsius", "fahrenheit"] = "celsius"
+) -> str:
     """Get the current weather for a location.
 
     Parameters
@@ -148,7 +151,9 @@ def get_current_weather(location: str, format: str = "celsius") -> str:
 
 
 def get_n_day_weather_forecast(
-    location: str, num_days: int, format: str = "celsius"
+    location: str,
+    num_days: int,
+    format: Literal["celsius", "fahrenheit"] = "celsius",
 ) -> str:
     """Get an N-day weather forecast for a location.
 
@@ -186,6 +191,26 @@ def get_n_day_weather_forecast(
     return f"{num_days}-day forecast for {location}:\n" + "\n".join(lines)
 
 
+welcome_message = """## Tool/function calling with `Chatnificent`
+
+This is a production implementation of the [OpenAI Cookbook example](https://github.com/openai/openai-cookbook/blob/main/examples/How_to_call_functions_with_chat_models.ipynb)
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="What's the weather like in Lisbon?">
+    <span class="suggestion-label">Simple</span>
+    <span class="suggestion-text">What's the weather like in Lisbon?</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="What's the seven-day forecast for Cairo?">
+    <span class="suggestion-label">Forecast</span>
+    <span class="suggestion-text">Seven-day forecast for Cairo?</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="In which city is it raining today: Rio de Janeiro, Tokyo, Helsinki?">
+    <span class="suggestion-label">Advanced</span>
+    <span class="suggestion-text">Where is it raining today?</span>
+  </button>
+</div>"""
+
+
 class WeatherAI(chat.llm.OpenAI):
     def generate_response(self, messages, **kwargs):
         if not messages or messages[0].get("role") != "system":
@@ -200,6 +225,7 @@ tools.register_function(get_n_day_weather_forecast)
 app = chat.Chatnificent(
     llm=WeatherAI(),
     tools=tools,
+    layout=chat.layout.Default(welcome_message=welcome_message),
 )
 
 if __name__ == "__main__":

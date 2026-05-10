@@ -929,7 +929,32 @@ class MultiChatModeLayout(chat.layout.Default):
             + SEARCH_STUDIO_HTML
             + '<div id="input-bar">',
         )
-        return html.replace("</body>", PILLS_SCRIPT + "\n</body>")
+        # Splice the pills as raw HTML into the welcome-message div. The
+        # `welcome_message` kwarg can't be used here because the framework
+        # pipes it through DOMPurify, which strips the inline <style> block
+        # and most of the per-pill markup the picker depends on.
+        html = _re.sub(
+            r'(<div\b[^>]*\bid="welcome-message"[^>]*>)\s*</div>',
+            lambda m: m.group(1) + PILLS_HTML + "</div>",
+            html,
+            count=1,
+        )
+        # Neutralize the framework's per-instance welcome-message injection
+        # script — it would overwrite #welcome-message via renderMarkdown()
+        # on DOMContentLoaded, wiping the pills we just spliced in.
+        html = _re.sub(
+            r"<script>\s*document\.addEventListener\('DOMContentLoaded',\s*function\(\)\s*\{\s*var _wm = document\.getElementById\('welcome-message'\).*?</script>",
+            "",
+            html,
+            count=1,
+            flags=_re.DOTALL,
+        )
+        # rsplit, not str.replace: DOMPurify's minified source contains the
+        # string literal "</body></html>", and a naive replace would splice
+        # PILLS_SCRIPT (which itself contains </script>) inside the vendored
+        # DOMPurify <script> tag, breaking the entire framework bundle.
+        head, _, tail = html.rpartition("</body>")
+        return head + PILLS_SCRIPT + "\n</body>" + tail
 
 
 # --- TTS LLM -----------------------------------------------------------------
@@ -1512,7 +1537,6 @@ app = chat.Chatnificent(
     layout=MultiChatModeLayout(
         brand="Chatnificent",
         slogan="Single App, Multiple Chat Modes",
-        welcome_message=PILLS_HTML,
         controls=CONTROLS,
     ),
 )

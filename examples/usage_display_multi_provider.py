@@ -150,11 +150,33 @@ def _looks_like_usage(value: dict) -> bool:
     )
 
 
+WELCOME_MESSAGE = """## Token usage across providers
+
+Each provider \u2014 OpenAI, Anthropic, Gemini \u2014 reports usage in its own shape, but the layout normalizes them all into the same `\u2191 prompt + \u2193 completion = total` line beneath each assistant turn (visible **after a page refresh**).
+
+To compare providers, send the **same prompt**, then stop the server, swap the active `llm=` line in `examples/usage_display_multi_provider.py`, and rerun. Each run writes to its own `usage_demo_multi/<provider>/` directory \u2014 so all three transcripts stay side-by-side.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="Explain quantum entanglement in 3 sentences.">
+    <span class="suggestion-label">SHORT</span>
+    <span class="suggestion-text">Compact answer \u2014 small token bills.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Write a 200-word essay on the future of programming.">
+    <span class="suggestion-label">LONG</span>
+    <span class="suggestion-text">Bigger answer \u2014 watch the gap widen.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="List 10 prime numbers between 100 and 200, then briefly explain why each is prime.">
+    <span class="suggestion-label">STRUCTURED</span>
+    <span class="suggestion-text">Mixed reasoning + listing.</span>
+  </button>
+</div>"""
+
+
 app = chat.Chatnificent(
     llm=chat.llm.OpenAI(stream_options={"include_usage": True}),
     # llm=chat.llm.Gemini(),
     # llm=chat.llm.Anthropic(),
-    layout=UsageLayout(),
+    layout=UsageLayout(welcome_message=WELCOME_MESSAGE),
     store=chat.store.File(base_dir=BASE_DIR),
 )
 

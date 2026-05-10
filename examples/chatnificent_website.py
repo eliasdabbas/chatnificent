@@ -60,6 +60,7 @@ import chatnificent as chat
 from starlette.applications import Starlette
 from starlette.responses import HTMLResponse, Response
 from starlette.routing import Mount, Route
+from starlette.staticfiles import StaticFiles
 
 EXAMPLES_DIR = Path(__file__).parent.resolve()
 # Where File/SQLite stores and uploaded files for mounted examples are written.
@@ -69,6 +70,38 @@ DATA_ROOT = Path(os.environ.get("CHATNIFICENT_WEBSITE_DATA", "examples_hub_data"
 WEBSITE_FILENAME = "chatnificent_website.py"
 MEMORY_TOOL_STEM = "memory_tool"
 IMAGE_STUDIO_STEM = "openai_responses_image_studio"
+MULTI_CHAT_MODE_STEM = "single_app_multi_chat_mode"
+
+# Curated showcase. Only these example stems are mounted on the public website.
+# The rest live in /examples for developers to read and run standalone via
+# ``uv run --script examples/<name>.py`` (each example declares its own deps
+# in its PEP 723 header). Add a stem here once the example is ready to ship
+# behind a hosted URL.
+#
+# Showcase rule of thumb (see new_chips_plan.md): an example earns its slot
+# only if a visitor clicking through the hosted UI can *see or feel* something
+# different from the baseline chat. Examples that swap providers, auth,
+# transport, or APIs behind the scenes — but render an identical chat — stay
+# in /examples/ as code references and are deliberately excluded here.
+INCLUDED_EXAMPLES = {
+    "quickstart",
+    "tool_calling",
+    "How_to_call_functions_with_chat_models",
+    "system_prompt",
+    "multi_tool_agent",
+    "memory_tool",
+    "auto_title",
+    "usage_display",
+    "conversation_summary",
+    "web_search",
+    "display_redaction",
+    "openai_responses_website_search",
+    "openai_responses_image_generator",
+    "openai_responses_image_studio",
+    "openai_responses_interactive_search",
+    "ui_interactions",
+    "single_app_multi_chat_mode",
+}
 
 
 def build_site(example_paths=None, data_root=DATA_ROOT):
@@ -102,7 +135,14 @@ def build_site(example_paths=None, data_root=DATA_ROOT):
     async def landing_page(request):
         return HTMLResponse(_render_landing_page(mounted_examples, failed_examples))
 
-    app = Starlette(routes=[Route("/", landing_page), *routes])
+    docs_site = EXAMPLES_DIR.parent / "docs" / "site"
+    extra_routes = []
+    if docs_site.is_dir():
+        extra_routes.append(
+            Mount("/docs", app=StaticFiles(directory=str(docs_site), html=True))
+        )
+
+    app = Starlette(routes=[Route("/", landing_page), *routes, *extra_routes])
     return app, mounted_examples, failed_examples
 
 
@@ -142,12 +182,18 @@ def _discover_example_paths(example_paths=None):
 
 
 def _is_mountable_example(path):
-    """Filter out non-example and Starlette-only entrypoints."""
+    """Filter out non-example and Starlette-only entrypoints.
+
+    Only stems explicitly listed in :data:`INCLUDED_EXAMPLES` are mounted.
+    The rest live in ``/examples`` for developers to read and run standalone
+    via ``uv run --script examples/<name>.py``.
+    """
     return (
         path.suffix == ".py"
         and path.name != WEBSITE_FILENAME
         and path.name != "test_examples.py"
         and not path.stem.startswith("starlette_")
+        and path.stem in INCLUDED_EXAMPLES
     )
 
 
@@ -169,6 +215,8 @@ def _load_example(path, slug, data_root):
 
     if path.stem == IMAGE_STUDIO_STEM:
         _adapt_image_studio(module, child_app, slug)
+    elif path.stem == MULTI_CHAT_MODE_STEM:
+        _adapt_multi_chat_mode(module, child_app, slug)
     else:
         _reject_unsupported_mounts(source, child_app)
         _attach_starlette_server(child_app)
@@ -273,8 +321,14 @@ def _file_store_dir(data_root, slug):
 
 
 def _sqlite_store_path(data_root, slug):
-    """Return the per-example SQLite database path."""
-    return Path(data_root) / slug / "app.db"
+    """Return the per-example SQLite database path.
+
+    SQLite store does not create its parent directory, so we ensure it exists
+    here (and in :func:`_remapped_store_constructors`) before returning.
+    """
+    path = Path(data_root) / slug / "app.db"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def _remap_store(app, slug, data_root):
@@ -413,6 +467,85 @@ def _adapt_image_studio(module, app, slug):
 
     app.engine = MountedImageStudioEngine(mount_prefix)
     app.engine.app = app
+    _attach_starlette_server(
+        app,
+        routes=[
+            Route(
+                "/files/{user_id:str}/{convo_id:str}/{filename:path}",
+                serve_file,
+                methods=["GET"],
+            )
+        ],
+    )
+
+
+def _adapt_multi_chat_mode(module, app, slug):
+    """Mount-aware adapter for ``single_app_multi_chat_mode.py``.
+
+    The example writes ``/files/<user>/<convo>/...`` URLs into saved message
+    HTML and the layout's JS hardcodes ``/files/`` and a ``/<user>/<convo>``
+    URL regex \u2014 all assume the app is at the site root. When the example is
+    mounted under ``/chat/<slug>/`` we need every URL to carry that prefix.
+    """
+    import types
+
+    mount_prefix = f"/chat/{slug}"
+
+    # 1. Patch render_page() so emitted JS / HTML uses the mounted prefix.
+    layout = app.layout
+    original_render_page = layout.render_page
+    prefix_pattern = mount_prefix.replace("/", "\\/")
+
+    def patched_render_page():
+        html = original_render_page()
+        html = html.replace("'/files/", f"'{mount_prefix}/files/")
+        html = html.replace('"/files/', f'"{mount_prefix}/files/')
+        # The example's convo-detection regex assumes the URL is /<user>/<convo>;
+        # under the mount it becomes /chat/<slug>/<user>/<convo>.
+        html = html.replace(
+            "/^\\/?([^\\/]+)\\/([^\\/]+)\\/?$/",
+            f"/^{prefix_pattern}\\/([^\\/]+)\\/([^\\/]+)\\/?$/",
+        )
+        return html
+
+    layout.render_page = patched_render_page
+
+    # 2. Patch _rewrite_artifacts so saved <img>/<audio> src URLs carry the prefix.
+    original_rewrite = app.engine._rewrite_artifacts
+
+    def rewrite_with_prefix(self, content, user_id, convo_id):
+        result = original_rewrite(content, user_id, convo_id)
+        return result.replace(
+            f"/files/{user_id}/{convo_id}/",
+            f"{mount_prefix}/files/{user_id}/{convo_id}/",
+        )
+
+    app.engine._rewrite_artifacts = types.MethodType(rewrite_with_prefix, app.engine)
+
+    # 3. Expose a Starlette /files/<user>/<convo>/<filename> route.
+    file_mime = getattr(module, "_FILE_MIME", {})
+
+    async def serve_file(request):
+        user_id = request.path_params["user_id"]
+        convo_id = request.path_params["convo_id"]
+        filename = request.path_params["filename"]
+        if ".." in filename or "\\" in filename or filename.startswith("/"):
+            return Response(status_code=400)
+        session_id = request.cookies.get("chatnificent_session")
+        current_user = app.auth.get_current_user_id(session_id=session_id)
+        if user_id != current_user:
+            return Response(status_code=403)
+        data = app.store.load_file(user_id, convo_id, filename)
+        if not data:
+            return Response(status_code=404)
+        ext = filename.rsplit(".", 1)[-1].lower()
+        content_type = file_mime.get(ext, "application/octet-stream")
+        return Response(
+            data,
+            media_type=content_type,
+            headers={"Cache-Control": "private, max-age=3600"},
+        )
+
     _attach_starlette_server(
         app,
         routes=[

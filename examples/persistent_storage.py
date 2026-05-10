@@ -78,10 +78,30 @@ What to Explore Next
 
 import chatnificent as chat
 
+welcome_message = """## Conversations that survive restarts
+
+The whole conversation is saved to disk. Stop the server (`Ctrl-C`), restart it — your chat history is still here in the sidebar.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="Plan a 3-day weekend trip to Porto.">
+    <span class="suggestion-label">CHAT</span>
+    <span class="suggestion-text">Plan a 3-day weekend trip to Porto.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Now draft a packing list for that trip.">
+    <span class="suggestion-label">DRAFT</span>
+    <span class="suggestion-text">Continue working on the same chat.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Restart the server, then ask me to keep planning where we left off.">
+    <span class="suggestion-label">REVISIT</span>
+    <span class="suggestion-text">Pick up later, after a restart.</span>
+  </button>
+</div>"""
+
 app = chat.Chatnificent(
     store=chat.store.File(base_dir="./conversations"),
     # Or use SQLite instead:
     # store=chat.store.SQLite(db_path="chats.db"),
+    layout=chat.layout.Default(welcome_message=welcome_message),
 )
 
 if __name__ == "__main__":

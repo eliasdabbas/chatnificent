@@ -162,6 +162,27 @@ async def not_found(request: Request, exc: Exception) -> JSONResponse:
 # Build the app with all options
 # ---------------------------------------------------------------------------
 
+welcome_message = """## Configuring `chat.server.Starlette()`
+
+Same Starlette transport \u2014 this example demonstrates the constructor kwargs:
+
+```python
+app = chat.Chatnificent(
+    server=chat.server.Starlette(
+        debug=True,
+        routes=[Route("/api/health", health_check), ...],
+        middleware=[
+            Middleware(CORSMiddleware, allow_origins=["*"], ...),
+            Middleware(TimingMiddleware),
+        ],
+        exception_handlers={404: not_found},
+        lifespan=lifespan,
+    ),
+)
+```
+
+Try `/api/health` and `/api/version` \u2014 those are the custom routes mounted before Chatnificent's framework routes."""
+
 app = chat.Chatnificent(
     server=chat.server.Starlette(
         debug=True,
@@ -181,6 +202,7 @@ app = chat.Chatnificent(
         exception_handlers={404: not_found},
         lifespan=lifespan,
     ),
+    layout=chat.layout.Default(welcome_message=welcome_message),
 )
 
 if __name__ == "__main__":

@@ -73,7 +73,29 @@ class PirateAI(chat.llm.OpenAI):
         return super().generate_response(messages, **kwargs)
 
 
-app = chat.Chatnificent(llm=PirateAI())
+welcome_message = """## Avast! A pirate captain at the helm 🏴‍☠️
+
+The LLM has been bent to a system prompt that turns every reply into pirate-speak. Same model under the hood — just a strong character forced in front of the conversation.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="How do I get to the nearest treasure?">
+    <span class="suggestion-label">QUEST</span>
+    <span class="suggestion-text">How do I get to the nearest treasure?</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Explain Python decorators in pirate-speak.">
+    <span class="suggestion-label">CODE</span>
+    <span class="suggestion-text">Python decorators, pirate-style.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Recommend a beach for a long voyage.">
+    <span class="suggestion-label">VOYAGE</span>
+    <span class="suggestion-text">Where shall we set sail?</span>
+  </button>
+</div>"""
+
+app = chat.Chatnificent(
+    llm=PirateAI(),
+    layout=chat.layout.Default(welcome_message=welcome_message),
+)
 # app = chat.Chatnificent(llm=chat.llm.Anthropic(system=PIRATE_PROMPT))
 # app = chat.Chatnificent(llm=chat.llm.Gemini(system_instruction=PIRATE_PROMPT))
 

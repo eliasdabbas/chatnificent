@@ -61,7 +61,29 @@ What to Explore Next
 
 import chatnificent as chat
 
-app = chat.Chatnificent(llm=chat.llm.OpenRouter(model="moonshotai/kimi-k2.5"))
+welcome_message = """## Many models, one API
+
+OpenRouter is one API that proxies your request to one of [hundreds of models](https://openrouter.ai/models). Try changing `model=` in `chat.llm.OpenRouter(model=...)` and rerun — e.g. `openai/gpt-4o-mini`, `anthropic/claude-3.5-haiku`, `meta-llama/llama-3.3-70b-instruct`.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="Refactor this Python: def f(x): return [i*2 for i in x if i%2==0]">
+    <span class="suggestion-label">CODE</span>
+    <span class="suggestion-text">Refactor a small Python function.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Explain BGP routing to a backend developer in 4 sentences.">
+    <span class="suggestion-label">EXPLAIN</span>
+    <span class="suggestion-text">BGP routing in plain English.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Write a 240-character launch tweet for a chat framework called Chatnificent.">
+    <span class="suggestion-label">CREATE</span>
+    <span class="suggestion-text">Product-launch tweet.</span>
+  </button>
+</div>"""
+
+app = chat.Chatnificent(
+    llm=chat.llm.OpenRouter(model="moonshotai/kimi-k2.5"),
+    layout=chat.layout.Default(welcome_message=welcome_message),
+)
 
 if __name__ == "__main__":
     app.run()

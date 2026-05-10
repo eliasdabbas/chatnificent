@@ -79,7 +79,31 @@ control = chat.layout.Control(
     cast=int,
 )
 
-app = chat.Chatnificent(layout=chat.layout.Default(controls=[control]))
+welcome_message = """## UI controls bound to LLM kwargs
+
+The dropdown above the messages directly controls `max_completion_tokens`. Pick a small cap, send a long-form prompt, then change to a larger cap and resend the **same** prompt — the answer length tracks the dropdown live.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="Set the dropdown to a small cap, then send: &quot;Explain how an espresso machine works in detail.&quot;">
+    <span class="suggestion-label">SHORT</span>
+    <span class="suggestion-text">Test a small token cap.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Now bump the dropdown up and resend the same prompt to see a richer answer.">
+    <span class="suggestion-label">MEDIUM</span>
+    <span class="suggestion-text">Same prompt, more room.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Write a poem about coffee — try multiple dropdown values to feel the cap.">
+    <span class="suggestion-label">POEM</span>
+    <span class="suggestion-text">Watch the cap mid-stream.</span>
+  </button>
+</div>"""
+
+app = chat.Chatnificent(
+    layout=chat.layout.Default(
+        controls=[control],
+        welcome_message=welcome_message,
+    )
+)
 
 if __name__ == "__main__":
     app.run()

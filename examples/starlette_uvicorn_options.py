@@ -181,8 +181,27 @@ What to Explore Next
 
 import chatnificent as chat
 
+welcome_message = """## Configuring how uvicorn boots the app
+
+Same chat, same Starlette server — this example tweaks how uvicorn boots the app:
+
+```python
+app = chat.Chatnificent(server=chat.server.Starlette())
+
+if __name__ == "__main__":
+    app.run(
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        reload_dirs=["src"],
+    )
+```
+
+All kwargs are forwarded straight to `uvicorn.run()` — see the docstring at the top for SSL, workers, timeouts, and request limits."""
+
 app = chat.Chatnificent(
     server=chat.server.Starlette(),
+    layout=chat.layout.Default(welcome_message=welcome_message),
 )
 
 if __name__ == "__main__":

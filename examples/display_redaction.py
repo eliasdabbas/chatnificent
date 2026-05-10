@@ -139,9 +139,29 @@ class RedactionLayout(chat.layout.Default):
         return rendered
 
 
+WELCOME_MESSAGE = """## Display-time redaction
+
+The LLM sees the raw text, but the layout redacts emails, phone numbers, and credit-card patterns at render time — only when you **refresh the page**. The first stream comes through raw so you can see what's being redacted.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="My email is alice@example.com and my number is +1 (555) 123-4567 — quote them back to me.">
+    <span class="suggestion-label">CONTACT</span>
+    <span class="suggestion-text">Redact email and phone.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="My credit card is 4111 1111 1111 1111 — confirm it back.">
+    <span class="suggestion-label">CARD</span>
+    <span class="suggestion-text">Redact a credit-card number.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Reply with this exact text: 'Contact bob@acme.io at 415-555-0100, card 5500 0000 0000 0004.'">
+    <span class="suggestion-label">MIX</span>
+    <span class="suggestion-text">All three redactions in one line.</span>
+  </button>
+</div>"""
+
+
 app = chat.Chatnificent(
     llm=chat.llm.Anthropic(),
-    layout=RedactionLayout(),
+    layout=RedactionLayout(welcome_message=WELCOME_MESSAGE),
     store=chat.store.File(base_dir="display_redaction_convos"),
 )
 

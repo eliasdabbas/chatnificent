@@ -74,8 +74,28 @@ What to Explore Next
 
 import chatnificent as chat
 
+welcome_message = """## Local LLM via Ollama
+
+This chat runs **entirely offline** — no API key, no network calls, your data never leaves the laptop. Make sure Ollama is running first (`ollama serve`).
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="Say hi and tell me which model you are.">
+    <span class="suggestion-label">HELLO</span>
+    <span class="suggestion-text">Say hi and tell me which model you are.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Write a Python one-liner that sums even numbers from 1 to 100.">
+    <span class="suggestion-label">CODE</span>
+    <span class="suggestion-text">Tiny Python one-liner.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Write a haiku about running an LLM on a laptop.">
+    <span class="suggestion-label">WRITE</span>
+    <span class="suggestion-text">Haiku about running an LLM locally.</span>
+  </button>
+</div>"""
+
 app = chat.Chatnificent(
     llm=chat.llm.Ollama(model="llama3.2"),
+    layout=chat.layout.Default(welcome_message=welcome_message),
 )
 
 if __name__ == "__main__":

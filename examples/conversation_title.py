@@ -134,12 +134,32 @@ class ConversationTitleLayout(chat.layout.Default):
         return rendered
 
 
+WELCOME_MESSAGE = """## Auto-titled conversations (sidecar file)
+
+After every assistant reply, the engine fires a *second* LLM request to generate a fresh title and saves it to a `conversation_title.txt` sidecar. The sidebar reads that file on page load — **refresh after the reply** to see the title update.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="Plan a 3-day trip to Lisbon for a foodie.">
+    <span class="suggestion-label">TRAVEL</span>
+    <span class="suggestion-text">Distinct topic 1.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Help me debug a Python TypeError in a list comprehension.">
+    <span class="suggestion-label">CODE</span>
+    <span class="suggestion-text">Distinct topic 2.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Explain CRDTs to a junior developer.">
+    <span class="suggestion-label">TEACH</span>
+    <span class="suggestion-text">Distinct topic 3.</span>
+  </button>
+</div>"""
+
+
 app = chat.Chatnificent(
     llm=chat.llm.OpenAI(),
     # llm=chat.llm.Anthropic(),
     # llm=chat.llm.Gemini(),
     engine=ConversationTitleEngine(),
-    layout=ConversationTitleLayout(),
+    layout=ConversationTitleLayout(welcome_message=WELCOME_MESSAGE),
     store=chat.store.File(base_dir="convo_titles"),
 )
 

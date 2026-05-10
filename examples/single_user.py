@@ -59,10 +59,30 @@ What to Explore Next
 
 import chatnificent as chat
 
+welcome_message = """## Your personal AI chat
+
+`SingleUser` auth + SQLite means there's exactly one user — you. The URL stays the same no matter where you connect from. Open this in a second browser, your phone, or an incognito window: same conversations, same history.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="Help me draft a 3-bullet daily standup update.">
+    <span class="suggestion-label">WORK</span>
+    <span class="suggestion-text">Draft today's standup.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Plan my week given these tasks: design review Monday, demo Wednesday, retro Friday.">
+    <span class="suggestion-label">PLAN</span>
+    <span class="suggestion-text">Plan the week.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Open this URL in another browser — you'll see the same conversation list because there's only one user.">
+    <span class="suggestion-label">VERIFY</span>
+    <span class="suggestion-text">Same identity everywhere.</span>
+  </button>
+</div>"""
+
 app = chat.Chatnificent(
     auth=chat.auth.SingleUser(user_id="elias"),
     store=chat.store.SQLite(db_path="my_chats.db"),
     llm=chat.llm.OpenAI(),
+    layout=chat.layout.Default(welcome_message=welcome_message),
 )
 
 if __name__ == "__main__":

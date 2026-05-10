@@ -62,19 +62,30 @@ import chatnificent as chat
 # required. Any URL the browser can fetch works here (https://, relative, etc).
 LOGO = """data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='10' fill='%23ff6b35'/><text x='12' y='17' text-anchor='middle' font-size='14' font-family='sans-serif' font-weight='700' fill='white'>A</text></svg>"""
 
-WELCOME = """
-## Welcome to Acme Support 👋
+WELCOME = """## Custom branding via kwargs
 
-How can we help you today? Common topics:
+The whole UI you see was built with a few kwargs to `chat.layout.Default`. Even this welcome card and the chips below were defined inline:
 
-- **Order status** — find a recent order
-- **Returns & refunds** — start a return
-- **Account help** — login, billing, settings
+```python
+chat.Chatnificent(
+    layout=chat.layout.Default(
+        brand="Acme Support",
+        slogan="We're here to help",
+        welcome_message=WELCOME,
+    ),
+)
+```
 
-### Other options
-
-Or just type your question below. A real person is one click away if you'd
-rather [talk to a human](https://example.com/contact)."""
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="Where is my recent order?">
+    <span class="suggestion-label">ORDER</span>
+    <span class="suggestion-text">Where is my recent order?</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="How do I start a return?">
+    <span class="suggestion-label">RETURN</span>
+    <span class="suggestion-text">How do I start a return?</span>
+  </button>
+</div>"""
 
 
 app = chat.Chatnificent(

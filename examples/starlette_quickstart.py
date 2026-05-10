@@ -67,8 +67,21 @@ What to Explore Next
 
 import chatnificent as chat
 
+welcome_message = """## Quickstart, on Starlette
+
+The chat is identical to `quickstart.py` — only the transport changes. Swap `DevServer` (the default) for `chat.server.Starlette()`:
+
+```python
+app = chat.Chatnificent(server=chat.server.Starlette())
+
+# Run with: uvicorn examples.starlette_quickstart:app --reload
+```
+
+That's it — same UI, now production-ready."""
+
 app = chat.Chatnificent(
     server=chat.server.Starlette(),
+    layout=chat.layout.Default(welcome_message=welcome_message),
 )
 
 

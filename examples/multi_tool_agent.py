@@ -135,9 +135,29 @@ tools.register_function(roll_dice)
 tools.register_function(get_current_time)
 tools.register_function(calculate_bmi)
 
+welcome_message = """## Multi-tool agent
+
+Four Python functions — `get_weather`, `roll_dice`, `get_current_time`, `calculate_bmi` — are all visible to the LLM at once. It picks the right one (or chains a few) based on what you ask.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="What's the weather in Lisbon and what time is it there?">
+    <span class="suggestion-label">CHAIN</span>
+    <span class="suggestion-text">Two tools in one answer.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Roll 4d20 and tell me the average.">
+    <span class="suggestion-label">ROLL</span>
+    <span class="suggestion-text">Roll some dice and crunch the result.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="My weight is 70kg and height 1.75m. What's my BMI?">
+    <span class="suggestion-label">CALC</span>
+    <span class="suggestion-text">Calculate a BMI.</span>
+  </button>
+</div>"""
+
 app = chat.Chatnificent(
     llm=chat.llm.OpenAI(),
     tools=tools,
+    layout=chat.layout.Default(welcome_message=welcome_message),
 )
 
 if __name__ == "__main__":

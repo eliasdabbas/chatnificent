@@ -95,9 +95,29 @@ class UsageLayout(chat.layout.Default):
         return rendered
 
 
+WELCOME_MESSAGE = """## Token usage visible in transcript
+
+Every assistant turn ends with a usage line showing input/output token counts. **Refresh after each reply** to see the usage block render under the message.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="What's 2+2?">
+    <span class="suggestion-label">SHORT</span>
+    <span class="suggestion-text">Tiny prompt.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Summarize the plot of Hamlet in one paragraph.">
+    <span class="suggestion-label">MEDIUM</span>
+    <span class="suggestion-text">A paragraph response.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Write a 200-word essay on the future of programming.">
+    <span class="suggestion-label">LONG</span>
+    <span class="suggestion-text">A bigger response.</span>
+  </button>
+</div>"""
+
+
 app = chat.Chatnificent(
     llm=chat.llm.OpenAI(stream_options={"include_usage": True}),
-    layout=UsageLayout(),
+    layout=UsageLayout(welcome_message=WELCOME_MESSAGE),
     store=chat.store.File(base_dir=BASE_DIR),
 )
 

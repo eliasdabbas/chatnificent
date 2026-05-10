@@ -130,12 +130,32 @@ def memory(command: str, filename: str = "", content: str = "") -> str:
 tools = chat.tools.PythonTool()
 tools.register_function(memory)
 
+welcome_message = """## Per-user memory
+
+Each browser session is its own user with its own private memory store. To see isolation: save a fact here, then open this URL in a **second browser** (or an incognito window) and ask the same question — you'll get a clean slate.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="Remember I'm allergic to peanuts.">
+    <span class="suggestion-label">USER A</span>
+    <span class="suggestion-text">Save a fact in this browser.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Open this URL in an incognito window, then send: &quot;Remember I'm a vegetarian.&quot;">
+    <span class="suggestion-label">USER B</span>
+    <span class="suggestion-text">In a second browser, save a different fact.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="What dietary restrictions do I have?">
+    <span class="suggestion-label">CHECK</span>
+    <span class="suggestion-text">Each user only sees their own facts.</span>
+  </button>
+</div>"""
+
 app = chat.Chatnificent(
     # llm=chat.llm.Anthropic(system=SYSTEM_PROMPT),
     llm=chat.llm.Gemini(system_instruction=SYSTEM_PROMPT),
     tools=tools,
     auth=UserAwareAuth(),
     store=chat.store.File("memory_chats"),
+    layout=chat.layout.Default(welcome_message=welcome_message),
 )
 
 if __name__ == "__main__":

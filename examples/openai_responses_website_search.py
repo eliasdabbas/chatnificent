@@ -145,6 +145,26 @@ class OpenAIResponses(chat.llm.OpenAI):
         )
 
 
+welcome_message = """## Domain-restricted web research
+
+Hosted web search, scoped to whitelisted domains. Every answer ends with a collapsible **Sources** section listing the citation URLs.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="What does Python's asyncio.gather do? Cite the official docs.">
+    <span class="suggestion-label">DOCS</span>
+    <span class="suggestion-text">Read official docs.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="What's new in the latest Python release? Cite cpython.org.">
+    <span class="suggestion-label">NEWS</span>
+    <span class="suggestion-text">A recent change, with citation.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="What's the HTTP status code for 'Too Many Requests'? Cite the spec.">
+    <span class="suggestion-label">REF</span>
+    <span class="suggestion-text">Look up a spec value.</span>
+  </button>
+</div>"""
+
+
 app = chat.Chatnificent(
     llm=OpenAIResponses(
         tools=[
@@ -154,7 +174,8 @@ app = chat.Chatnificent(
             }
         ],
         tool_choice="required",
-    )
+    ),
+    layout=chat.layout.Default(welcome_message=welcome_message),
 )
 
 

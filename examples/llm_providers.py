@@ -96,9 +96,31 @@ llm = chat.llm.OpenAI()
 # llm = chat.llm.Anthropic()
 # llm = chat.llm.Gemini()
 
-# ── App ────────────────────────────────────────────────────────────────────
+welcome_message = """## Three providers, one chat
 
-app = chat.Chatnificent(llm=llm)
+The LLM pillar is pluggable — swap providers by changing one line in the source. Each one supports streaming, tool calls, and the same message format. Try a prompt below to see the active provider in action.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="Say hi and tell me which model and provider you are.">
+    <span class="suggestion-label">HELLO</span>
+    <span class="suggestion-text">Say hi and tell me which model and provider you are.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Compare OpenAI, Anthropic, and Gemini in 3 sentences each.">
+    <span class="suggestion-label">COMPARE</span>
+    <span class="suggestion-text">Compare OpenAI, Anthropic, and Gemini.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Write a Python function that returns the nth Fibonacci number.">
+    <span class="suggestion-label">CODE</span>
+    <span class="suggestion-text">Write a Fibonacci function in Python.</span>
+  </button>
+</div>"""
+
+# ── App ───────────────────────────────────────────────────────────────────
+
+app = chat.Chatnificent(
+    llm=llm,
+    layout=chat.layout.Default(welcome_message=welcome_message),
+)
 
 if __name__ == "__main__":
     app.run()

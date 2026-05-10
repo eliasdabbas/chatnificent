@@ -118,12 +118,33 @@ class OpenAIResponses(chat.llm.OpenAI):
         return f"\n\n![Generated image](data:image/png;base64,{result})\n\n"
 
 
+welcome_message = """## Inline image generation
+
+Every turn produces an image with an explanatory caption — the model riffs on prior context, so follow-ups like "now in pastel" or "same scene at night" work as expected.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="A still life of three lemons on a wooden table, soft window light.">
+    <span class="suggestion-label">STILL LIFE</span>
+    <span class="suggestion-text">Simple subject.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="An overhead view of a quiet Lisbon tram street at golden hour.">
+    <span class="suggestion-label">CITY</span>
+    <span class="suggestion-text">A specific place.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="An abstract composition in coral and teal, geometric, minimal.">
+    <span class="suggestion-label">ABSTRACT</span>
+    <span class="suggestion-text">Pure style.</span>
+  </button>
+</div>"""
+
+
 app = chat.Chatnificent(
     llm=OpenAIResponses(
         tools=[{"type": "image_generation"}],
         # tool_choice="required",
     ),
     store=chat.store.File(base_dir="openai_responses"),
+    layout=chat.layout.Default(welcome_message=welcome_message),
 )
 
 

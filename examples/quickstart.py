@@ -44,7 +44,24 @@ What to Explore Next
 
 import chatnificent as chat
 
-app = chat.Chatnificent()
+welcome_message = """## Welcome to Chatnificent
+
+This is the **zero-dependency quickstart** running the `Echo` LLM — a mock that just mirrors your message back. Perfect for kicking the tires on the UI before plugging in a real provider.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="Hello, Chatnificent!">
+    <span class="suggestion-label">HELLO</span>
+    <span class="suggestion-text">Hello, Chatnificent!</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Echo this message back to me word-for-word.">
+    <span class="suggestion-label">ECHO</span>
+    <span class="suggestion-text">Echo this message back to me word-for-word.</span>
+  </button>
+</div>"""
+
+app = chat.Chatnificent(
+    layout=chat.layout.Default(welcome_message=welcome_message),
+)
 
 if __name__ == "__main__":
     app.run()

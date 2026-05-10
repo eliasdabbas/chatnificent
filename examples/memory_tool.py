@@ -121,11 +121,31 @@ def memory(command: str, filename: str = "", content: str = "") -> str:
 tools = chat.tools.PythonTool()
 tools.register_function(memory)
 
+welcome_message = """## Persistent LLM memory
+
+Tell the LLM a fact, then **start a new conversation** (the `+` button in the sidebar) and ask about it — the memory persists across conversations because it lives in a separate memory store, not in the message history.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="Remember that I prefer Python over JavaScript and I live in Lisbon.">
+    <span class="suggestion-label">STORE</span>
+    <span class="suggestion-text">Save a couple of preferences.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Click the + in the sidebar to start a new conversation, then ask: &quot;What do you remember about me?&quot;">
+    <span class="suggestion-label">NEW CHAT</span>
+    <span class="suggestion-text">Verify memory survives a new conversation.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="What facts have you stored about me so far?">
+    <span class="suggestion-label">RECALL</span>
+    <span class="suggestion-text">Verify memory in this conversation.</span>
+  </button>
+</div>"""
+
 app = chat.Chatnificent(
     # llm=chat.llm.Anthropic(system=SYSTEM_PROMPT),
     llm=chat.llm.Gemini(system_instruction=SYSTEM_PROMPT),
     tools=tools,
     store=chat.store.File("memory_chats"),
+    layout=chat.layout.Default(welcome_message=welcome_message),
 )
 
 if __name__ == "__main__":

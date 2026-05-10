@@ -119,11 +119,31 @@ tools = chat.tools.PythonTool()
 tools.register_function(get_weather)
 tools.register_function(roll_dice)
 
+welcome_message = """## Tool calling with two Python functions
+
+The LLM sees both `get_weather` and `roll_dice` and decides when to call each one. Tool calls render visibly in the transcript.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="What's the weather in Tokyo right now?">
+    <span class="suggestion-label">WEATHER</span>
+    <span class="suggestion-text">Trigger get_weather for Tokyo.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Roll 3d6 for me.">
+    <span class="suggestion-label">ROLL</span>
+    <span class="suggestion-text">Trigger roll_dice (3d6).</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="In one paragraph, explain how function calling works.">
+    <span class="suggestion-label">EXPLAIN</span>
+    <span class="suggestion-text">No tool needed — plain answer.</span>
+  </button>
+</div>"""
+
 app = chat.Chatnificent(
     llm=chat.llm.OpenAI(),  # <- default
     # llm=chat.llm.Anthropic(),
     # llm=chat.llm.Gemini(),
     tools=tools,
+    layout=chat.layout.Default(welcome_message=welcome_message),
 )
 
 if __name__ == "__main__":

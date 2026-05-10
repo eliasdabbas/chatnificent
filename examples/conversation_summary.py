@@ -199,12 +199,32 @@ class ConversationSummaryLayout(chat.layout.Default):
         return [{"role": "assistant", "content": latest_summary}] + rendered
 
 
+WELCOME_MESSAGE = """## Live conversation summaries
+
+After every turn, the engine fires a *second* LLM request that summarizes **all** messages so far. The summary panel sits above the transcript. **Refresh after every reply** to see the summary regenerate — it changes meaningfully as the conversation grows.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="Let's plan a small open-source project together.">
+    <span class="suggestion-label">START</span>
+    <span class="suggestion-text">Begin a topic.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="It should be a CLI tool written in Python.">
+    <span class="suggestion-label">EXPAND</span>
+    <span class="suggestion-text">Add a constraint.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Now summarize the plan into 5 numbered steps.">
+    <span class="suggestion-label">WRAP</span>
+    <span class="suggestion-text">Ask for the final plan.</span>
+  </button>
+</div>"""
+
+
 app = chat.Chatnificent(
     # llm=chat.llm.OpenAI(),
     llm=chat.llm.Anthropic(),
     # llm=chat.llm.Gemini(),
     engine=ConversationSummaryEngine(),
-    layout=ConversationSummaryLayout(),
+    layout=ConversationSummaryLayout(welcome_message=WELCOME_MESSAGE),
     store=chat.store.File(base_dir="convo_summaries"),
 )
 

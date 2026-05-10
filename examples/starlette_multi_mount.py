@@ -167,16 +167,48 @@ class SystemPromptLLM(chat.llm.OpenAI):
 # Create two independent Chatnificent apps
 # ---------------------------------------------------------------------------
 
+code_welcome_message = """## Code Assistant \u2014 mounted at `/code`
+
+This is one of two Chatnificent apps mounted on a single Starlette server. Each mount is its own independent instance with its own LLM, store, and system prompt:
+
+```python
+routes = [
+    Route("/", landing_page),
+    Mount("/code", app=code_app),
+    Mount("/writer", app=writer_app),
+]
+app = Starlette(routes=routes)
+```
+
+This is exactly how `examples/chatnificent_website.py` mounts every example app under one host."""
+
+writer_welcome_message = """## Writing Assistant \u2014 mounted at `/writer`
+
+This is the second of two Chatnificent apps mounted on a single Starlette server. Each mount is its own independent instance \u2014 different LLM config, different store, different system prompt:
+
+```python
+routes = [
+    Route("/", landing_page),
+    Mount("/code", app=code_app),
+    Mount("/writer", app=writer_app),
+]
+app = Starlette(routes=routes)
+```
+
+This is exactly how `examples/chatnificent_website.py` mounts every example app under one host."""
+
 code_app = chat.Chatnificent(
     server=chat.server.Starlette(debug=True),
     llm=SystemPromptLLM(system_prompt=CODE_PROMPT),
     store=chat.store.File("multi_chat/code"),
+    layout=chat.layout.Default(welcome_message=code_welcome_message),
 )
 
 writer_app = chat.Chatnificent(
     server=chat.server.Starlette(debug=True),
     llm=SystemPromptLLM(system_prompt=WRITER_PROMPT),
     store=chat.store.File("multi_chat/writer"),
+    layout=chat.layout.Default(welcome_message=writer_welcome_message),
 )
 
 

@@ -87,7 +87,29 @@ class OpenAIResponses(chat.llm.OpenAI):
         return chunk.delta if chunk.type == "response.output_text.delta" else None
 
 
-app = chat.Chatnificent(llm=OpenAIResponses())
+welcome_message = """## OpenAI Responses API
+
+Same chat, but routed through `client.responses.create` instead of `client.chat.completions.create`. Two small overrides on `chat.llm.OpenAI` are all it takes:
+
+```python
+class OpenAIResponses(chat.llm.OpenAI):
+    def generate_response(self, messages, **kwargs):
+        return self.client.responses.create(
+            model=self.model, input=messages, **{**self.default_params, **kwargs}
+        )
+
+    def extract_stream_delta(self, chunk):
+        if chunk.type == "response.output_text.delta":
+            return chunk.delta
+        return None
+```
+
+That's the whole adapter \u2014 inherit the rest of `OpenAI` for free."""
+
+app = chat.Chatnificent(
+    llm=OpenAIResponses(),
+    layout=chat.layout.Default(welcome_message=welcome_message),
+)
 
 if __name__ == "__main__":
     app.run()

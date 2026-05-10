@@ -166,12 +166,32 @@ class WebSearchLayout(chat.layout.Default):
         return rendered
 
 
+WELCOME_MESSAGE = """## Grounded web search
+
+The Gemini grounding tool runs a Google search behind the scenes and feeds results into the answer. Each assistant message ends with the **source links** that fed it.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="What were the top tech news headlines this week?">
+    <span class="suggestion-label">NEWS</span>
+    <span class="suggestion-text">Recent headlines (with sources).</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="What is the population of Lisbon according to the most recent census?">
+    <span class="suggestion-label">FACT</span>
+    <span class="suggestion-text">A grounded factual lookup.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Compare PostgreSQL 16 vs 17 — cite official release notes.">
+    <span class="suggestion-label">RESEARCH</span>
+    <span class="suggestion-text">Compare versions, cite sources.</span>
+  </button>
+</div>"""
+
+
 app = chat.Chatnificent(
     llm=chat.llm.Gemini(
         model="gemini-3-flash-preview",
         tools=[GROUNDING_TOOL],
     ),
-    layout=WebSearchLayout(),
+    layout=WebSearchLayout(welcome_message=WELCOME_MESSAGE),
     store=chat.store.File(base_dir="web_search_convos"),
 )
 

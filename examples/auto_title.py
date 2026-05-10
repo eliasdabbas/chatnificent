@@ -87,7 +87,29 @@ class AutoTitleEngine(chat.engine.Orchestrator):
         first_user_msg["content"] = f"{title} — {content}"
 
 
-app = chat.Chatnificent(engine=AutoTitleEngine())
+welcome_message = """## Auto-titled conversations
+
+After your first reply, the engine fires a *second* LLM request to generate a title for the conversation. The sidebar updates on page load — so **refresh after the reply** to see the new title appear.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="Plan a 3-day trip to Lisbon for a foodie.">
+    <span class="suggestion-label">TRAVEL</span>
+    <span class="suggestion-text">Distinct topic 1.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Help me debug a Python TypeError in a list comprehension.">
+    <span class="suggestion-label">CODE</span>
+    <span class="suggestion-text">Distinct topic 2.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Explain CRDTs to a junior developer.">
+    <span class="suggestion-label">TEACH</span>
+    <span class="suggestion-text">Distinct topic 3.</span>
+  </button>
+</div>"""
+
+app = chat.Chatnificent(
+    engine=AutoTitleEngine(),
+    layout=chat.layout.Default(welcome_message=welcome_message),
+)
 
 if __name__ == "__main__":
     app.run()

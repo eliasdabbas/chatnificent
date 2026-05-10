@@ -1,5 +1,5 @@
 # /// script
-# requires-python = ">=3.9"
+# requires-python = ">=3.10"
 # dependencies = [
 #     "chatnificent[openai]",
 # ]
@@ -1494,8 +1494,12 @@ CONTROLS = [
         id="active-mode", html="", slot="messages-begin", llm_param="active-mode"
     ),
     # TTS studio.
-    chat.layout.Control(id="tts-model", html="", slot="messages-begin", llm_param="model"),
-    chat.layout.Control(id="tts-voice", html="", slot="messages-begin", llm_param="voice"),
+    chat.layout.Control(
+        id="tts-model", html="", slot="messages-begin", llm_param="model"
+    ),
+    chat.layout.Control(
+        id="tts-voice", html="", slot="messages-begin", llm_param="voice"
+    ),
     chat.layout.Control(
         id="tts-speed", html="", slot="messages-begin", llm_param="speed", cast=float
     ),
@@ -1507,7 +1511,9 @@ CONTROLS = [
     ),
     # Image studio. The studio is gpt-image-1-only, so we don't expose a
     # model picker — ImageLLM's __init__ default is canonical.
-    chat.layout.Control(id="image-size", html="", slot="messages-begin", llm_param="size"),
+    chat.layout.Control(
+        id="image-size", html="", slot="messages-begin", llm_param="size"
+    ),
     chat.layout.Control(
         id="image-quality", html="", slot="messages-begin", llm_param="quality"
     ),
@@ -1515,9 +1521,14 @@ CONTROLS = [
         id="image-background", html="", slot="messages-begin", llm_param="background"
     ),
     # Search studio.
-    chat.layout.Control(id="search-model", html="", slot="messages-begin", llm_param="model"),
     chat.layout.Control(
-        id="search-depth", html="", slot="messages-begin", llm_param="search_context_size"
+        id="search-model", html="", slot="messages-begin", llm_param="model"
+    ),
+    chat.layout.Control(
+        id="search-depth",
+        html="",
+        slot="messages-begin",
+        llm_param="search_context_size",
     ),
 ]
 

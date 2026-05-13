@@ -152,13 +152,53 @@ class TestURLParts:
 
         # Should be serializable to dict
         serialized = asdict(parts)
-        expected = {"user_id": "test_user", "convo_id": "test_convo"}
+        expected = {"user_id": "test_user", "convo_id": "test_convo", "file_path": None}
         assert serialized == expected
 
         # Should be deserializable from dict
         reconstructed = URLParts(**serialized)
         assert reconstructed.user_id == parts.user_id
         assert reconstructed.convo_id == parts.convo_id
+        assert reconstructed.file_path == parts.file_path
+
+
+class TestPathBasedFilePath:
+    """Test PathBased file_path parsing for conversation-scoped files."""
+
+    def test_two_segments_have_no_file_path(self):
+        url = PathBased()
+        result = url.parse("/alice/conv_001")
+        assert result.user_id == "alice"
+        assert result.convo_id == "conv_001"
+        assert result.file_path is None
+
+    def test_three_segments_parse_file_path(self):
+        url = PathBased()
+        result = url.parse("/alice/conv_001/audio.mp3")
+        assert result.user_id == "alice"
+        assert result.convo_id == "conv_001"
+        assert result.file_path == "audio.mp3"
+
+    def test_nested_file_path_preserves_subdirs(self):
+        url = PathBased()
+        result = url.parse("/alice/conv_001/images/0.png")
+        assert result.file_path == "images/0.png"
+
+    def test_deeply_nested_file_path(self):
+        url = PathBased()
+        result = url.parse("/alice/conv_001/a/b/c/file.bin")
+        assert result.file_path == "a/b/c/file.bin"
+
+    def test_trailing_slash_after_convo_no_file_path(self):
+        url = PathBased()
+        result = url.parse("/alice/conv_001/")
+        assert result.file_path is None
+
+    def test_new_convo_keyword_ignores_file_path(self):
+        url = PathBased()
+        result = url.parse("/alice/new/anything.mp3")
+        assert result.convo_id is None
+        assert result.file_path is None
 
 
 class TestPathBased:

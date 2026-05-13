@@ -744,3 +744,36 @@ class TestPostInteractions:
             headers={"Content-Type": "application/json"},
         )
         assert r.status_code == 400
+
+
+class TestStarletteFileServing:
+    """Starlette dispatches /<user>/<convo>/<file_path> to serve_file."""
+
+    def _setup(self):
+        app = _make_app()
+        app.store.save_file("alice", "conv1", "audio/0.mp3", b"\x00\x01\x02")
+        return app, _client(app)
+
+    def test_get_existing_file_returns_bytes_and_mime(self):
+        _app, client = self._setup()
+        r = client.get("/alice/conv1/audio/0.mp3")
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("audio/mpeg")
+        assert r.content == b"\x00\x01\x02"
+
+    def test_get_missing_file_returns_404(self):
+        _app, client = self._setup()
+        r = client.get("/alice/conv1/missing.png")
+        assert r.status_code == 404
+
+    def test_two_segment_path_still_serves_page(self):
+        _app, client = self._setup()
+        r = client.get("/alice/conv1")
+        assert r.status_code == 200
+        assert "text/html" in r.headers["content-type"]
+
+    def test_cross_user_isolation(self):
+        _app, client = self._setup()
+        r = client.get("/bob/conv1/audio/0.mp3")
+        assert r.status_code == 404
+

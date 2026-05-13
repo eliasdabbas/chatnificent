@@ -25,6 +25,31 @@ logger = logging.getLogger(__name__)
 class Server(ABC):
     """Abstract Base Class for all Chatnificent servers."""
 
+    #: Extension (lowercased, with dot) to media-type mapping used by
+    #: ``serve_file``. Override on subclasses or instances to extend.
+    FILE_MIME: dict = {
+        ".mp3": "audio/mpeg",
+        ".wav": "audio/wav",
+        ".ogg": "audio/ogg",
+        ".m4a": "audio/mp4",
+        ".flac": "audio/flac",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+        ".svg": "image/svg+xml",
+        ".mp4": "video/mp4",
+        ".webm": "video/webm",
+        ".pdf": "application/pdf",
+        ".json": "application/json",
+        ".txt": "text/plain; charset=utf-8",
+        ".md": "text/markdown; charset=utf-8",
+        ".html": "text/html; charset=utf-8",
+        ".css": "text/css; charset=utf-8",
+        ".js": "application/javascript",
+    }
+
     def __init__(self, app: Optional["Chatnificent"] = None) -> None:
         """Initialize with optional app reference (bound during Chatnificent init)."""
         self.app = app
@@ -209,6 +234,47 @@ class Server(ABC):
         """
         return (root_path + "/") if root_path else "/"
 
+    # -- File serving ---------------------------------------------------------
+
+    def serve_file(self, user_id, convo_id, file_path):
+        """Resolve a conversation-scoped file via the Store pillar.
+
+        Concrete servers call this from their GET dispatch when the URL
+        pillar reports a non-``None`` ``file_path``. Transport-specific
+        response writing (status, headers, body) stays in each server.
+
+        Parameters
+        ----------
+        user_id : str
+        convo_id : str
+        file_path : str
+            Path relative to the conversation directory, exactly as
+            persisted via ``Store.save_file``.
+
+        Returns
+        -------
+        tuple[bytes, str] | None
+            ``(data, media_type)`` on hit, ``None`` on miss. ``None`` is
+            also returned when the Store raises ``ValueError`` (path
+            traversal attempt) — servers translate ``None`` to 404.
+        """
+        try:
+            data = self.app.store.load_file(user_id, convo_id, file_path)
+        except ValueError:
+            return None
+        if data is None:
+            return None
+        return data, self._guess_media_type(file_path)
+
+    def _guess_media_type(self, file_path):
+        """Map a file path to a media type via ``FILE_MIME``.
+
+        Falls back to ``application/octet-stream`` for unknown extensions.
+        """
+        dot = file_path.rfind(".")
+        ext = file_path[dot:].lower() if dot >= 0 else ""
+        return self.FILE_MIME.get(ext, "application/octet-stream")
+
 
 # =============================================================================
 # DevServer — zero-dependency stdlib server for development & demonstration
@@ -250,6 +316,11 @@ class _DevHandler(SimpleHTTPRequestHandler):
             self._handle_load_conversation(convo_id)
         elif not self.path.startswith("/api/"):
             url_parts = self._app.url.parse(self.path)
+            if url_parts.file_path and url_parts.user_id and url_parts.convo_id:
+                self._handle_file(
+                    url_parts.user_id, url_parts.convo_id, url_parts.file_path
+                )
+                return
             if url_parts.user_id and not self._has_session_cookie():
                 self._session_id = url_parts.user_id
                 self._new_session = True
@@ -436,6 +507,24 @@ class _DevHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _handle_file(self, user_id, convo_id, file_path):
+        try:
+            result = self._server.serve_file(user_id, convo_id, file_path)
+        except Exception:
+            logger.exception("DevServer error serving file")
+            self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+        if result is None:
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        data, media_type = result
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", media_type)
+        self.send_header("Content-Length", str(len(data)))
+        self._maybe_set_session_cookie()
+        self.end_headers()
+        self.wfile.write(data)
+
     def _maybe_set_session_cookie(self):
         if self._new_session and self._session_id:
             self.send_header(
@@ -533,7 +622,33 @@ class DashServer(Server):
 
         register_callbacks(self.dash_app, self.app)
 
+        self._register_file_route(self.dash_app)
+
         return self.dash_app
+
+    def _register_file_route(self, dash_app):
+        """Register the conversation-scoped file route on Dash's Flask server."""
+        import flask
+
+        flask_app = dash_app.server
+
+        def _serve(user_id, convo_id, file_path):
+            try:
+                result = self.serve_file(user_id, convo_id, file_path)
+            except Exception:
+                logger.exception("DashServer error serving file")
+                return flask.Response(status=500)
+            if result is None:
+                return flask.Response(status=404)
+            data, media_type = result
+            return flask.Response(data, mimetype=media_type)
+
+        flask_app.add_url_rule(
+            "/<user_id>/<convo_id>/<path:file_path>",
+            endpoint="chatnificent_file",
+            view_func=_serve,
+            methods=["GET"],
+        )
 
     def run(self, **kwargs) -> None:
         self.dash_app.run(**kwargs)
@@ -720,6 +835,11 @@ class Starlette(Server):
         path = request.scope.get("path", request.url.path)
         url_parts = self.app.url.parse(path)
 
+        if url_parts.file_path and url_parts.user_id and url_parts.convo_id:
+            return await self._handle_file(
+                request, url_parts.user_id, url_parts.convo_id, url_parts.file_path
+            )
+
         if url_parts.user_id and not request.cookies.get("chatnificent_session"):
             user_id = url_parts.user_id
             is_new = True
@@ -735,6 +855,22 @@ class Starlette(Server):
         response = HTMLResponse(html)
         self._maybe_set_cookie(response, user_id, is_new, root_path)
         return response
+
+    async def _handle_file(self, request, user_id, convo_id, file_path):
+        import anyio
+        from starlette.responses import Response
+
+        try:
+            result = await anyio.to_thread.run_sync(
+                self.serve_file, user_id, convo_id, file_path
+            )
+        except Exception:
+            logger.exception("Starlette error serving file")
+            return Response(status_code=500)
+        if result is None:
+            return Response(status_code=404)
+        data, media_type = result
+        return Response(content=data, media_type=media_type)
 
     async def _handle_chat(self, request):
         import anyio

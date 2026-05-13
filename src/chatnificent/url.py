@@ -19,10 +19,15 @@ class URLParts:
 
     Serves as the data contract between the URL pillar and the rest of the
     application, providing a clear structure for URL components.
+
+    ``file_path`` is set when the URL points at a conversation-scoped file
+    (3+ path segments under ``/<user>/<convo>/``). For plain conversation
+    pages it stays ``None``.
     """
 
     user_id: Optional[str] = None
     convo_id: Optional[str] = None
+    file_path: Optional[str] = None
 
 
 class URL(ABC):
@@ -102,7 +107,11 @@ class PathBased(URL):
 
     def parse(self, pathname: str, search: Optional[str] = None) -> URLParts:
         """
-        Parses pathnames in the format /<user_id>/<convo_id>/.
+        Parses pathnames in the format /<user_id>/<convo_id>/<file_path...>.
+
+        Two-segment paths are conversation pages. Three-or-more-segment
+        paths address a conversation-scoped file; the remainder after
+        ``/<user>/<convo>/`` is returned as ``file_path``.
         """
         path_parts = pathname.strip("/").split("/")
 
@@ -119,7 +128,8 @@ class PathBased(URL):
         if not convo_id_part or convo_id_part.lower() == "new":
             return URLParts(user_id=user_id, convo_id=None)
 
-        return URLParts(user_id=user_id, convo_id=convo_id_part)
+        file_path = "/".join(path_parts[2:]) or None
+        return URLParts(user_id=user_id, convo_id=convo_id_part, file_path=file_path)
 
     def build_conversation_path(self, user_id: str, convo_id: str) -> str:
         """

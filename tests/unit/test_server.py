@@ -8,6 +8,7 @@ import json
 from unittest.mock import Mock, patch
 
 import pytest
+
 from chatnificent.server import DevServer, Server
 
 # =============================================================================
@@ -994,3 +995,132 @@ class TestDevHandlerInteractions:
         """POST /api/interactions with no body returns 400."""
         response = self._make_handler(app, "POST", "/api/interactions")
         assert "400" in response
+
+
+class TestServeFile:
+    """Server.serve_file delegates to Store and maps extension to media type."""
+
+    def _server_with_store(self, store):
+        from types import SimpleNamespace
+
+        srv = _StubServer()
+        srv.app = SimpleNamespace(store=store)
+        return srv
+
+    def test_returns_bytes_and_media_type_on_hit(self):
+        from chatnificent.store import InMemory
+
+        store = InMemory()
+        store.save_file("alice", "c1", "audio/0.mp3", b"\x00\x01")
+        srv = self._server_with_store(store)
+        result = srv.serve_file("alice", "c1", "audio/0.mp3")
+        assert result == (b"\x00\x01", "audio/mpeg")
+
+    def test_returns_none_on_miss(self):
+        from chatnificent.store import InMemory
+
+        srv = self._server_with_store(InMemory())
+        assert srv.serve_file("alice", "c1", "missing.png") is None
+
+    def test_returns_none_on_store_value_error(self):
+        """A Store that rejects traversal must surface as 404, not 500."""
+
+        class RejectingStore:
+            def load_file(self, *a, **kw):
+                raise ValueError("nope")
+
+        srv = self._server_with_store(RejectingStore())
+        assert srv.serve_file("alice", "c1", "../../etc/passwd") is None
+
+    def test_unknown_extension_falls_back_to_octet_stream(self):
+        from chatnificent.store import InMemory
+
+        store = InMemory()
+        store.save_file("alice", "c1", "blob.weirdext", b"x")
+        srv = self._server_with_store(store)
+        _, mime = srv.serve_file("alice", "c1", "blob.weirdext")
+        assert mime == "application/octet-stream"
+
+    def test_file_mime_is_overridable(self):
+        from chatnificent.store import InMemory
+
+        class CustomServer(_StubServer):
+            FILE_MIME = {**_StubServer.FILE_MIME, ".bin": "application/x-custom"}
+
+        store = InMemory()
+        store.save_file("alice", "c1", "x.bin", b"x")
+        srv = CustomServer()
+        from types import SimpleNamespace
+
+        srv.app = SimpleNamespace(store=store)
+        _, mime = srv.serve_file("alice", "c1", "x.bin")
+        assert mime == "application/x-custom"
+
+    def test_no_extension_falls_back_to_octet_stream(self):
+        from chatnificent.store import InMemory
+
+        store = InMemory()
+        store.save_file("alice", "c1", "README", b"x")
+        srv = self._server_with_store(store)
+        _, mime = srv.serve_file("alice", "c1", "README")
+        assert mime == "application/octet-stream"
+
+
+class TestDevHandlerFileServing:
+    """DevServer dispatches /<user>/<convo>/<file_path> to serve_file."""
+
+    @pytest.fixture
+    def app(self):
+        from chatnificent import Chatnificent
+        from chatnificent.llm import Echo
+        from chatnificent.store import InMemory
+
+        a = Chatnificent(llm=Echo(stream=False), store=InMemory(), server=DevServer())
+        a.store.save_file("alice", "conv1", "audio/0.mp3", b"\x00\x01\x02")
+        return a
+
+    def _make_handler(self, app, method, path):
+        from chatnificent.server import _DevHandler
+
+        wfile = io.BytesIO()
+        with patch.object(_DevHandler, "__init__", lambda self, *a, **kw: None):
+            h = _DevHandler.__new__(_DevHandler)
+            h._app = app
+            h._new_session = False
+            h._session_id = None
+            h.rfile = io.BytesIO(b"")
+            h.wfile = wfile
+            h.requestline = f"{method} {path} HTTP/1.1"
+            h.command = method
+            h.path = path
+            h.headers = {"Content-Length": "0", "Host": "localhost"}
+            h.request_version = "HTTP/1.1"
+            h.close_connection = True
+            h.do_GET()
+            wfile.seek(0)
+            return wfile.read()
+
+    def test_get_existing_file_returns_bytes_and_mime(self, app):
+        raw = self._make_handler(app, "GET", "/alice/conv1/audio/0.mp3")
+        head, _, body = raw.partition(b"\r\n\r\n")
+        head_s = head.decode("latin-1")
+        assert "200" in head_s
+        assert "Content-Type: audio/mpeg" in head_s
+        assert body == b"\x00\x01\x02"
+
+    def test_get_missing_file_returns_404(self, app):
+        raw = self._make_handler(app, "GET", "/alice/conv1/missing.png")
+        assert b"404" in raw.split(b"\r\n\r\n", 1)[0]
+
+    def test_two_segment_path_still_serves_page(self, app):
+        """/<user>/<convo> with no file_path goes to page handler."""
+        raw = self._make_handler(app, "GET", "/alice/conv1")
+        head = raw.split(b"\r\n\r\n", 1)[0].decode("latin-1")
+        assert "200" in head
+        assert "text/html" in head
+
+    def test_other_users_file_returns_404(self, app):
+        """Cross-user isolation: bob cannot fetch alice's file."""
+        raw = self._make_handler(app, "GET", "/bob/conv1/audio/0.mp3")
+        assert b"404" in raw.split(b"\r\n\r\n", 1)[0]
+

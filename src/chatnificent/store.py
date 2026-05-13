@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from pathlib import Path
 from threading import Lock
-from typing import Any, Dict, List, Optional
+from typing import Any, ClassVar, Dict, FrozenSet, List, Optional
 
 from .models import Conversation
 
@@ -18,6 +18,30 @@ logger = logging.getLogger(__name__)
 
 class Store(ABC):
     """Interface for saving and loading conversation data."""
+
+    #: Filenames the framework reserves at the conversation root. ``save_file``
+    #: rejects attempts to overwrite these from user code so an LLM-generated
+    #: ``filename`` cannot accidentally clobber canonical messages or raw API
+    #: logs. Framework-internal callers (``save_raw_api_request``,
+    #: ``save_raw_api_response``) bypass the guard via the private
+    #: ``_internal=True`` kwarg.
+    RESERVED_FILENAMES: ClassVar[FrozenSet[str]] = frozenset(
+        {
+            "messages.json",
+            "raw_api_requests.jsonl",
+            "raw_api_responses.jsonl",
+        }
+    )
+
+    @classmethod
+    def _check_reserved_filename(cls, filename: str) -> None:
+        """Raise ``ValueError`` if *filename*'s leaf is reserved."""
+        leaf = filename.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+        if leaf in cls.RESERVED_FILENAMES:
+            raise ValueError(
+                f"Filename {filename!r} is reserved by the framework. "
+                f"Reserved leaf names: {sorted(cls.RESERVED_FILENAMES)}"
+            )
 
     @abstractmethod
     def load_conversation(self, user_id: str, convo_id: str) -> Optional[Conversation]:
@@ -79,6 +103,7 @@ class Store(ABC):
             "raw_api_requests.jsonl",
             (json.dumps(raw_request) + "\n").encode("utf-8"),
             append=True,
+            _internal=True,
         )
 
     def save_raw_api_response(
@@ -91,6 +116,7 @@ class Store(ABC):
             "raw_api_responses.jsonl",
             (json.dumps(raw_response) + "\n").encode("utf-8"),
             append=True,
+            _internal=True,
         )
 
     def load_raw_api_requests(self, user_id: str, convo_id: str) -> List[Any]:
@@ -162,6 +188,8 @@ class InMemory(Store):
         data: bytes,
         **kwargs: Any,
     ) -> None:
+        if not kwargs.pop("_internal", False):
+            self._check_reserved_filename(filename)
         with self._lock:
             user_files = self._files.setdefault(user_id, {})
             convo_files = user_files.setdefault(convo_id, {})
@@ -384,6 +412,8 @@ class File(Store):
         **kwargs: Any,
     ) -> None:
         """Save raw bytes into the conversation directory."""
+        if not kwargs.pop("_internal", False):
+            self._check_reserved_filename(filename)
         lock = self._get_write_lock(user_id, convo_id)
 
         with lock:
@@ -722,6 +752,8 @@ class SQLite(Store):
         **kwargs: Any,
     ) -> None:
         """Save a conversation-scoped file as a BLOB."""
+        if not kwargs.pop("_internal", False):
+            self._check_reserved_filename(filename)
         try:
             with self._connect() as conn:
                 cursor = conn.cursor()

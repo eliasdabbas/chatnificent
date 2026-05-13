@@ -195,3 +195,33 @@ class TestDashServerAuthParity:
         assert not violations, (
             f"get_current_user_id() called with pathname= (wrong kwarg) at relative lines: {violations}"
         )
+
+
+class TestDashServerFileServing:
+    """DashServer dispatches /<user>/<convo>/<file_path> to serve_file."""
+
+    def _setup(self):
+        from chatnificent.llm import Echo
+        from chatnificent.store import InMemory
+
+        app = _make_dash_app(llm=Echo(stream=False), store=InMemory())
+        app.store.save_file("alice", "conv1", "audio/0.mp3", b"\x00\x01\x02")
+        return app, app.server.dash_app.server.test_client()
+
+    def test_get_existing_file_returns_bytes_and_mime(self):
+        _app, client = self._setup()
+        r = client.get("/alice/conv1/audio/0.mp3")
+        assert r.status_code == 200
+        assert r.headers["Content-Type"].startswith("audio/mpeg")
+        assert r.data == b"\x00\x01\x02"
+
+    def test_get_missing_file_returns_404(self):
+        _app, client = self._setup()
+        r = client.get("/alice/conv1/missing.png")
+        assert r.status_code == 404
+
+    def test_cross_user_isolation(self):
+        _app, client = self._setup()
+        r = client.get("/bob/conv1/audio/0.mp3")
+        assert r.status_code == 404
+

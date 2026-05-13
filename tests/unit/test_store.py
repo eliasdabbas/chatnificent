@@ -138,6 +138,49 @@ class TestStoreInterface:
         assert store.save_raw_api_response("user1", "conv1", {"hello": "world"}) is None
 
 
+class TestReservedFilenames:
+    """Defensive guard: user code cannot clobber framework-reserved files."""
+
+    @pytest.fixture(params=["inmemory", "file", "sqlite"])
+    def store(self, request, tmp_path):
+        if request.param == "inmemory":
+            return InMemory()
+        if request.param == "file":
+            return File(str(tmp_path))
+        return SQLite(str(tmp_path / "store.db"))
+
+    @pytest.mark.parametrize(
+        "filename",
+        [
+            "messages.json",
+            "raw_api_requests.jsonl",
+            "raw_api_responses.jsonl",
+        ],
+    )
+    def test_save_file_rejects_reserved_leaf(self, store, filename):
+        with pytest.raises(ValueError, match="reserved"):
+            store.save_file("alice", "conv1", filename, b"x")
+
+    def test_save_file_rejects_reserved_leaf_in_nested_path(self, store):
+        # The leaf is what matters — a nested path landing on a reserved
+        # leaf still gets rejected.
+        with pytest.raises(ValueError, match="reserved"):
+            store.save_file("alice", "conv1", "sub/messages.json", b"x")
+
+    def test_save_raw_api_request_bypasses_guard(self, store):
+        # Framework-internal callers must still work.
+        store.save_raw_api_request("alice", "conv1", {"hello": "world"})
+        assert store.load_raw_api_requests("alice", "conv1") == [{"hello": "world"}]
+
+    def test_save_raw_api_response_bypasses_guard(self, store):
+        store.save_raw_api_response("alice", "conv1", {"hello": "world"})
+        assert store.load_raw_api_responses("alice", "conv1") == [{"hello": "world"}]
+
+    def test_non_reserved_filename_still_works(self, store):
+        store.save_file("alice", "conv1", "audio/0.mp3", b"\x00\x01")
+        assert store.load_file("alice", "conv1", "audio/0.mp3") == b"\x00\x01"
+
+
 class TestFile:
     """Test the File store implementation specifically."""
 

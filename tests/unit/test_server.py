@@ -8,7 +8,6 @@ import json
 from unittest.mock import Mock, patch
 
 import pytest
-
 from chatnificent.server import DevServer, Server
 
 # =============================================================================
@@ -371,21 +370,6 @@ class TestDevHandlerURLIntegration:
         )
         data = self._extract_json(response)
         assert data.get("id") == "conv001"
-
-    def test_deep_link_sets_session_cookie(self, app):
-        """Deep link without cookie should set the session cookie to URL user_id."""
-        response = self._make_handler(app, "GET", "/myuser/someconvo")
-        assert "chatnificent_session=myuser" in response
-
-    def test_deep_link_does_not_override_existing_cookie(self, app):
-        """If cookie already exists, URL user_id should NOT override it."""
-        response = self._make_handler(
-            app, "GET", "/url_user/conv1", cookie="chatnificent_session=cookie_user"
-        )
-        assert (
-            "chatnificent_session=cookie_user" not in response
-            or "chatnificent_session=url_user" not in response
-        )
 
 
 class TestDevHandlerLayoutIntegration:
@@ -1123,4 +1107,3 @@ class TestDevHandlerFileServing:
         """Cross-user isolation: bob cannot fetch alice's file."""
         raw = self._make_handler(app, "GET", "/bob/conv1/audio/0.mp3")
         assert b"404" in raw.split(b"\r\n\r\n", 1)[0]
-

@@ -4,6 +4,7 @@ Defines the core orchestration logic for the Chatnificent application.
 
 import json
 import logging
+import mimetypes
 import uuid
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional
@@ -12,6 +13,7 @@ from .models import (
     ASSISTANT_ROLE,
     SYSTEM_ROLE,
     USER_ROLE,
+    Artifact,
     Conversation,
 )
 
@@ -110,6 +112,103 @@ class Orchestrator(Engine):
     (``handle_message_stream``) request lifecycles.
     """
 
+    #: MIME-family prefix → HTML embed template. ``{url}`` and ``{filename}``
+    #: placeholders are substituted post-save. Override on a subclass,
+    #: mutate on an instance, or override ``_wrap_artifact``.
+    ARTIFACT_WRAPPERS: Dict[str, str] = {
+        "audio/": '<audio src="{url}" controls></audio>',
+        "image/": '<img src="{url}">',
+        "video/": '<video src="{url}" controls></video>',
+        "": '<a href="{url}">{filename}</a>',
+    }
+
+    def _save_artifact(self, artifact: Artifact, user_id: str, convo_id: str) -> str:
+        """Persist ``artifact.data`` via the Store and return absolute URL.
+
+        Picks the filename (counter-based per-folder when ``artifact.filename``
+        is ``None``; otherwise uses the pinned leaf as-is — last-write-wins).
+        Delegates the byte write to ``store.save_file``. Returns
+        ``/<user_id>/<convo_id>/<folder>/<filename>``.
+        """
+        if artifact.filename is not None:
+            leaf = artifact.filename
+        else:
+            existing = self.app.store.list_files(user_id, convo_id) or []
+            prefix = f"{artifact.folder}/" if artifact.folder else ""
+            n = sum(
+                1
+                for f in existing
+                if f.startswith(prefix) and "/" not in f[len(prefix) :]
+            )
+            leaf = f"{n}{artifact.ext}"
+
+        file_path = f"{artifact.folder}/{leaf}" if artifact.folder else leaf
+        self.app.store.save_file(user_id, convo_id, file_path, artifact.data)
+        return f"/{user_id}/{convo_id}/{file_path}"
+
+    def _wrap_artifact(
+        self,
+        artifact: Artifact,
+        url: str,
+        filename: str,
+        media_type: str,
+    ) -> str:
+        """Return the HTML embed snippet for ``artifact`` at ``url``.
+
+        Uses ``artifact.html`` when provided, otherwise picks a default
+        template from ``ARTIFACT_WRAPPERS`` keyed by MIME-family prefix.
+        ``{url}`` and ``{filename}`` placeholders are substituted.
+        """
+        tpl = (
+            artifact.html
+            if artifact.html is not None
+            else self._pick_wrapper(media_type)
+        )
+        return tpl.format(url=url, filename=filename)
+
+    def _pick_wrapper(self, media_type: str) -> str:
+        """Pick a wrapper template from ``ARTIFACT_WRAPPERS`` by MIME family."""
+        for prefix, tpl in self.ARTIFACT_WRAPPERS.items():
+            if prefix and media_type.startswith(prefix):
+                return tpl
+        return self.ARTIFACT_WRAPPERS.get("", '<a href="{url}">{filename}</a>')
+
+    def _finalize_content(self, content: Any, user_id: str, convo_id: str) -> Any:
+        """Normalize an LLM adapter's content value into displayable text.
+
+        Default text adapters return ``str`` — passes through unchanged. Adapters
+        that opt in to bytes-producing endpoints return ``Artifact`` (or a list
+        mixing ``str`` and ``Artifact``); each ``Artifact`` is persisted via the
+        Store and replaced with the HTML embed snippet pointing at its URL.
+
+        Unknown shapes pass through unchanged so adapters can introduce richer
+        types without breaking the engine contract.
+        """
+        if content is None or isinstance(content, str):
+            return content
+        if isinstance(content, Artifact):
+            return self._artifact_to_html(content, user_id, convo_id)
+        if isinstance(content, list) and any(
+            isinstance(item, Artifact) for item in content
+        ):
+            parts: List[str] = []
+            for item in content:
+                if isinstance(item, Artifact):
+                    parts.append(self._artifact_to_html(item, user_id, convo_id))
+                elif isinstance(item, str):
+                    parts.append(item)
+            return "\n".join(parts)
+        return content
+
+    def _artifact_to_html(self, artifact: Artifact, user_id: str, convo_id: str) -> str:
+        """Save ``artifact`` and return its HTML embed snippet."""
+        url = self._save_artifact(artifact, user_id, convo_id)
+        filename = url.rsplit("/", 1)[-1]
+        media_type = (
+            mimetypes.guess_type(f"x{artifact.ext}")[0] or "application/octet-stream"
+        )
+        return self._wrap_artifact(artifact, url, filename, media_type)
+
     def _initialize_conversation(
         self, user_input: str, user_id: str, convo_id_from_url: Optional[str]
     ) -> Conversation:
@@ -207,6 +306,9 @@ class Orchestrator(Engine):
             # 4. Finalization
             if not tool_calls and llm_response is not None:
                 text_content = self.app.llm.extract_content(llm_response)
+                text_content = self._finalize_content(
+                    text_content, user_id, conversation.id
+                )
                 assistant_message = {"role": ASSISTANT_ROLE, "content": text_content}
                 conversation.messages.append(assistant_message)
 
@@ -271,6 +373,9 @@ class Orchestrator(Engine):
 
                     if not tool_calls:
                         text_content = self.app.llm.extract_content(llm_response)
+                        text_content = self._finalize_content(
+                            text_content, user_id, conversation.id
+                        )
                         if text_content:
                             accumulated_text = text_content
                             yield {"event": "delta", "data": text_content}
@@ -280,6 +385,9 @@ class Orchestrator(Engine):
                     # Emit any text content before executing tools
                     # (Anthropic can return text + tool_use in the same response)
                     text_content = self.app.llm.extract_content(llm_response)
+                    text_content = self._finalize_content(
+                        text_content, user_id, conversation.id
+                    )
                     if text_content:
                         accumulated_text += text_content
                         yield {"event": "delta", "data": text_content}
@@ -313,6 +421,13 @@ class Orchestrator(Engine):
                     for chunk in stream:
                         raw_chunks.append(chunk)
                         delta = self.app.llm.extract_stream_delta(chunk)
+                        if isinstance(delta, Artifact):
+                            # An adapter chose to surface bytes mid-stream
+                            # (e.g. streamed image/audio chunks). Persist and
+                            # wrap inline so the client receives HTML.
+                            delta = self._artifact_to_html(
+                                delta, user_id, conversation.id
+                            )
                         if delta:
                             accumulated_text += delta
                             yield {"event": "delta", "data": delta}

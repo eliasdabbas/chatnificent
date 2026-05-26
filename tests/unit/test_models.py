@@ -15,6 +15,7 @@ from chatnificent.models import (
     SYSTEM_ROLE,
     TOOL_ROLE,
     USER_ROLE,
+    Artifact,
     Conversation,
 )
 
@@ -209,3 +210,57 @@ class TestModelWorkflow:
         assert conv.messages[0]["role"] == "system"
         assert conv.messages[1]["role"] == "user"
         assert conv.messages[2]["role"] == "assistant"
+
+
+class TestArtifact:
+    """Test Artifact dataclass — the bytes-to-message bridge."""
+
+    def test_minimal_construction(self):
+        a = Artifact(data=b"hello", ext=".txt")
+        assert a.data == b"hello"
+        assert a.ext == ".txt"
+        assert a.folder == ""
+        assert a.filename is None
+        assert a.html is None
+
+    def test_all_fields(self):
+        a = Artifact(
+            data=b"\x89PNG fake",
+            ext=".png",
+            folder="images",
+            filename="diagram.png",
+            html='<img src="{url}" alt="diagram">',
+        )
+        assert a.data == b"\x89PNG fake"
+        assert a.ext == ".png"
+        assert a.folder == "images"
+        assert a.filename == "diagram.png"
+        assert a.html == '<img src="{url}" alt="diagram">'
+
+    def test_is_frozen(self):
+        a = Artifact(data=b"x", ext=".bin")
+        with pytest.raises(Exception):
+            a.data = b"y"
+        with pytest.raises(Exception):
+            a.ext = ".txt"
+
+    def test_ext_includes_leading_dot(self):
+        a = Artifact(data=b"x", ext=".mp3")
+        assert a.ext.startswith(".")
+
+    def test_data_must_be_bytes(self):
+        a = Artifact(data=b"\x00\x01\x02", ext=".bin")
+        assert isinstance(a.data, bytes)
+
+    def test_equality(self):
+        a1 = Artifact(data=b"x", ext=".png", folder="images")
+        a2 = Artifact(data=b"x", ext=".png", folder="images")
+        a3 = Artifact(data=b"x", ext=".png", folder="audio")
+        assert a1 == a2
+        assert a1 != a3
+
+    def test_hashable(self):
+        a = Artifact(data=b"x", ext=".png")
+        assert hash(a) is not None
+        assert {a, a} == {a}
+

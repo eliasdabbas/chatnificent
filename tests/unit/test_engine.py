@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from chatnificent.engine import Engine, Orchestrator
-from chatnificent.models import ASSISTANT_ROLE, USER_ROLE, Conversation
+from chatnificent.models import ASSISTANT_ROLE, USER_ROLE, Artifact, Conversation
 
 
 class TestEngineBase:
@@ -622,3 +622,289 @@ class TestGetLlmKwargsSeam:
         mock_app.llm.extract_stream_delta = Mock(return_value=None)
         list(engine.handle_message_stream("hello", "user1", None))
         mock_app.layout.get_llm_kwargs.assert_called_once_with("user1")
+
+
+class TestSaveArtifact:
+    """Test the ``_save_artifact`` seam — bytes → Store → absolute URL."""
+
+    @pytest.fixture
+    def mock_app(self):
+        app = Mock()
+        app.store = Mock()
+        app.store.save_file = Mock()
+        app.store.list_files = Mock(return_value=[])
+        return app
+
+    @pytest.fixture
+    def engine(self, mock_app):
+        return Orchestrator(mock_app)
+
+    def test_pinned_filename_used_as_leaf(self, engine, mock_app):
+        artifact = Artifact(
+            data=b"hello", ext=".txt", folder="docs", filename="readme.txt"
+        )
+        url = engine._save_artifact(artifact, "alice", "c1")
+        mock_app.store.save_file.assert_called_once_with(
+            "alice", "c1", "docs/readme.txt", b"hello"
+        )
+        assert url == "/alice/c1/docs/readme.txt"
+
+    def test_pinned_filename_root_folder(self, engine, mock_app):
+        artifact = Artifact(data=b"x", ext=".txt", filename="welcome.txt")
+        url = engine._save_artifact(artifact, "alice", "c1")
+        mock_app.store.save_file.assert_called_once_with(
+            "alice", "c1", "welcome.txt", b"x"
+        )
+        assert url == "/alice/c1/welcome.txt"
+
+    def test_auto_name_first_file_is_zero(self, engine, mock_app):
+        mock_app.store.list_files.return_value = []
+        artifact = Artifact(data=b"PNG", ext=".png", folder="images")
+        url = engine._save_artifact(artifact, "alice", "c1")
+        mock_app.store.save_file.assert_called_once_with(
+            "alice", "c1", "images/0.png", b"PNG"
+        )
+        assert url == "/alice/c1/images/0.png"
+
+    def test_auto_name_increments_per_folder(self, engine, mock_app):
+        mock_app.store.list_files.return_value = [
+            "images/0.png",
+            "images/1.png",
+            "audio/0.mp3",
+        ]
+        artifact = Artifact(data=b"PNG", ext=".png", folder="images")
+        url = engine._save_artifact(artifact, "alice", "c1")
+        mock_app.store.save_file.assert_called_once_with(
+            "alice", "c1", "images/2.png", b"PNG"
+        )
+        assert url == "/alice/c1/images/2.png"
+
+    def test_auto_name_root_folder_counter(self, engine, mock_app):
+        mock_app.store.list_files.return_value = ["0.txt", "images/0.png"]
+        artifact = Artifact(data=b"x", ext=".txt")
+        url = engine._save_artifact(artifact, "alice", "c1")
+        # root-folder counter only counts files directly in root
+        mock_app.store.save_file.assert_called_once_with(
+            "alice", "c1", "1.txt", b"x"
+        )
+        assert url == "/alice/c1/1.txt"
+
+    def test_auto_name_does_not_cross_folders(self, engine, mock_app):
+        mock_app.store.list_files.return_value = [
+            "images/0.png",
+            "images/subdir/nested.png",
+        ]
+        artifact = Artifact(data=b"PNG", ext=".png", folder="images")
+        url = engine._save_artifact(artifact, "alice", "c1")
+        # nested.png in images/subdir/ should NOT count toward images/ counter
+        mock_app.store.save_file.assert_called_once_with(
+            "alice", "c1", "images/1.png", b"PNG"
+        )
+        assert url == "/alice/c1/images/1.png"
+
+
+class TestWrapArtifact:
+    """Test the ``_wrap_artifact`` seam — Artifact + URL → HTML snippet."""
+
+    @pytest.fixture
+    def engine(self):
+        return Orchestrator(Mock())
+
+    def test_default_audio_wrapper(self, engine):
+        artifact = Artifact(data=b"", ext=".mp3", folder="audio")
+        html = engine._wrap_artifact(
+            artifact, "/u/c/audio/0.mp3", "0.mp3", "audio/mpeg"
+        )
+        assert html == '<audio src="/u/c/audio/0.mp3" controls></audio>'
+
+    def test_default_image_wrapper(self, engine):
+        artifact = Artifact(data=b"", ext=".png", folder="images")
+        html = engine._wrap_artifact(
+            artifact, "/u/c/images/0.png", "0.png", "image/png"
+        )
+        assert html == '<img src="/u/c/images/0.png">'
+
+    def test_default_video_wrapper(self, engine):
+        artifact = Artifact(data=b"", ext=".mp4", folder="video")
+        html = engine._wrap_artifact(
+            artifact, "/u/c/video/0.mp4", "0.mp4", "video/mp4"
+        )
+        assert html == '<video src="/u/c/video/0.mp4" controls></video>'
+
+    def test_fallback_anchor_for_unknown_mime(self, engine):
+        artifact = Artifact(data=b"", ext=".bin")
+        html = engine._wrap_artifact(
+            artifact, "/u/c/0.bin", "0.bin", "application/octet-stream"
+        )
+        assert html == '<a href="/u/c/0.bin">0.bin</a>'
+
+    def test_per_artifact_html_override(self, engine):
+        artifact = Artifact(
+            data=b"",
+            ext=".png",
+            html='<img src="{url}" alt="custom" data-hook="x">',
+        )
+        html = engine._wrap_artifact(
+            artifact, "/u/c/0.png", "0.png", "image/png"
+        )
+        assert html == '<img src="/u/c/0.png" alt="custom" data-hook="x">'
+
+    def test_filename_placeholder_substituted(self, engine):
+        artifact = Artifact(
+            data=b"", ext=".pdf", html='<a href="{url}">{filename}</a>'
+        )
+        html = engine._wrap_artifact(
+            artifact, "/u/c/report.pdf", "report.pdf", "application/pdf"
+        )
+        assert html == '<a href="/u/c/report.pdf">report.pdf</a>'
+
+    def test_instance_level_wrapper_mutation(self, engine):
+        engine.ARTIFACT_WRAPPERS = dict(engine.ARTIFACT_WRAPPERS)
+        engine.ARTIFACT_WRAPPERS["image/"] = '<figure><img src="{url}"></figure>'
+        artifact = Artifact(data=b"", ext=".png")
+        html = engine._wrap_artifact(
+            artifact, "/u/c/0.png", "0.png", "image/png"
+        )
+        assert html == '<figure><img src="/u/c/0.png"></figure>'
+
+    def test_subclass_wrapper_override(self):
+        class CustomOrchestrator(Orchestrator):
+            ARTIFACT_WRAPPERS = {
+                "audio/": '<audio-player src="{url}"></audio-player>',
+                "": '<a href="{url}">{filename}</a>',
+            }
+
+        engine = CustomOrchestrator(Mock())
+        artifact = Artifact(data=b"", ext=".mp3")
+        html = engine._wrap_artifact(
+            artifact, "/u/c/0.mp3", "0.mp3", "audio/mpeg"
+        )
+        assert html == '<audio-player src="/u/c/0.mp3"></audio-player>'
+
+
+class TestPickWrapper:
+    """Test ``_pick_wrapper`` — MIME family → template lookup."""
+
+    @pytest.fixture
+    def engine(self):
+        return Orchestrator(Mock())
+
+    def test_exact_family_match(self, engine):
+        assert engine._pick_wrapper("audio/mpeg").startswith("<audio")
+        assert engine._pick_wrapper("image/png").startswith("<img")
+        assert engine._pick_wrapper("video/mp4").startswith("<video")
+
+    def test_unknown_falls_back_to_anchor(self, engine):
+        assert engine._pick_wrapper("application/pdf").startswith("<a")
+        assert engine._pick_wrapper("text/plain").startswith("<a")
+
+
+class TestFinalizeContent:
+    """Test ``_finalize_content`` — post-extract normalization seam.
+
+    The LLM adapter decides what `extract_content` returns. `_finalize_content`
+    normalizes that value into a `str` (or ``None``) so the rest of the engine
+    only handles displayable text. Default text adapters return ``str`` → no-op.
+    Adapters that opt in to bytes-producing endpoints return ``Artifact`` (or a
+    list mixing ``str`` and ``Artifact``) → save + wrap → HTML.
+    """
+
+    @pytest.fixture
+    def mock_app(self):
+        app = Mock()
+        app.store = Mock()
+        app.store.save_file = Mock()
+        app.store.list_files = Mock(return_value=[])
+        return app
+
+    @pytest.fixture
+    def engine(self, mock_app):
+        return Orchestrator(mock_app)
+
+    def test_none_passthrough(self, engine, mock_app):
+        assert engine._finalize_content(None, "alice", "c1") is None
+        mock_app.store.save_file.assert_not_called()
+
+    def test_str_passthrough(self, engine, mock_app):
+        assert engine._finalize_content("hello", "alice", "c1") == "hello"
+        mock_app.store.save_file.assert_not_called()
+
+    def test_empty_str_passthrough(self, engine, mock_app):
+        assert engine._finalize_content("", "alice", "c1") == ""
+        mock_app.store.save_file.assert_not_called()
+
+    def test_single_artifact_image(self, engine, mock_app):
+        artifact = Artifact(data=b"PNG", ext=".png", folder="images")
+        html = engine._finalize_content(artifact, "alice", "c1")
+        mock_app.store.save_file.assert_called_once_with(
+            "alice", "c1", "images/0.png", b"PNG"
+        )
+        assert html == '<img src="/alice/c1/images/0.png">'
+
+    def test_single_artifact_audio(self, engine, mock_app):
+        artifact = Artifact(data=b"MP3", ext=".mp3", folder="audio")
+        html = engine._finalize_content(artifact, "alice", "c1")
+        assert html == '<audio src="/alice/c1/audio/0.mp3" controls></audio>'
+
+    def test_single_artifact_unknown_ext_falls_back_to_anchor(
+        self, engine, mock_app
+    ):
+        artifact = Artifact(data=b"x", ext=".bin", filename="thing.bin")
+        html = engine._finalize_content(artifact, "alice", "c1")
+        assert html == '<a href="/alice/c1/thing.bin">thing.bin</a>'
+
+    def test_single_artifact_custom_html_override(self, engine, mock_app):
+        artifact = Artifact(
+            data=b"PNG",
+            ext=".png",
+            html='<figure><img src="{url}"></figure>',
+        )
+        html = engine._finalize_content(artifact, "alice", "c1")
+        assert html == '<figure><img src="/alice/c1/0.png"></figure>'
+
+    def test_mixed_list_str_and_artifact(self, engine, mock_app):
+        artifact = Artifact(data=b"PNG", ext=".png", folder="images")
+        html = engine._finalize_content(
+            ["Here's the chart:", artifact], "alice", "c1"
+        )
+        assert html == (
+            "Here's the chart:\n"
+            '<img src="/alice/c1/images/0.png">'
+        )
+        mock_app.store.save_file.assert_called_once()
+
+    def test_mixed_list_multiple_artifacts(self, engine, mock_app):
+        # Make the mock store track saved file paths so the auto-name counter
+        # advances correctly between Artifacts in the same call.
+        saved: List[str] = []
+        mock_app.store.list_files.side_effect = lambda u, c: list(saved)
+        mock_app.store.save_file.side_effect = (
+            lambda u, c, path, data: saved.append(path)
+        )
+
+        a1 = Artifact(data=b"PNG1", ext=".png", folder="images")
+        a2 = Artifact(data=b"PNG2", ext=".png", folder="images")
+        html = engine._finalize_content([a1, "between", a2], "alice", "c1")
+        assert mock_app.store.save_file.call_count == 2
+        assert html == (
+            '<img src="/alice/c1/images/0.png">\n'
+            "between\n"
+            '<img src="/alice/c1/images/1.png">'
+        )
+
+    def test_list_without_artifacts_passes_through(self, engine, mock_app):
+        # A list of pure strings is an unexpected shape — passthrough unchanged
+        value = ["a", "b"]
+        result = engine._finalize_content(value, "alice", "c1")
+        assert result == value
+        mock_app.store.save_file.assert_not_called()
+
+    def test_unknown_shape_passes_through(self, engine, mock_app):
+        # Dict (e.g. provider-native multi-block dict) — passthrough; engine
+        # leaves shapes it doesn't recognize alone so adapters/subclasses can
+        # introduce richer types without breaking the contract.
+        value = {"role": "assistant", "content": "x"}
+        result = engine._finalize_content(value, "alice", "c1")
+        assert result == value
+        mock_app.store.save_file.assert_not_called()
+

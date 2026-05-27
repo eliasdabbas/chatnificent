@@ -67,6 +67,49 @@ All LLM providers stream by default — token-by-token delivery via Server-Sent 
 app = chat.Chatnificent(llm=chat.llm.OpenAI(stream=False))
 ```
 
+## Binary Outputs, Persisted Automatically
+
+LLMs increasingly return bytes — audio, images, PDFs. Chatnificent persists the bytes to disk and keeps the conversation log tiny.
+
+With an LLM subclass that returns audio bytes, a two-turn conversation renders like this in the browser:
+
+> **You:** Testing, one, two, three.
+>
+> **Bot:** <audio src="" controls></audio>
+>
+> **You:** Now say it backwards.
+>
+> **Bot:** <audio src="" controls></audio>
+
+<!-- The audio elements above render as players on GitHub; src is empty for illustration. -->
+
+On disk:
+
+```text
+conversations/
+└── anonymous/
+    └── ce974dfa/
+        ├── messages.json
+        └── audio/
+            ├── 0.mp3
+            └── 1.mp3
+```
+
+`messages.json` carries short HTML references, not the audio bytes:
+
+```json
+[
+  {"role": "user", "content": "Testing, one, two, three."},
+  {"role": "assistant", "content": "<audio src=\"/anonymous/ce974dfa/audio/0.mp3\" controls></audio>"},
+  {"role": "user", "content": "Now say it backwards."},
+  {"role": "assistant", "content": "<audio src=\"/anonymous/ce974dfa/audio/1.mp3\" controls></audio>"}
+]
+```
+
+The framework serves those files at `/<user_id>/<convo_id>/<file_path>`, so they stream cleanly to the browser and survive page reloads. Swap the wrapper for `<img>` or `<video>` and the same machinery handles images and video.
+
+See [`examples/text_to_speech.py`](examples/text_to_speech.py) for the full app.
+
 ## The Architecture: 9 Pillars
 
 Every major function is handled by an independent pillar with an abstract interface:

@@ -75,13 +75,13 @@ With an LLM subclass that returns audio bytes, a two-turn conversation renders l
 
 > **You:** Testing, one, two, three.
 >
-> **Bot:** <audio src="" controls></audio>
+> **Bot:** `▶  ──●──────────  0:02`
 >
 > **You:** Now say it backwards.
 >
-> **Bot:** <audio src="" controls></audio>
+> **Bot:** `▶  ──●──────────  0:02`
 
-<!-- The audio elements above render as players on GitHub; src is empty for illustration. -->
+*Each Bot turn is a native HTML5 `<audio>` player; shown here as ASCII because GitHub sanitizes `<audio>` tags from rendered markdown.*
 
 On disk:
 
@@ -107,8 +107,6 @@ conversations/
 ```
 
 The framework serves those files at `/<user_id>/<convo_id>/<file_path>`, so they stream cleanly to the browser and survive page reloads. Swap the wrapper for `<img>` or `<video>` and the same machinery handles images and video.
-
-See [`examples/text_to_speech.py`](examples/text_to_speech.py) for the full app.
 
 ## The Architecture: 9 Pillars
 

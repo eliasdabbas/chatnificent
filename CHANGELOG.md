@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.0.24] — 2026-05-27
+
+LLMs can now emit binary blobs (audio, images, video, arbitrary bytes); the framework persists them, embeds them in the conversation as HTML, and serves them back through a stable per-conversation URL space.
+
+### Added
+
+- **Server**: `GET /<user_id>/<convo_id>/<file_path>` route on `DevServer`, `Starlette`, and `DashServer` — delegates to `store.load_file()` with cookie-bound user identity, supports nested paths (e.g. `audio/0.mp3`), and returns proper `Content-Type` headers
+- **Models**: new `Artifact` dataclass — `data: bytes` plus optional `folder`, `filename`, `html`, `ext`; when an LLM response contains `Artifact` objects (single or in lists), the Engine persists them and rewrites the conversation entry to reference them via HTML
+- **Engine**: `Orchestrator` now persists Artifact-bearing responses end-to-end — per-folder counter-based naming when `filename` is None, last-write-wins when set; works in non-streaming finalize, streaming-with-final-extract, and per-chunk delta paths
+- **Engine**: `ARTIFACT_WRAPPERS` class dict (`"audio/"`, `"image/"`, `"video/"`, fallback `""`) — overridable for custom MIME → HTML mapping
+
 ## [0.0.23] — 2026-05-08
 
 Folder-based templates with a locked content-address vocabulary — fork a template with `cp -r`, validate it against a public contract, and customize from build time to runtime through the same primitive.

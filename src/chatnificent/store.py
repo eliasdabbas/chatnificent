@@ -19,12 +19,12 @@ logger = logging.getLogger(__name__)
 class Store(ABC):
     """Interface for saving and loading conversation data."""
 
-    #: Filenames the framework reserves at the conversation root. ``save_file``
-    #: rejects attempts to overwrite these from user code so an LLM-generated
-    #: ``filename`` cannot accidentally clobber canonical messages or raw API
-    #: logs. Framework-internal callers (``save_raw_api_request``,
-    #: ``save_raw_api_response``) bypass the guard via the private
-    #: ``_internal=True`` kwarg.
+    #: Filenames the framework reserves at the conversation root.
+    #: ``save_file`` and ``load_file`` reject these leaf names unconditionally
+    #: so an LLM-generated ``filename`` cannot reach the canonical messages
+    #: log or the raw API logs through the public file API. Each concrete
+    #: Store implements raw API persistence directly against its backend
+    #: rather than routing through ``save_file`` / ``load_file``.
     RESERVED_FILENAMES: ClassVar[FrozenSet[str]] = frozenset(
         {
             "messages.json",
@@ -96,51 +96,22 @@ class Store(ABC):
     def save_raw_api_request(
         self, user_id: str, convo_id: str, raw_request: Dict[str, Any]
     ) -> None:
-        """Persist a raw request payload in JSONL format when supported."""
-        self.save_file(
-            user_id,
-            convo_id,
-            "raw_api_requests.jsonl",
-            (json.dumps(raw_request) + "\n").encode("utf-8"),
-            append=True,
-            _internal=True,
-        )
+        """Persist a raw request payload. No-op default; override per backend."""
+        return None
 
     def save_raw_api_response(
         self, user_id: str, convo_id: str, raw_response: Dict[str, Any] | List[Any]
     ) -> None:
-        """Persist a raw response payload in JSONL format when supported."""
-        self.save_file(
-            user_id,
-            convo_id,
-            "raw_api_responses.jsonl",
-            (json.dumps(raw_response) + "\n").encode("utf-8"),
-            append=True,
-            _internal=True,
-        )
+        """Persist a raw response payload. No-op default; override per backend."""
+        return None
 
     def load_raw_api_requests(self, user_id: str, convo_id: str) -> List[Any]:
-        """Load raw request payloads from the conversation scope."""
-        return self._load_jsonl_file(user_id, convo_id, "raw_api_requests.jsonl")
+        """Load raw request payloads. Empty default; override per backend."""
+        return []
 
     def load_raw_api_responses(self, user_id: str, convo_id: str) -> List[Any]:
-        """Load raw response payloads from the conversation scope."""
-        return self._load_jsonl_file(user_id, convo_id, "raw_api_responses.jsonl")
-
-    def _load_jsonl_file(self, user_id: str, convo_id: str, filename: str) -> List[Any]:
-        payload = self.load_file(user_id, convo_id, filename)
-        if not payload:
-            return []
-
-        items = []
-        for line in payload.decode("utf-8").splitlines():
-            if not line.strip():
-                continue
-            try:
-                items.append(json.loads(line))
-            except json.JSONDecodeError:
-                logger.warning("Skipping invalid JSONL line in %s", filename)
-        return items
+        """Load raw response payloads. Empty default; override per backend."""
+        return []
 
 
 class InMemory(Store):
@@ -161,6 +132,8 @@ class InMemory(Store):
     def __init__(self):
         self._store: Dict[str, Dict[str, Conversation]] = {}
         self._files: Dict[str, Dict[str, Dict[str, bytes]]] = {}
+        self._raw_api_requests: Dict[str, Dict[str, List[Any]]] = {}
+        self._raw_api_responses: Dict[str, Dict[str, List[Any]]] = {}
         self._lock = Lock()
 
     def load_conversation(self, user_id: str, convo_id: str) -> Optional[Conversation]:
@@ -188,8 +161,7 @@ class InMemory(Store):
         data: bytes,
         **kwargs: Any,
     ) -> None:
-        if not kwargs.pop("_internal", False):
-            self._check_reserved_filename(filename)
+        self._check_reserved_filename(filename)
         with self._lock:
             user_files = self._files.setdefault(user_id, {})
             convo_files = user_files.setdefault(convo_id, {})
@@ -201,12 +173,37 @@ class InMemory(Store):
     def load_file(
         self, user_id: str, convo_id: str, filename: str, **kwargs: Any
     ) -> Optional[bytes]:
+        self._check_reserved_filename(filename)
         with self._lock:
             return self._files.get(user_id, {}).get(convo_id, {}).get(filename)
 
     def list_files(self, user_id: str, convo_id: str) -> List[str]:
         with self._lock:
             return sorted(self._files.get(user_id, {}).get(convo_id, {}).keys())
+
+    def save_raw_api_request(
+        self, user_id: str, convo_id: str, raw_request: Dict[str, Any]
+    ) -> None:
+        with self._lock:
+            self._raw_api_requests.setdefault(user_id, {}).setdefault(
+                convo_id, []
+            ).append(raw_request)
+
+    def save_raw_api_response(
+        self, user_id: str, convo_id: str, raw_response: Dict[str, Any] | List[Any]
+    ) -> None:
+        with self._lock:
+            self._raw_api_responses.setdefault(user_id, {}).setdefault(
+                convo_id, []
+            ).append(raw_response)
+
+    def load_raw_api_requests(self, user_id: str, convo_id: str) -> List[Any]:
+        with self._lock:
+            return list(self._raw_api_requests.get(user_id, {}).get(convo_id, []))
+
+    def load_raw_api_responses(self, user_id: str, convo_id: str) -> List[Any]:
+        with self._lock:
+            return list(self._raw_api_responses.get(user_id, {}).get(convo_id, []))
 
 
 class File(Store):
@@ -412,8 +409,7 @@ class File(Store):
         **kwargs: Any,
     ) -> None:
         """Save raw bytes into the conversation directory."""
-        if not kwargs.pop("_internal", False):
-            self._check_reserved_filename(filename)
+        self._check_reserved_filename(filename)
         lock = self._get_write_lock(user_id, convo_id)
 
         with lock:
@@ -434,6 +430,7 @@ class File(Store):
         self, user_id: str, convo_id: str, filename: str, **kwargs: Any
     ) -> Optional[bytes]:
         """Load raw bytes from the conversation directory."""
+        self._check_reserved_filename(filename)
         try:
             file_path = self._get_file_path(user_id, convo_id, filename)
             if not file_path.exists():
@@ -441,6 +438,38 @@ class File(Store):
             return file_path.read_bytes()
         except (FileNotFoundError, PermissionError):
             return None
+
+    def load_raw_api_requests(self, user_id: str, convo_id: str) -> List[Any]:
+        """Load raw API requests from the dedicated JSONL file."""
+        return self._read_jsonl(
+            self._get_conversation_dir(user_id, convo_id) / "raw_api_requests.jsonl"
+        )
+
+    def load_raw_api_responses(self, user_id: str, convo_id: str) -> List[Any]:
+        """Load raw API responses from the dedicated JSONL file."""
+        return self._read_jsonl(
+            self._get_conversation_dir(user_id, convo_id) / "raw_api_responses.jsonl"
+        )
+
+    def _read_jsonl(self, file_path: Path) -> List[Any]:
+        """Read and decode a JSONL file. Returns [] if missing or unreadable."""
+        try:
+            if not file_path.exists():
+                return []
+            items: List[Any] = []
+            with open(file_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        items.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        logger.warning(
+                            "Skipping invalid JSONL line in %s", file_path.name
+                        )
+            return items
+        except (PermissionError, OSError):
+            return []
 
     def list_files(self, user_id: str, convo_id: str) -> List[str]:
         """List auxiliary files stored alongside the canonical conversation.
@@ -752,8 +781,7 @@ class SQLite(Store):
         **kwargs: Any,
     ) -> None:
         """Save a conversation-scoped file as a BLOB."""
-        if not kwargs.pop("_internal", False):
-            self._check_reserved_filename(filename)
+        self._check_reserved_filename(filename)
         try:
             with self._connect() as conn:
                 cursor = conn.cursor()
@@ -801,6 +829,7 @@ class SQLite(Store):
         self, user_id: str, convo_id: str, filename: str, **kwargs: Any
     ) -> Optional[bytes]:
         """Load a conversation-scoped file from SQLite."""
+        self._check_reserved_filename(filename)
         try:
             with self._connect() as conn:
                 cursor = conn.cursor()

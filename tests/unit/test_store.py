@@ -180,6 +180,25 @@ class TestReservedFilenames:
         store.save_file("alice", "conv1", "audio/0.mp3", b"\x00\x01")
         assert store.load_file("alice", "conv1", "audio/0.mp3") == b"\x00\x01"
 
+    @pytest.mark.parametrize(
+        "filename",
+        [
+            "messages.json",
+            "raw_api_requests.jsonl",
+            "raw_api_responses.jsonl",
+        ],
+    )
+    def test_load_file_rejects_reserved_leaf(self, store, filename):
+        # Symmetric to save_file: framework-internal files are not part of
+        # the public file API. They must not be reachable via load_file,
+        # which is the same code path that serves Artifacts to the browser.
+        with pytest.raises(ValueError, match="reserved"):
+            store.load_file("alice", "conv1", filename)
+
+    def test_load_file_rejects_reserved_leaf_in_nested_path(self, store):
+        with pytest.raises(ValueError, match="reserved"):
+            store.load_file("alice", "conv1", "sub/messages.json")
+
 
 class TestFile:
     """Test the File store implementation specifically."""
@@ -1203,3 +1222,88 @@ class TestInMemoryThreadSafety:
         assert raw is not None
         lines = [l for l in raw.decode().splitlines() if l]
         assert len(lines) == 4 * per_thread
+
+
+class TestInMemoryRawApi:
+    """InMemory must persist raw_api directly, not via the public file API."""
+
+    def test_raw_api_independent_from_files(self):
+        store = InMemory()
+        store.save_raw_api_request("alice", "conv1", {"req": 1})
+        store.save_raw_api_response("alice", "conv1", {"resp": 1})
+
+        # Raw_api persistence must not leak into the public file API.
+        assert "raw_api_requests.jsonl" not in store.list_files("alice", "conv1")
+        assert "raw_api_responses.jsonl" not in store.list_files("alice", "conv1")
+
+        # And load_file must still reject the reserved leaves even after raw_api
+        # has been populated — the public API can't reach framework files.
+        with pytest.raises(ValueError, match="reserved"):
+            store.load_file("alice", "conv1", "raw_api_requests.jsonl")
+        with pytest.raises(ValueError, match="reserved"):
+            store.load_file("alice", "conv1", "raw_api_responses.jsonl")
+
+    def test_raw_api_round_trip_preserves_order(self):
+        store = InMemory()
+        for i in range(5):
+            store.save_raw_api_request("alice", "conv1", {"i": i})
+            store.save_raw_api_response("alice", "conv1", {"i": i})
+        assert store.load_raw_api_requests("alice", "conv1") == [
+            {"i": i} for i in range(5)
+        ]
+        assert store.load_raw_api_responses("alice", "conv1") == [
+            {"i": i} for i in range(5)
+        ]
+
+    def test_raw_api_user_isolation(self):
+        store = InMemory()
+        store.save_raw_api_request("alice", "conv1", {"who": "alice"})
+        store.save_raw_api_request("bob", "conv1", {"who": "bob"})
+        assert store.load_raw_api_requests("alice", "conv1") == [{"who": "alice"}]
+        assert store.load_raw_api_requests("bob", "conv1") == [{"who": "bob"}]
+
+    def test_raw_api_unknown_user_returns_empty(self):
+        store = InMemory()
+        assert store.load_raw_api_requests("nobody", "nowhere") == []
+        assert store.load_raw_api_responses("nobody", "nowhere") == []
+
+    def test_raw_api_load_returns_copy(self):
+        # Mutating the returned list must not corrupt internal state.
+        store = InMemory()
+        store.save_raw_api_request("alice", "conv1", {"a": 1})
+        items = store.load_raw_api_requests("alice", "conv1")
+        items.append({"forged": True})
+        assert store.load_raw_api_requests("alice", "conv1") == [{"a": 1}]
+
+    def test_raw_api_concurrent_saves_no_data_loss(self):
+        """Concurrent save_raw_api_* from N threads must not lose entries."""
+        import threading
+
+        store = InMemory()
+        errors = []
+
+        def saver(thread_id, count):
+            try:
+                for i in range(count):
+                    store.save_raw_api_request(
+                        "user1", "conv1", {"t": thread_id, "i": i}
+                    )
+                    store.save_raw_api_response(
+                        "user1", "conv1", {"t": thread_id, "i": i}
+                    )
+            except Exception as e:
+                errors.append(e)
+
+        threads = []
+        per_thread = 50
+        n_threads = 4
+        for t in range(n_threads):
+            th = threading.Thread(target=saver, args=(t, per_thread))
+            threads.append(th)
+            th.start()
+        for th in threads:
+            th.join()
+
+        assert not errors
+        assert len(store.load_raw_api_requests("user1", "conv1")) == n_threads * per_thread
+        assert len(store.load_raw_api_responses("user1", "conv1")) == n_threads * per_thread

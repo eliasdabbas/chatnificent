@@ -371,6 +371,33 @@ class TestDevHandlerURLIntegration:
         data = self._extract_json(response)
         assert data.get("id") == "conv001"
 
+    def test_deep_link_url_wins_over_stale_cookie(self, app):
+        """Deep link /<user>/<convo> rewrites an existing cookie to the URL's user_id.
+
+        Anyone holding a /<user>/<convo> URL must be able to view that
+        conversation in any browser, regardless of any prior session cookie.
+        Anonymous / SingleUser auth does not authenticate, so the cookie is a
+        "last visited user" hint, not an identity lock.
+        """
+        raw = self._make_handler(
+            app,
+            "GET",
+            "/abc123/conv001",
+            cookie="chatnificent_session=stale_user",
+        )
+        assert "Set-Cookie: chatnificent_session=abc123" in raw
+
+    def test_single_segment_path_does_not_adopt_user_id(self, app):
+        """Bare single-segment paths (favicon.ico, robots.txt, etc.) must not
+        rewrite the session cookie. Only canonical /<user>/<convo> deep links do."""
+        raw = self._make_handler(
+            app,
+            "GET",
+            "/favicon.ico",
+            cookie="chatnificent_session=user1",
+        )
+        assert "Set-Cookie" not in raw
+
 
 class TestDevHandlerLayoutIntegration:
     @pytest.fixture

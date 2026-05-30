@@ -321,7 +321,7 @@ class _DevHandler(SimpleHTTPRequestHandler):
                     url_parts.user_id, url_parts.convo_id, url_parts.file_path
                 )
                 return
-            if url_parts.user_id and not self._has_session_cookie():
+            if url_parts.user_id and url_parts.convo_id:
                 self._session_id = url_parts.user_id
                 self._new_session = True
             html = self._app.layout.render_page()
@@ -840,7 +840,7 @@ class Starlette(Server):
                 request, url_parts.user_id, url_parts.convo_id, url_parts.file_path
             )
 
-        if url_parts.user_id and not request.cookies.get("chatnificent_session"):
+        if url_parts.user_id and url_parts.convo_id:
             user_id = url_parts.user_id
             is_new = True
 

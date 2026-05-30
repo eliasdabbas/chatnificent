@@ -92,6 +92,37 @@ class TestGetRoot:
         assert r.status_code == 200
         assert 'window.__CHATNIFICENT_CONVO__="abc123"' in r.text
 
+    def test_deep_link_url_wins_over_stale_cookie(self):
+        """Deep link /<user>/<convo> rewrites an existing cookie to the URL's user_id.
+
+        Anyone with the URL must access that conversation in any browser,
+        regardless of any prior session cookie. Anonymous / SingleUser auth
+        does not authenticate; the cookie is a "last visited user" hint.
+        """
+        app = _make_app()
+        client = TestClient(
+            app.server.asgi_app,
+            cookies={"chatnificent_session": "stale_user"},
+        )
+        r = client.get("/abc123/conv001")
+        assert r.status_code == 200
+        # httpx exposes the response cookie via r.cookies
+        assert r.cookies.get("chatnificent_session") == "abc123"
+
+    def test_single_segment_path_does_not_adopt_user_id(self):
+        """Bare single-segment paths (favicon.ico, robots.txt, etc.) must not
+        rewrite the session cookie. Only canonical /<user>/<convo> deep links do."""
+        app = _make_app()
+        client = TestClient(
+            app.server.asgi_app,
+            cookies={"chatnificent_session": "user1"},
+        )
+        r = client.get("/favicon.ico")
+        assert r.status_code == 200
+        # No Set-Cookie header at all when the request already carries the
+        # session cookie and the path is not a deep link.
+        assert r.cookies.get("chatnificent_session") is None
+
 
 # =============================================================================
 # POST /api/chat — non-streaming
@@ -776,4 +807,3 @@ class TestStarletteFileServing:
         _app, client = self._setup()
         r = client.get("/bob/conv1/audio/0.mp3")
         assert r.status_code == 404
-

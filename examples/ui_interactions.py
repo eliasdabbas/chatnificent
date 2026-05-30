@@ -58,13 +58,20 @@ TOKEN_OPTIONS = "\n".join(
     for n in list(range(10, 110, 10)) + list(range(200, 600, 100))
 )
 
+# Styling is kept lean: the default template already styles ``<select>`` and
+# ``<label>`` (custom chevron, focus ring, dark-mode aware), so we only add a
+# thin flex toolbar to position the label next to the dropdown. All sizes,
+# colors, and spacing come from the framework's CSS custom properties.
 TOOLBAR_HTML = f"""
-<div style="padding:8px 16px;border-bottom:1px solid var(--border);
-     background:var(--bg);display:flex;align-items:center;gap:8px;font-size:13px;">
+<div style="display:flex;align-items:center;gap:var(--space-3);
+            padding:var(--space-3) var(--space-4);
+            border-bottom:1px solid var(--border);
+            background:var(--bg);font-size:var(--text-sm);
+            color:var(--text-secondary);">
   <label for="token-limit">Max tokens</label>
-  <select id="token-limit" onchange="chatInteraction(this, this.value === '' ? null : this.value)"
-          style="font-size:13px;padding:2px 6px;border-radius:4px;
-                 border:1px solid var(--border);background:var(--bg);color:var(--text);">
+  <select id="token-limit"
+          onchange="chatInteraction(this, this.value === '' ? null : this.value)"
+          style="width:auto;min-width:160px;">
     <option value="">-- no limit --</option>
     {TOKEN_OPTIONS}
   </select>

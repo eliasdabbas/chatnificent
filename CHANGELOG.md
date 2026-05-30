@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.0.25] — 2026-05-30
+
+### Fixed
+
+- **Server**: URL deep-link `user_id` now wins over an existing session cookie in `DevServer` and `Starlette`. Anyone with a `/<user_id>/<convo_id>` URL can view that conversation in any browser, restoring the documented `Anonymous` / `SingleUser` contract; the cookie is rewritten in the response. Single-segment paths (`/favicon.ico`, `/robots.txt`, etc.) are excluded from cookie rewriting.
+
 ## [0.0.24] — 2026-05-27
 
 LLMs can now emit binary blobs (audio, images, video, arbitrary bytes); the framework persists them, embeds them in the conversation as HTML, and serves them back through a stable per-conversation URL space.

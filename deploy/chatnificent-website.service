@@ -1,4 +1,4 @@
-# systemd unit for the Chatnificent Website (examples/chatnificent_website.py).
+# systemd unit for the Chatnificent Website (examples/showcase.py).
 #
 # Install (run from the repo root on your local machine):
 #
@@ -14,7 +14,7 @@
 # Apply env / unit changes (~1s 502s):   `sudo systemctl restart chatnificent-website`
 
 [Unit]
-Description=Chatnificent Website (examples/chatnificent_website.py)
+Description=Chatnificent Website (examples/showcase.py)
 Documentation=https://github.com/eliasdabbas/chatnificent
 After=network-online.target
 Wants=network-online.target
@@ -30,7 +30,7 @@ WorkingDirectory=/srv/chatnificent/app
 EnvironmentFile=-/srv/chatnificent/chatnificent.env
 
 # uv reads PEP 723 deps from the script header and runs uvicorn under the hood.
-ExecStart=/usr/local/bin/uv run --refresh-package chatnificent --reinstall-package chatnificent --script examples/chatnificent_website.py
+ExecStart=/usr/local/bin/uv run --refresh-package chatnificent --reinstall-package chatnificent --script examples/showcase.py
 
 # Zero-downtime code reload: SIGHUP makes uvicorn reload in place.
 ExecReload=/bin/kill -HUP $MAINPID

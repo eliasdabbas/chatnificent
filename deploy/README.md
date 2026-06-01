@@ -1,7 +1,7 @@
 # Deployment Reference Files
 
 Version-controlled copies of the production server config for
-`examples/chatnificent_website.py`, deployed at `https://chatnificent.com/`
+`examples/showcase.py`, deployed at `https://chatnificent.com/`
 (visits to `http://172.233.209.115/` are 301-redirected to the canonical
 HTTPS domain).
 
@@ -30,7 +30,7 @@ client → nginx :80 (172.233.209.115)
                                     └─ user: chatnificent (no shell login)
                                     └─ cwd:  /srv/chatnificent/app   (git checkout, reset --hard on every deploy)
                                     └─ data: /srv/chatnificent/data  (conversations / uploads, persistent)
-                                    └─ exec: uv run --script examples/chatnificent_website.py
+                                    └─ exec: uv run --script examples/showcase.py
                                     └─ env:  /srv/chatnificent/chatnificent.env (0600)
 ```
 

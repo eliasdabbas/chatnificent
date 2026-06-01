@@ -1,11 +1,11 @@
 ---
 name: deploy-website
-description: Deploy the Chatnificent website (examples/chatnificent_website.py) to the Linode production server. Use when the user asks to deploy, ship, push to prod, or release the website. Runs the push-already-done → pull → reload → verify loop.
+description: Deploy the Chatnificent website (examples/showcase.py) to the Linode production server. Use when the user asks to deploy, ship, push to prod, or release the website. Runs the push-already-done → pull → reload → verify loop.
 ---
 
 # Deploy Chatnificent Website
 
-Use this skill to release `examples/chatnificent_website.py` to
+Use this skill to release `examples/showcase.py` to
 `http://172.233.209.115/`.
 
 > **Prerequisite:** `git push` has already happened. This skill does NOT push
@@ -188,6 +188,6 @@ curl -sI http://172.233.209.115/   # from your laptop
 - **`uv` not found by systemd** — installer didn't put `uv` on
   `/usr/local/bin`. Symlink it: `sudo ln -sf $(which uv) /usr/local/bin/uv`.
 - **404 on a `/chat/<slug>/` mount** — the `_StripMountPrefix` shim in
-  `examples/chatnificent_website.py` must wrap the mounted child. Don't revert it.
+  `examples/showcase.py` must wrap the mounted child. Don't revert it.
 - **First start hangs ~30s** — uv is downloading Python + deps. Normal once,
   fast on every subsequent boot (cache lives in `/srv/chatnificent/.cache/uv`).

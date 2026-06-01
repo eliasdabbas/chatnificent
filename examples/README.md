@@ -82,9 +82,8 @@ Route Chatnificent through OpenAI's `responses.create` endpoint via a small subc
 |---|---------|---------|--------------|
 | 24 | [openai_responses.py](openai_responses.py) | Route through OpenAI's `responses.create` in an 8-line subclass | `chatnificent[openai]` |
 | 25 | [openai_responses_website_search.py](openai_responses_website_search.py) | Domain-restricted research assistant via the hosted web-search tool | `chatnificent[openai]` |
-| 26 | [openai_responses_image_generator.py](openai_responses_image_generator.py) | Inline image generation every turn via the hosted `image_generation` tool | `chatnificent[openai]` |
-| 27 | [openai_responses_image_studio.py](openai_responses_image_studio.py) | Multi-turn image studio: live streaming previews, iterative editing, revised prompt display, JPEG sidecar persistence | `chatnificent[openai]` |
-| 28 | [openai_responses_interactive_search.py](openai_responses_interactive_search.py) | Interactive web search: reasoning effort, domain presets, and force-search toggle — live UI controls wired to `responses.create` kwargs | `chatnificent[openai]` |
+| 26 | [openai_responses_image_studio.py](openai_responses_image_studio.py) | Multi-turn image studio: live streaming previews, iterative editing, revised prompt display, JPEG sidecar persistence | `chatnificent[openai]` |
+| 27 | [openai_responses_interactive_search.py](openai_responses_interactive_search.py) | Interactive web search: reasoning effort, domain presets, and force-search toggle — live UI controls wired to `responses.create` kwargs | `chatnificent[openai]` |
 
 ## Tier 7 — UI Interactions
 
@@ -92,8 +91,33 @@ Bind HTML controls directly to LLM call parameters — no page reload, no custom
 
 | # | Example | Purpose | Dependencies |
 |---|---------|---------|--------------|
-| 29 | [ui_interactions.py](ui_interactions.py) | Bind a single `<select>` to `max_completion_tokens` — the minimal one-control pattern | `chatnificent[openai]` |
-| 30 | [single_app_multi_chat_mode.py](single_app_multi_chat_mode.py) | Single app, four chat modes — plain chat plus TTS, Image, and Web Search studios; mode locked per conversation via `Store.save_file` sidecar | `chatnificent[openai]` |
+| 28 | [ui_interactions.py](ui_interactions.py) | Bind a single `<select>` to `max_completion_tokens` — the minimal one-control pattern | `chatnificent[openai]` |
+| 29 | [single_app_multi_chat_mode.py](single_app_multi_chat_mode.py) | Single app, four chat modes — plain chat plus TTS, Image, and Web Search studios; mode locked per conversation via `Store.save_file` sidecar | `chatnificent[openai]` |
+
+## Tier 8 — Artifacts & File Serving
+
+Return an `Artifact` from `extract_content` / `extract_stream_delta` and the engine persists the bytes, mints a `/files/<user>/<convo>/<folder>/<N><ext>` URL, and embeds the right HTML — images, audio, video, PDFs, anything. Two file-serving examples bookend the tier: a zero-dep canonical recipe and an escape hatch for custom routes.
+
+| # | Example | Purpose | Dependencies |
+|---|---------|---------|--------------|
+| 30 | [file_serving_simple.py](file_serving_simple.py) | Canonical "serve a file" recipe — zero-dep | `chatnificent` |
+| 31 | [file_serving_advanced.py](file_serving_advanced.py) | Escape hatch: custom Engine override + custom file routes (custom MIME, auth-gated downloads, custom URL schemes) | `chatnificent[starlette]` |
+| 32 | [openai_image_simple.py](openai_image_simple.py) | Minimal OpenAI image generation via `Artifact` | `chatnificent[openai]` |
+| 33 | [openai_image_advanced.py](openai_image_advanced.py) | OpenAI image generation with size/quality/style controls | `chatnificent[openai]` |
+| 34 | [openai_image_variations.py](openai_image_variations.py) | Generate variations of an existing image | `chatnificent[openai]` |
+| 35 | [openai_tts_simple.py](openai_tts_simple.py) | Minimal OpenAI text-to-speech via `Artifact` | `chatnificent[openai]` |
+| 36 | [openai_tts_advanced.py](openai_tts_advanced.py) | OpenAI TTS with voice/format/speed controls | `chatnificent[openai]` |
+| 37 | [gemini_image_simple.py](gemini_image_simple.py) | Minimal Gemini image generation via `Artifact` | `chatnificent[gemini]` |
+| 38 | [gemini_image_advanced.py](gemini_image_advanced.py) | Gemini image generation with advanced controls | `chatnificent[gemini]` |
+| 39 | [gemini_multimodal_advanced.py](gemini_multimodal_advanced.py) | Gemini multimodal input/output (text + image + audio) | `chatnificent[gemini]` |
+| 40 | [gemini_tts_simple.py](gemini_tts_simple.py) | Minimal Gemini text-to-speech via `Artifact` | `chatnificent[gemini]` |
+| 41 | [gemini_tts_advanced.py](gemini_tts_advanced.py) | Gemini TTS with voice controls | `chatnificent[gemini]` |
+| 42 | [gemini_music_simple.py](gemini_music_simple.py) | Minimal Gemini music generation via `Artifact` | `chatnificent[gemini]` |
+| 43 | [gemini_music_advanced.py](gemini_music_advanced.py) | Gemini music generation with advanced controls | `chatnificent[gemini]` |
+| 44 | [gemini_video_simple.py](gemini_video_simple.py) | Minimal Gemini video generation via `Artifact` | `chatnificent[gemini]` |
+| 45 | [conversation_export_pdf_simple.py](conversation_export_pdf_simple.py) | Export the current conversation to a PDF artifact | `chatnificent` |
+| 46 | [conversation_export_pdf_advanced.py](conversation_export_pdf_advanced.py) | PDF export with styled layout, headers, and metadata | `chatnificent` |
+| 47 | [tool_qr_code_simple.py](tool_qr_code_simple.py) | Tool that returns a QR-code `Artifact` from any text the LLM passes in | `chatnificent[openai]` |
 
 ## OpenAI Cookbook — From Cookbook to Production
 
@@ -101,4 +125,4 @@ Production implementations of [OpenAI Cookbook](https://github.com/openai/openai
 
 | # | Example | Cookbook Notebook | Dependencies |
 |---|---------|------------------|--------------|
-| 31 | [How_to_call_functions_with_chat_models.py](How_to_call_functions_with_chat_models.py) | [How_to_call_functions_with_chat_models.ipynb](https://github.com/openai/openai-cookbook/blob/main/examples/How_to_call_functions_with_chat_models.ipynb) | `chatnificent[openai]` |
+| 48 | [How_to_call_functions_with_chat_models.py](How_to_call_functions_with_chat_models.py) | [How_to_call_functions_with_chat_models.ipynb](https://github.com/openai/openai-cookbook/blob/main/examples/How_to_call_functions_with_chat_models.ipynb) | `chatnificent[openai]` |

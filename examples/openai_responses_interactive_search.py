@@ -271,9 +271,34 @@ def _build_tools(v):
     return [{"type": "web_search", "filters": {"allowed_domains": v.split(",")}}]
 
 
+WELCOME_MESSAGE = """## Interactive web search
+
+A research assistant where every search knob is a live UI control. Tune **reasoning effort**, restrict to specific **domains**, and toggle **force search** in the toolbar above — then ask a question.
+
+<div id="suggestions">
+  <button class="suggestion" data-insert-prompt="What were the top announcements from the latest WWDC keynote?">
+    <span class="suggestion-label">NEWS</span>
+    <span class="suggestion-text">Fresh facts with citations.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Compare the headline features of the three newest Claude, GPT, and Gemini models.">
+    <span class="suggestion-label">COMPARE</span>
+    <span class="suggestion-text">Crank reasoning to High.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Summarize this week's most-discussed papers on arXiv in machine learning.">
+    <span class="suggestion-label">RESEARCH</span>
+    <span class="suggestion-text">Restrict to arxiv.org via the domain pills.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Why is the sky blue?">
+    <span class="suggestion-label">DEPTH</span>
+    <span class="suggestion-text">Same question, very different answers at None vs High.</span>
+  </button>
+</div>"""
+
+
 app = chat.Chatnificent(
     llm=InteractiveSearch(),
     layout=Default(
+        welcome_message=WELCOME_MESSAGE,
         controls=[
             Control(
                 id="reasoning-effort",
@@ -296,7 +321,7 @@ app = chat.Chatnificent(
                 llm_param="tool_choice",
                 cast=None,
             ),
-        ]
+        ],
     ),
 )
 

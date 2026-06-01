@@ -426,7 +426,7 @@ class TestConversationSummary:
 
         summary_bytes = mod.app.store.load_file("test", convo.id, "summaries.md")
         assert summary_bytes is not None
-        assert summary_bytes.decode("utf-8").count("<details>") == 2
+        assert summary_bytes.decode("utf-8").count("<details") == 2
 
         rendered = mod.app.layout.render_messages(
             convo.messages,
@@ -435,8 +435,8 @@ class TestConversationSummary:
             conversation=convo,
         )
 
-        assert "Conversation Summary" in rendered[0]["content"]
-        assert "Key Takeaways" in rendered[0]["content"]
+        assert "Conversation Summary" in rendered[-1]["content"]
+        assert "Key Takeaways" in rendered[-1]["content"]
 
 
 class TestWebSearch:

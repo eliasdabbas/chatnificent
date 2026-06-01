@@ -136,16 +136,20 @@ Each browser session is its own user with its own private memory store. To see i
 
 <div id="suggestions">
   <button class="suggestion" data-insert-prompt="Remember I'm allergic to peanuts.">
-    <span class="suggestion-label">USER A</span>
-    <span class="suggestion-text">Save a fact in this browser.</span>
+    <span class="suggestion-label">SAVE</span>
+    <span class="suggestion-text">Teach the assistant a fact.</span>
   </button>
-  <button class="suggestion" data-insert-prompt="Open this URL in an incognito window, then send: &quot;Remember I'm a vegetarian.&quot;">
-    <span class="suggestion-label">USER B</span>
-    <span class="suggestion-text">In a second browser, save a different fact.</span>
+  <button class="suggestion" data-insert-prompt="What do you remember about me?">
+    <span class="suggestion-label">RECALL</span>
+    <span class="suggestion-text">Check what's been saved for this user.</span>
   </button>
-  <button class="suggestion" data-insert-prompt="What dietary restrictions do I have?">
-    <span class="suggestion-label">CHECK</span>
-    <span class="suggestion-text">Each user only sees their own facts.</span>
+  <button class="suggestion" data-insert-prompt="Add &quot;buy oat milk&quot; to my shopping list.">
+    <span class="suggestion-label">LIST</span>
+    <span class="suggestion-text">Append to a running list across turns.</span>
+  </button>
+  <button class="suggestion" data-insert-prompt="Forget that I'm allergic to peanuts.">
+    <span class="suggestion-label">FORGET</span>
+    <span class="suggestion-text">Remove a previously saved fact.</span>
   </button>
 </div>"""
 

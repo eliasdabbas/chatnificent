@@ -32,12 +32,12 @@ Layout layer, you get a few nice properties for free:
 - different layouts can interpret the same stored messages differently
 - the saved conversation folder remains easy to inspect and debug
 
-This example intentionally keeps Anthropic streaming enabled, and it also
-overrides the page rendering slightly so the first streamed bubble stays raw.
-The page does not auto-reload the conversation after that first response. Once
-you manually refresh the page, or reopen the conversation later,
-``render_messages(...)`` applies the display redaction and the transcript
-becomes masked. That makes the example very clearly a Layout concern.
+This example intentionally keeps Anthropic streaming enabled. The first streamed
+bubble appears raw — that's the live token stream painting straight into the
+DOM, before the layout ever sees it. Refresh the page (or reopen the
+conversation later) and ``render_messages(...)`` masks the transcript. That
+makes the example very clearly a Layout concern: history stays canonical, the
+display rule is reapplied on every render.
 
 Prerequisites
 -------------
@@ -118,14 +118,6 @@ def _redact_text(text: str) -> str:
 
 class RedactionLayout(chat.layout.Default):
     """Redact common sensitive data at display time only."""
-
-    def render_page(self) -> str:
-        """Keep the first streamed response raw until a manual refresh."""
-        page = super().render_page()
-        return page.replace(
-            "loadConvo(convoId, true);",
-            "/* display_redaction: manual refresh applies layout redaction */",
-        )
 
     def render_messages(self, messages, **kwargs):
         rendered = super().render_messages(messages, **kwargs)

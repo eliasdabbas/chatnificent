@@ -14,7 +14,8 @@ slightly richer sidecar:
 1. keep the conversation history canonical
 2. generate a new summary after each assistant turn is saved
 3. append that summary to ``summaries.md``
-4. let ``Layout.render_messages(...)`` prepend the latest summary to the UI
+4. let ``Layout.render_messages(...)`` append the latest summary right
+   above the composer — one glance away when you're about to type
 
 The summary is display-only metadata. It lives beside the conversation instead
 of inside the message history, so the next LLM turn still sees the real chat
@@ -111,13 +112,31 @@ def _conversation_transcript(conversation, llm) -> str:
 
 
 def _summary_block(summary_markdown: str) -> str:
-    """Wrap a summary in a collapsible block for display."""
+    """Wrap a summary in a collapsible panel for display.
+
+    Styles are inlined here so the panel is fully self-contained — no
+    page-level CSS injection, no template patching. The negative side
+    margin compensates for the 20px gap between ``#messages`` side
+    padding (40px) and ``#input-bar`` side padding (20px), so the panel
+    lines up flush with the composer above it.
+    """
     summary_body = summary_markdown.strip()
+    panel_style = (
+        "background: var(--details-summary-bg);"
+        "border: 1px solid var(--border);"
+        "border-radius: var(--radius-lg);"
+        "margin: 0 -20px;"
+        "overflow: hidden;"
+    )
+    details_style = "border: none; margin: 0; background: transparent;"
+    summary_style = "background: transparent;"
     return (
-        "<details>\n"
-        "<summary>Conversation Summary</summary>\n\n"
+        f'<div class="cx-summary-panel" style="{panel_style}">\n'
+        f'<details style="{details_style}">\n'
+        f'<summary style="{summary_style}">Conversation Summary</summary>\n\n'
         f"{summary_body}\n\n"
-        "</details>"
+        "</details>\n"
+        "</div>"
     )
 
 
@@ -180,7 +199,15 @@ class ConversationSummaryEngine(chat.engine.Orchestrator):
 
 
 class ConversationSummaryLayout(chat.layout.Default):
-    """Prepend the latest summary block to the rendered transcript."""
+    """Append the latest summary block to the rendered transcript.
+
+    The panel sits at the bottom of the message column, right above the
+    composer — always one glance away when you're about to type a
+    follow-up. All styling is inlined in ``_summary_block`` so the panel
+    is fully self-contained; this layout only knows where to slot it in.
+    For now, you need to refresh the page to see an updated summary;
+    making the panel update live without a refresh is a follow-up.
+    """
 
     def render_messages(self, messages, **kwargs):
         rendered = super().render_messages(messages, **kwargs)
@@ -196,12 +223,12 @@ class ConversationSummaryLayout(chat.layout.Default):
         if not latest_summary:
             return rendered
 
-        return [{"role": "assistant", "content": latest_summary}] + rendered
+        return rendered + [{"role": "assistant", "content": latest_summary}]
 
 
-WELCOME_MESSAGE = """## Live conversation summaries
+WELCOME_MESSAGE = """## Conversation summaries beside the chat
 
-After every turn, the engine fires a *second* LLM request that summarizes **all** messages so far. The summary panel sits above the transcript. **Refresh after every reply** to see the summary regenerate — it changes meaningfully as the conversation grows.
+After every turn, the engine fires a *second* LLM request that summarizes **all** messages so far. The summary appears as a collapsible panel right above the textarea — always one glance away when you're about to type a follow-up. Refresh the page after a turn to see the latest summary.
 
 <div id="suggestions">
   <button class="suggestion" data-insert-prompt="Let's plan a small open-source project together.">

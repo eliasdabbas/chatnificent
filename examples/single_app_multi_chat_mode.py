@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.10"
 # dependencies = [
-#     "chatnificent[openai]",
+#     "chatnificent[starlette,openai]",
 # ]
 # ///
 """
@@ -61,11 +61,18 @@ Then open http://127.0.0.1:7777 and try each pill. Conversations land in
 import base64
 import contextvars
 import re as _re
-from functools import partial
-from http import HTTPStatus
-from http.server import HTTPServer
 
 import chatnificent as chat
+
+# Sentinel inserted into stored assistant HTML wherever a ``/files/...`` URL
+# is generated. A tiny ASGI wrapper on the Starlette server (see
+# ``_MountAwareStarlette`` below) substitutes this with the live ASGI
+# ``root_path`` on every response. The effect: standalone runs see empty
+# string (URLs become absolute ``/files/...``); mounted runs see the mount
+# prefix (URLs become ``/chat/<slug>/files/...``). The sentinel deliberately
+# uses only alphanumerics + underscores so it survives JSON encoding without
+# escaping.
+_MOUNT_ROOT_SENTINEL = "__CHATNIFICENT_MOUNT_ROOT__"
 
 PILLS_HTML = """
 <h2 style="text-align:center;margin-bottom:1em;">What would you like to do?</h2>
@@ -846,14 +853,21 @@ PILLS_SCRIPT = """
   });
   // Restore the convo's mode from its sidecar mode.txt (written by the
   // engine on first turn). The /files/ route serves it as text/plain.
+  // ``window.__CHATNIFICENT_ROOT__`` is injected by the framework on
+  // mount; empty string when the app is at the site root.
   function restoreModeFromSidecar() {
-    var match = window.location.pathname.match(/^\\/?([^\\/]+)\\/([^\\/]+)\\/?$/);
+    var root = window.__CHATNIFICENT_ROOT__ || '';
+    var pathname = window.location.pathname;
+    var trimmed = (root && pathname.indexOf(root) === 0)
+      ? pathname.slice(root.length)
+      : pathname;
+    var match = trimmed.match(/^\\/?([^\\/]+)\\/([^\\/]+)\\/?$/);
     if (!match) {
       // No convo in the URL → home page, default back to plain chat.
       setActiveMode('chat');
       return;
     }
-    fetch('/files/' + match[1] + '/' + match[2] + '/mode.txt')
+    fetch(root + '/files/' + match[1] + '/' + match[2] + '/mode.txt')
       .then(function (r) { return r.ok ? r.text() : null; })
       .then(function (txt) {
         // Sealed convo → use its mode. Unsealed (no sidecar yet) → reset to chat
@@ -1361,7 +1375,7 @@ class ModeAwareEngine(chat.engine.Orchestrator):
             filename = f"audio/{audio_counter[0]}.{fmt}"
             self.app.store.save_file(user_id, convo_id, filename, data)
             audio_counter[0] += 1
-            url = f"/files/{user_id}/{convo_id}/{filename}"
+            url = f"{_MOUNT_ROOT_SENTINEL}/files/{user_id}/{convo_id}/{filename}"
             return f'<audio controls preload="metadata" src="{url}"></audio>'
 
         content = _re.sub(
@@ -1383,7 +1397,7 @@ class ModeAwareEngine(chat.engine.Orchestrator):
             filename = f"images/{image_counter[0]}.{fmt}"
             self.app.store.save_file(user_id, convo_id, filename, data)
             image_counter[0] += 1
-            url = f"/files/{user_id}/{convo_id}/{filename}"
+            url = f"{_MOUNT_ROOT_SENTINEL}/files/{user_id}/{convo_id}/{filename}"
             return (
                 f'<img src="{url}" alt="Generated image" '
                 f'style="max-width:100%;border-radius:12px;">'
@@ -1398,9 +1412,18 @@ class ModeAwareEngine(chat.engine.Orchestrator):
 
 
 # --- Server ------------------------------------------------------------------
-# Adds GET /files/<user>/<convo>/<filename...> so saved audio + sidecars are
-# reachable. mode.txt is served as text/plain so the page-load script can
-# read it back to restore the studio state on convo replay.
+# Built on ``chat.server.Starlette`` so the example works both standalone
+# (uvicorn at the site root) and mounted under a prefix (e.g. behind
+# ``showcase.py`` at ``/chat/single-app-multi-chat-mode``). Two pieces:
+#
+# 1. A Starlette ``/files/<user>/<convo>/<filename:path>`` route that streams
+#    bytes out of the Store pillar's sidecar API. ``mode.txt`` is served as
+#    text/plain so the layout JS can read it back.
+# 2. A tiny ASGI wrapper (``_MountAwareStarlette``) that substitutes the
+#    ``_MOUNT_ROOT_SENTINEL`` token in every response body with the live
+#    ASGI ``root_path``. This is how the stored ``<audio>``/``<img>`` src
+#    URLs adapt to whatever prefix the app happens to be mounted under,
+#    without us having to know the prefix at write time.
 
 _FILE_MIME = {
     "mp3": "audio/mpeg",
@@ -1417,51 +1440,110 @@ _FILE_MIME = {
 }
 
 
-class _FileServingDevHandler(chat.server._DevHandler):
-    def do_GET(self):
-        if self.path.startswith("/files/"):
-            self._serve_file()
-        else:
-            super().do_GET()
+def _make_serve_file(app):
+    from starlette.responses import Response
 
-    def _serve_file(self):
-        parts = self.path.split("/", 4)
-        if len(parts) != 5 or parts[1] != "files":
-            self.send_error(HTTPStatus.NOT_FOUND)
-            return
-        _, _, user_id, convo_id, filename = parts
+    async def serve_file(request):
+        user_id = request.path_params["user_id"]
+        convo_id = request.path_params["convo_id"]
+        filename = request.path_params["filename"]
         if ".." in filename or "\\" in filename or filename.startswith("/"):
-            self.send_error(HTTPStatus.BAD_REQUEST)
-            return
-        if user_id != self._get_user_id():
-            self.send_error(HTTPStatus.FORBIDDEN)
-            return
-        data = self._app.store.load_file(user_id, convo_id, filename)
+            return Response(status_code=400)
+        # Cookie-scoped auth check: only the owning session may pull bytes.
+        session_id = request.cookies.get("chatnificent_session")
+        current_user = app.auth.get_current_user_id(session_id=session_id)
+        if user_id != current_user:
+            return Response(status_code=403)
+        data = app.store.load_file(user_id, convo_id, filename)
         if not data:
-            self.send_error(HTTPStatus.NOT_FOUND)
-            return
+            return Response(status_code=404)
         ext = filename.rsplit(".", 1)[-1].lower()
-        self.send_response(HTTPStatus.OK)
-        self.send_header(
-            "Content-Type", _FILE_MIME.get(ext, "application/octet-stream")
+        return Response(
+            data,
+            media_type=_FILE_MIME.get(ext, "application/octet-stream"),
+            headers={"Cache-Control": "private, max-age=3600"},
         )
-        self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "private, max-age=3600")
-        self.end_headers()
-        self.wfile.write(data)
+
+    return serve_file
 
 
-class _FileServingDevServer(chat.server.DevServer):
-    def run(self, **kwargs):
-        host = kwargs.get("host", self._host)
-        port = kwargs.get("port", self._port)
-        handler = partial(_FileServingDevHandler, self.app)
-        self.httpd = HTTPServer((host, port), handler)
-        print(f"Single App, Multiple Chat Modes running on http://{host}:{port}")
-        try:
-            self.httpd.serve_forever()
-        except KeyboardInterrupt:
-            self.httpd.server_close()
+class _MountAwareStarlette(chat.server.Starlette):
+    """``Starlette`` server that substitutes the mount-root sentinel.
+
+    Stored assistant messages contain artifact URLs written as
+    ``<sentinel>/files/...`` (see ``_rewrite_artifacts``). This wrapper
+    walks every outgoing HTTP response body and replaces the sentinel with
+    the current request's ``root_path``. Standalone runs see an empty
+    string, so URLs become absolute ``/files/...``; mounted runs see the
+    mount prefix, so URLs become ``/chat/<slug>/files/...``.
+    """
+
+    def __init__(self, **kwargs):
+        # Always inject the /files/ route — set during ``create_server``
+        # so we can capture ``self.app`` once it's wired.
+        kwargs.setdefault("routes", None)
+        super().__init__(**kwargs)
+
+    def create_server(self, **kwargs):
+        from starlette.routing import Route
+
+        # Append our file-serving route to whatever the user provided.
+        self._user_routes = list(self._user_routes or []) + [
+            Route(
+                "/files/{user_id:str}/{convo_id:str}/{filename:path}",
+                _make_serve_file(self.app),
+                methods=["GET"],
+            )
+        ]
+        inner = super().create_server(**kwargs)
+        self.asgi_app = _SentinelSubstitutionASGI(inner, _MOUNT_ROOT_SENTINEL)
+        return self.asgi_app
+
+
+class _SentinelSubstitutionASGI:
+    """ASGI middleware: replace a sentinel byte string with ``root_path``.
+
+    Operates on raw response body bytes so it transparently covers JSON
+    (``/api/conversations``), SSE (``/api/chat`` streams), and any HTML
+    page render. The sentinel is plain ASCII, so byte-level ``replace``
+    is safe regardless of content encoding.
+    """
+
+    def __init__(self, inner, sentinel):
+        self._inner = inner
+        self._sentinel_b = sentinel.encode("utf-8")
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            await self._inner(scope, receive, send)
+            return
+
+        root_path_b = scope.get("root_path", "").encode("utf-8")
+
+        async def send_wrapper(message):
+            if message.get("type") == "http.response.start":
+                # The substitution can change the body length (e.g. when
+                # mounted under ``/chat/<slug>`` the sentinel grows by N
+                # bytes). Drop ``Content-Length`` so h11 uses chunked
+                # encoding instead of raising "Too much data for declared
+                # Content-Length". Safe for SSE too — those responses
+                # already omit Content-Length.
+                headers = [
+                    (k, v)
+                    for k, v in message.get("headers", [])
+                    if k.lower() != b"content-length"
+                ]
+                message = {**message, "headers": headers}
+            elif message.get("type") == "http.response.body":
+                body = message.get("body") or b""
+                if self._sentinel_b in body:
+                    message = {
+                        **message,
+                        "body": body.replace(self._sentinel_b, root_path_b),
+                    }
+            await send(message)
+
+        await self._inner(scope, receive, send_wrapper)
 
 
 # --- Default chat LLM --------------------------------------------------------
@@ -1544,7 +1626,7 @@ app = chat.Chatnificent(
     ),
     store=chat.store.File(base_dir="single_app_data"),
     engine=ModeAwareEngine(),
-    server=_FileServingDevServer(),
+    server=_MountAwareStarlette(),
     layout=MultiChatModeLayout(
         brand="Chatnificent",
         slogan="Single App, Multiple Chat Modes",

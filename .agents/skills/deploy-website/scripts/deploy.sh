@@ -12,6 +12,7 @@ HOST="${CHATNIFICENT_HOST:-172.233.209.115}"
 USER="${CHATNIFICENT_SSH_USER:-elias}"
 SERVICE="chatnificent-website"
 APP_DIR="/srv/chatnificent/app"
+PUBLIC_BASE="${CHATNIFICENT_PUBLIC_BASE:-https://chatnificent.com}"
 LOCAL_HEALTH_PATHS=("/" "/chat/quickstart/")
 
 ACTION="reload"
@@ -58,7 +59,7 @@ REMOTE
 # 2. Public health check from local machine.
 echo "==> Public health check"
 for path in "${LOCAL_HEALTH_PATHS[@]}"; do
-    url="http://${HOST}${path}"
+    url="${PUBLIC_BASE}${path}"
     for i in $(seq 1 10); do
         code=$(curl -fsS -o /dev/null -w '%{http_code}' "${url}" || echo "000")
         if [[ "${code}" == "200" ]]; then
@@ -77,7 +78,7 @@ done
 SMOKE="$(dirname "$0")/smoke.sh"
 if [[ -x "${SMOKE}" ]]; then
     echo "==> Smoke test (every /chat/<slug>/ mount)"
-    "${SMOKE}" "http://${HOST}"
+    "${SMOKE}" "${PUBLIC_BASE}"
 fi
 
 echo "==> Deploy complete"

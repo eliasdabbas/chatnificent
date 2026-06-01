@@ -5,11 +5,11 @@
 # Usage:
 #   .agents/skills/deploy-website/scripts/smoke.sh [base-url]
 #
-# Default base URL is http://172.233.209.115. Override for staging/local:
+# Default base URL is https://chatnificent.com. Override for staging/local:
 #   .agents/skills/deploy-website/scripts/smoke.sh http://127.0.0.1:7777
 set -euo pipefail
 
-BASE="${1:-http://172.233.209.115}"
+BASE="${1:-https://chatnificent.com}"
 BASE="${BASE%/}"
 
 echo "==> Discovering mounts from ${BASE}/"
@@ -17,8 +17,8 @@ landing=$(curl -fsS "${BASE}/")
 
 # Extract unique /chat/<slug>/ paths from href="..." attributes on the landing page.
 mapfile -t slugs < <(printf '%s' "${landing}" \
-    | grep -oE 'href="/chat/[a-z0-9_-]+/?"' \
-    | sed -E 's|href="/chat/([a-z0-9_-]+)/?"|\1|' \
+    | grep -oE 'href="/chat/[A-Za-z0-9_-]+/?"' \
+    | sed -E 's|href="/chat/([A-Za-z0-9_-]+)/?"|\1|' \
     | sort -u)
 
 if [[ ${#slugs[@]} -eq 0 ]]; then

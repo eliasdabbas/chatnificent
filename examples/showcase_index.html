@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatnificent — Minimally complete. Maximally hackable.</title>
+    <meta name="description"
+        content="A Python framework for building LLM chat applications. Minimally complete. Maximally hackable.">
+
+    <!-- The framework's own stylesheet — the homepage borrows its tokens, header, and code styling. -->
+    <link rel="stylesheet" href="styles.css">
+
+    <style>
+        /* ------------------------------------------------------------------
+   home.css — homepage-only layout. Consumes the framework tokens
+   from styles.css (--brand, --bg, --welcome-glow, --mono-font, etc.)
+   so the showcase reads as the same product as the chat UI.
+
+   The chat app locks the body to one viewport (overflow:hidden).
+   A landing page needs to scroll, so we unlock it here.
+   ------------------------------------------------------------------ */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            height: auto;
+            min-height: 100vh;
+            overflow-y: auto;
+            overflow-x: hidden;
+            background:
+                var(--welcome-glow),
+                var(--bg);
+            background-attachment: fixed;
+        }
+
+        /* The chat header is position:fixed; on the homepage we want it to
+   sit in normal flow and scroll-stick instead. */
+        .home #header {
+            position: sticky;
+        }
+
+        .home main {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 0 24px 96px;
+        }
+
+        /* Header tweaks — reuse brand-link / slogan, add GitHub action ------ */
+        .icon-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: background var(--transition), color var(--transition);
+        }
+
+        .icon-link:hover {
+            background: var(--accent-subtle);
+            color: var(--accent);
+        }
+
+        .icon-link svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .btn-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            font-family: inherit;
+            font-weight: 600;
+            line-height: 1.2;
+            border-radius: var(--radius-pill);
+            border: 1px solid transparent;
+            transition: background var(--transition), border-color var(--transition),
+                color var(--transition), transform 0.1s ease, box-shadow var(--transition);
+            cursor: pointer;
+        }
+
+        .btn-link.primary {
+            background: var(--accent);
+            color: var(--btn-text);
+            padding: 11px 22px;
+            font-size: 1rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn-link.primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-link.primary:active {
+            transform: scale(0.97);
+        }
+
+        .btn-link.secondary {
+            background: var(--bg-elev);
+            color: var(--text);
+            border-color: var(--border-strong);
+            padding: 11px 22px;
+            font-size: 1rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn-link.secondary:hover {
+            background: var(--accent-subtle);
+        }
+
+        .btn-link.secondary:active {
+            transform: scale(0.97);
+        }
+
+        .btn-link svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+
+        /* Hero -------------------------------------------------------------- */
+        .hero {
+            text-align: center;
+            padding: 56px 16px 48px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        /* Brand name — smaller, teal. Reinforces the name (also in the URL and
+   header) without competing with the promise below it. */
+        .hero-brand {
+            font-size: clamp(1.5rem, 3.5vw, 2rem);
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            line-height: 1;
+            color: var(--brand);
+            margin: 0;
+        }
+
+        /* The promise — the thing we're selling. Big, black, two lines. */
+        .hero h1 {
+            font-size: clamp(2.6rem, 7vw, 4.4rem);
+            font-weight: 700;
+            letter-spacing: -0.04em;
+            line-height: 1.02;
+            margin: 0;
+            color: var(--text);
+        }
+
+        .hero h1 .line2 {
+            color: var(--text);
+        }
+
+        .hero-descriptor {
+            font-family: var(--mono-font);
+            font-size: 0.8rem;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+        }
+
+        .hero p.lede {
+            color: var(--text-secondary);
+            font-size: clamp(1.05rem, 2.2vw, 1.2rem);
+            line-height: 1.6;
+            max-width: 60ch;
+            margin: 0;
+        }
+
+        .hero p.lede code {
+            font-family: var(--mono-font);
+            font-size: 0.9em;
+            background: var(--accent-subtle);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 6px;
+        }
+
+        /* Section scaffolding ---------------------------------------------- */
+        .section {
+            margin-top: 72px;
+        }
+
+        .section-head {
+            display: flex;
+            align-items: baseline;
+            gap: 14px;
+            margin-bottom: 8px;
+        }
+
+        .section-head h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            margin: 0;
+        }
+
+        .section-head .count {
+            font-family: var(--mono-font);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .section-sub {
+            color: var(--text-secondary);
+            font-size: 0.98rem;
+            line-height: 1.55;
+            margin: 0 0 24px;
+            max-width: 70ch;
+        }
+
+        /* Snippet pair ------------------------------------------------------ */
+        .snippets {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+
+        @media (max-width: 760px) {
+            .snippets {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .snippet {
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .snippet-head {
+            padding: 18px 20px 14px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .snippet-head h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin: 0 0 3px;
+        }
+
+        .snippet-head .tag {
+            font-family: var(--mono-font);
+            font-size: 0.74rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+        }
+
+        .snippet pre {
+            margin: 0;
+            background: var(--code-bg);
+            font-size: 0.86rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            flex: 1;
+        }
+
+        .snippet .code-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--code-header-bg);
+            border-bottom: 1px solid var(--border);
+            padding: 6px 14px;
+        }
+
+        .snippet .code-lang {
+            font-family: var(--mono-font);
+            font-size: 0.74rem;
+            color: var(--text-secondary);
+            letter-spacing: 0.02em;
+        }
+
+        .snippet-note {
+            margin: 0;
+            padding: 12px 18px 14px;
+            font-size: 0.82rem;
+            line-height: 1.5;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border);
+            background: var(--bg-elev);
+        }
+
+        .snippet-note code {
+            font-family: var(--mono-font);
+            font-size: 0.9em;
+            background: var(--accent-subtle);
+            padding: 1px 5px;
+            border-radius: 4px;
+        }
+
+        .snippet pre>code {
+            display: block;
+            padding: 16px 18px;
+            font-family: var(--mono-font);
+            color: var(--text);
+            white-space: pre;
+        }
+
+        /* Inline comment styling for hand-authored snippets — no JS highlighter. */
+        .snippet pre>code .c {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        /* Examples grid ----------------------------------------------------- */
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 14px;
+        }
+
+        .card {
+            position: relative;
+            display: block;
+            text-decoration: none;
+            color: inherit;
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 16px 18px;
+            transition: border-color var(--transition), transform 0.12s ease,
+                box-shadow var(--transition), background var(--transition);
+        }
+
+        .card:hover {
+            border-color: var(--border-strong);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .card:hover .card-title {
+            color: var(--brand);
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: -0.015em;
+            margin: 0 0 4px;
+            transition: color var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-arrow {
+            margin-left: auto;
+            color: var(--text-muted);
+            opacity: 0;
+            transform: translateX(-4px);
+            transition: opacity var(--transition), transform var(--transition);
+        }
+
+        .card:hover .card-arrow {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .card-arrow svg {
+            width: 15px;
+            height: 15px;
+            display: block;
+        }
+
+        .card-desc {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        /* Footer ------------------------------------------------------------ */
+        .home-footer {
+            margin-top: 96px;
+            border-top: 1px solid var(--border);
+            padding: 32px 24px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            line-height: 1.7;
+        }
+
+        .home-footer a {
+            color: var(--text-secondary);
+            text-decoration: underline;
+            text-underline-offset: 3px;
+            text-decoration-color: var(--border-strong);
+            transition: text-decoration-color var(--transition), color var(--transition);
+        }
+
+        .home-footer a:hover {
+            color: var(--text);
+            text-decoration-color: var(--text);
+        }
+
+        .home-footer .tagline {
+            font-family: var(--mono-font);
+            font-size: 0.8rem;
+            letter-spacing: 0.04em;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+    </style>
+</head>
+
+<body class="home">
+
+    <!-- ================= HEADER (same bar as the chat UI) ================= -->
+    <header id="header">
+        <div id="header-title">
+            <a class="brand-link" href="/">Chatnificent</a>
+            <span id="header-slogan">Minimally complete · Maximally hackable</span>
+        </div>
+        <div id="header-actions">
+            <button id="theme-toggle" type="button" aria-label="Toggle theme" onclick="toggleTheme()">
+                <svg class="theme-icon theme-icon-light" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="4"></circle>
+                    <path
+                        d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41">
+                    </path>
+                </svg>
+                <svg class="theme-icon theme-icon-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+            </button>
+            <a class="icon-link" href="https://github.com/eliasdabbas/chatnificent" target="_blank" rel="noopener"
+                aria-label="GitHub repository">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                        d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58 0-.29-.01-1.04-.02-2.05-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.09 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.62-5.49 5.92.43.37.81 1.1.81 2.22 0 1.61-.01 2.9-.01 3.29 0 .32.21.7.82.58A12 12 0 0 0 24 12.5C24 5.87 18.63.5 12 .5z">
+                    </path>
+                </svg>
+            </a>
+        </div>
+    </header>
+
+    <main>
+
+        <!-- ================= HERO ================= -->
+        <section class="hero">
+            <p class="hero-brand">Chatnificent</p>
+            <h1>Minimally complete<br><span class="line2">Maximally hackable</span></h1>
+            <span class="hero-descriptor">Python · AI / LLM Chat App Framework</span>
+            <p class="lede">
+                Streaming UI, multi-user sessions, persistent history, and tool calling —
+                out of the box. Swap any pillar (LLM, storage, auth, UI) when the
+                defaults aren&rsquo;t enough.
+            </p>
+            <div class="hero-actions">
+                <a class="btn-link primary" href="#examples">
+                    Browse examples
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M12 5v14M19 12l-7 7-7-7"></path>
+                    </svg>
+                </a>
+                <a class="btn-link secondary" href="https://github.com/eliasdabbas/chatnificent" target="_blank"
+                    rel="noopener">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58 0-.29-.01-1.04-.02-2.05-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.09 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.62-5.49 5.92.43.37.81 1.1.81 2.22 0 1.61-.01 2.9-.01 3.29 0 .32.21.7.82.58A12 12 0 0 0 24 12.5C24 5.87 18.63.5 12 .5z">
+                        </path>
+                    </svg>
+                    eliasdabbas/chatnificent
+                </a>
+            </div>
+        </section>
+
+        <!-- ================= TWO SNIPPETS ================= -->
+        <section class="section" id="how">
+            <div class="snippets">
+
+                <!-- LEFT: minimally complete -->
+                <div class="snippet">
+                    <div class="snippet-head">
+                        <h3>Minimally complete</h3>
+                    </div>
+                    <div class="code-header">
+                        <span class="code-lang">$ pip install chatnificent</span>
+                    </div>
+                    <pre><code>import chatnificent as chat
+
+app = chat.Chatnificent()
+
+app.run()
+</code></pre>
+                    <p class="snippet-note">You only need to <code>pip install openai</code> and set
+                        <code>OPENAI_API_KEY</code> to immediately start
+                        talking to GPT.
+                    </p>
+                </div>
+
+                <!-- RIGHT: maximally hackable -->
+                <div class="snippet">
+                    <div class="snippet-head">
+                        <h3>Maximally hackable</h3>
+                    </div>
+                    <div class="code-header">
+                        <span class="code-lang">$ pip install chatnificent[anthropic]</span>
+                    </div>
+                    <pre><code>import chatnificent as chat
+
+app = chat.Chatnificent(
+    <span class="c"># OpenAI, Gemini, Ollama, OpenRouter, ...</span>
+    llm=chat.llm.Anthropic(
+        model="claude-opus-4",
+        system="You are a witty pirate.",
+    ),
+    <span class="c"># or File, InMemory, your own</span>
+    store=chat.store.SQLite("chats.db"),
+    <span class="c"># or Anonymous, or your own</span>
+    auth=chat.auth.SingleUser("elias"),
+    <span class="c"># plain Python functions become tools</span>
+    tools=chat.tools.PythonTool([get_weather, search_web]),
+    layout=chat.layout.Default(
+        brand="Acme",
+        welcome_message="Ahoy, matey!",
+        <span class="c"># bind UI widgets to LLM kwargs</span>
+        controls=[
+            chat.layout.Control(
+                id="temp",
+                llm_param="temperature",
+                cast=float, ...,
+            ),
+            chat.layout.Control(
+                id="voice",
+                llm_param="voice", ...,
+            ),
+        ],
+    ),
+)
+
+if __name__ == "__main__":
+    app.run()
+</code></pre>
+                    <p class="snippet-note">Every pillar is a constructor argument &mdash; swap providers,
+                        persistence, auth, tools, or UI without writing a line of plumbing. Subclass any of them
+                        when config isn&rsquo;t enough.</p>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ================= EXAMPLES ================= -->
+        <section class="section" id="examples">
+            <div class="section-head">
+                <h2>Examples</h2>
+                <span class="count">33 live apps</span>
+            </div>
+            <p class="section-sub">
+                Every example is a single Python file you can run with <code>uv run --script &lt;file&gt;.py</code> —
+                dependencies are declared inline, no project setup, no install steps. Each one runs standalone, and
+                this site mounts the same unmodified scripts under <code>/chat/&lt;example&gt;/</code> on one
+                Starlette app.
+            </p>
+
+            <!-- ---- Start here ---- -->
+            <div class="section" style="margin-top:36px;">
+                <div class="section-head">
+                    <h2 style="font-size:1.15rem;">Start here</h2>
+                </div>
+                <div class="cards">
+                    <a class="card" href="/chat/quickstart/">
+                        <p class="card-title">Quickstart<span class="card-arrow"><svg viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">The zero-dependency starting point — a working chat UI running the built-in
+                            Echo provider, ready to plug a real model into.</p>
+                    </a>
+                    <a class="card" href="/chat/custom-branding/">
+                        <p class="card-title">Custom branding<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Rebrand the whole app — name, slogan, logo, favicon, page title, welcome
+                            message — in a single constructor call, no subclassing.</p>
+                    </a>
+                </div>
+            </div>
+
+            <!-- ---- Tools & agents ---- -->
+            <div class="section" style="margin-top:36px;">
+                <div class="section-head">
+                    <h2 style="font-size:1.15rem;">Tools &amp; agents</h2>
+                </div>
+                <div class="cards">
+                    <a class="card" href="/chat/tool-calling/">
+                        <p class="card-title">Tool calling<span class="card-arrow"><svg viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Register a plain Python function as a tool — schemas are inferred from type
+                            hints and the docstring. Zero boilerplate.</p>
+                    </a>
+                    <a class="card" href="/chat/multi-tool-agent/">
+                        <p class="card-title">Multi-tool agent<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Several tools, one agent loop — the model picks which ones to call across
+                            multiple turns to finish a task end-to-end.</p>
+                    </a>
+                    <a class="card" href="/chat/How-to-call-functions-with-chat-models/">
+                        <p class="card-title">OpenAI Cookbook port<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">The classic "How to call functions with chat models" recipe, ported to
+                            Chatnificent — the agent loop, streaming, and persistence come for free.</p>
+                    </a>
+                    <a class="card" href="/chat/tool-qr-code-simple/">
+                        <p class="card-title">QR code tool<span class="card-arrow"><svg viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">A tool that returns a real file: the model calls it, the framework persists
+                            the PNG and renders the QR code inline.</p>
+                    </a>
+                </div>
+            </div>
+
+            <!-- ---- Images ---- -->
+            <div class="section" style="margin-top:36px;">
+                <div class="section-head">
+                    <h2 style="font-size:1.15rem;">Images</h2>
+                </div>
+                <div class="cards">
+                    <a class="card" href="/chat/openai-image-simple/">
+                        <p class="card-title">OpenAI image — simple<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Every prompt becomes a PNG via OpenAI's images.generate endpoint, persisted
+                            and rendered inline in the same bubble.</p>
+                    </a>
+                    <a class="card" href="/chat/openai-image-variations/">
+                        <p class="card-title">OpenAI image variations<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Generate several variations of a prompt in one turn and compare them
+                            side-by-side with a tabbed, CSS-only UI.</p>
+                    </a>
+                    <a class="card" href="/chat/openai-responses-image-studio/">
+                        <p class="card-title">OpenAI image studio<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Multi-turn image editing on the Responses API — keep refining the same
+                            image with follow-up messages and watch each edit stream in.</p>
+                    </a>
+                    <a class="card" href="/chat/gemini-image-simple/">
+                        <p class="card-title">Gemini image — simple<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">The same artifact recipe wired to Google's Gemini image model — same four
+                            overrides, different provider.</p>
+                    </a>
+                    <a class="card" href="/chat/gemini-image-advanced/">
+                        <p class="card-title">Gemini image — advanced<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">A live "studio" panel above the composer — pick model, aspect ratio,
+                            resolution, and thinking level — each control feeds straight into the API call.</p>
+                    </a>
+                    <a class="card" href="/chat/gemini-multimodal-advanced/">
+                        <p class="card-title">Gemini text + illustration<span class="card-arrow"><svg
+                                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Write a short story with one model, then illustrate it with another — two
+                            independent calls stitched into a single assistant message.</p>
+                    </a>
+                </div>
+            </div>
+
+            <!-- ---- Audio & video ---- -->
+            <div class="section" style="margin-top:36px;">
+                <div class="section-head">
+                    <h2 style="font-size:1.15rem;">Audio &amp; video</h2>
+                </div>
+                <div class="cards">
+                    <a class="card" href="/chat/openai-tts-simple/">
+                        <p class="card-title">OpenAI TTS — simple<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Every user message becomes a spoken clip via OpenAI's audio.speech
+                            endpoint, embedded as a native &lt;audio&gt; player.</p>
+                    </a>
+                    <a class="card" href="/chat/openai-tts-advanced/">
+                        <p class="card-title">OpenAI TTS — advanced<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Stream a normal chat reply, then append an audio player that reads it aloud
+                            — text and speech land in the same bubble, single turn.</p>
+                    </a>
+                    <a class="card" href="/chat/gemini-tts-simple/">
+                        <p class="card-title">Gemini TTS — simple<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Chat, then listen — Gemini answers in text, then a second call narrates it.
+                            Voice is reshuffled each turn from the 30-voice roster.</p>
+                    </a>
+                    <a class="card" href="/chat/gemini-tts-advanced/">
+                        <p class="card-title">Gemini TTS — advanced<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">A Gemini-only superpower: render a two-speaker dialog into one stitched WAV
+                            with named speakers and distinct voices, in a single API call.</p>
+                    </a>
+                    <a class="card" href="/chat/gemini-music-simple/">
+                        <p class="card-title">Gemini music — simple<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Generate a 30-second MP3 from a text prompt using Gemini's Lyria 3 model —
+                            lyrics + audio returned together.</p>
+                    </a>
+                    <a class="card" href="/chat/gemini-music-advanced/">
+                        <p class="card-title">Gemini music — advanced<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Same Lyria 3 recipe, plus: paste an image URL in your prompt and it's
+                            fetched and passed alongside the text as inspiration.</p>
+                    </a>
+                    <a class="card" href="/chat/gemini-video-simple/">
+                        <p class="card-title">Gemini video — simple<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Generate a 4-second clip via Veo 3.1 Fast — the async long-running
+                            operation is polled inside the LLM pillar, so the chat UI doesn't notice.</p>
+                    </a>
+                </div>
+            </div>
+
+            <!-- ---- Search ---- -->
+            <div class="section" style="margin-top:36px;">
+                <div class="section-head">
+                    <h2 style="font-size:1.15rem;">Search</h2>
+                </div>
+                <div class="cards">
+                    <a class="card" href="/chat/web-search/">
+                        <p class="card-title">Web search<span class="card-arrow"><svg viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Gemini with Google Search grounding — the raw response is saved as-is, then
+                            parsed into search-result cards at render time.</p>
+                    </a>
+                    <a class="card" href="/chat/openai-responses-interactive-search/">
+                        <p class="card-title">Interactive search<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Three knobs — reasoning effort, domain restriction, search type — wired
+                            straight into the OpenAI Responses API as live UI controls.</p>
+                    </a>
+                    <a class="card" href="/chat/openai-responses-website-search/">
+                        <p class="card-title">Website search<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Restrict OpenAI's hosted web search to a single site (default: Wikipedia) —
+                            point it at your docs or a news source to build a domain-scoped assistant.</p>
+                    </a>
+                </div>
+            </div>
+
+            <!-- ---- Files & artifacts ---- -->
+            <div class="section" style="margin-top:36px;">
+                <div class="section-head">
+                    <h2 style="font-size:1.15rem;">Files &amp; artifacts</h2>
+                </div>
+                <div class="cards">
+                    <a class="card" href="/chat/file-serving-simple/">
+                        <p class="card-title">File serving — simple<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">The canonical Artifact recipe with no provider SDK — the four overrides
+                            every file-producing example builds on.</p>
+                    </a>
+                    <a class="card" href="/chat/file-serving-advanced/">
+                        <p class="card-title">File serving — advanced<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Multiple file types — SVG, WAV, text — interleaved with prose in a single
+                            assistant turn; the engine picks the right embed per MIME type.</p>
+                    </a>
+                    <a class="card" href="/chat/conversation-export-pdf-simple/">
+                        <p class="card-title">Export to PDF — simple<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">After every reply, render the full conversation as a PDF and append a
+                            download link to the same streamed message — no second turn.</p>
+                    </a>
+                    <a class="card" href="/chat/conversation-export-pdf-advanced/">
+                        <p class="card-title">Export to PDF — advanced<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">On-demand export with structured outputs (Pydantic) — a typed cover page +
+                            full transcript, triggered by an "Export PDF" button.</p>
+                    </a>
+                </div>
+            </div>
+
+            <!-- ---- Conversation state ---- -->
+            <div class="section" style="margin-top:36px;">
+                <div class="section-head">
+                    <h2 style="font-size:1.15rem;">Conversation state</h2>
+                </div>
+                <div class="cards">
+                    <a class="card" href="/chat/auto-title/">
+                        <p class="card-title">Auto title<span class="card-arrow"><svg viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Replace the default "first 30 chars" sidebar title with a model-generated
+                            one, written right after the first exchange.</p>
+                    </a>
+                    <a class="card" href="/chat/conversation-summary/">
+                        <p class="card-title">Conversation summary<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Append a fresh summary to a sidecar file after each turn and surface it in
+                            a collapsible block above the composer.</p>
+                    </a>
+                    <a class="card" href="/chat/memory-tool-multi-user/">
+                        <p class="card-title">Per-user memory<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Anthropic's native memory tool, scoped per user — a ContextVar + tiny Auth
+                            subclass keeps each visitor's memory private and thread-safe.</p>
+                    </a>
+                    <a class="card" href="/chat/single-app-multi-chat-mode/">
+                        <p class="card-title">Multi-chat mode<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">One app, four conversation modes — pick a pill before your first message
+                            and that conversation is locked to that mode forever.</p>
+                    </a>
+                </div>
+            </div>
+
+            <!-- ---- UI & display ---- -->
+            <div class="section" style="margin-top:36px;">
+                <div class="section-head">
+                    <h2 style="font-size:1.15rem;">UI &amp; display</h2>
+                </div>
+                <div class="cards">
+                    <a class="card" href="/chat/ui-interactions/">
+                        <p class="card-title">UI interactions<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Bind dropdowns, sliders, and toggles to LLM call kwargs — values are stored
+                            per-user and injected silently into the next request.</p>
+                    </a>
+                    <a class="card" href="/chat/usage-display/">
+                        <p class="card-title">Usage display<span class="card-arrow"><svg viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Surface token counts and cost per turn by reading the raw API response at
+                            render time — the canonical history stays clean.</p>
+                    </a>
+                    <a class="card" href="/chat/display-redaction/">
+                        <p class="card-title">Display redaction<span class="card-arrow"><svg viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M7 17L17 7M9 7h8v8" />
+                                </svg></span></p>
+                        <p class="card-desc">Mask emails, phone numbers, and card numbers in the visible transcript
+                            while keeping the stored conversation fully intact.</p>
+                    </a>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <footer class="home-footer">
+        <p class="tagline">Minimally complete · Maximally hackable</p>
+        <p>
+            <a href="https://pypi.org/project/chatnificent/" target="_blank" rel="noopener">PyPI</a>
+            ·
+            <a href="https://github.com/eliasdabbas/chatnificent" target="_blank" rel="noopener">GitHub</a>
+            ·
+            <a href="https://github.com/eliasdabbas/chatnificent/blob/main/LICENSE" target="_blank" rel="noopener">MIT
+                License</a>
+        </p>
+    </footer>
+
+    <script>
+        // Theme toggle — mirrors the chat app's data-theme mechanism.
+        function toggleTheme() {
+            const html = document.documentElement;
+            const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', next);
+            try { localStorage.setItem('theme', next); } catch (e) { }
+        }
+        // Restore saved preference, falling back to OS setting.
+        (function () {
+            try {
+                const saved = localStorage.getItem('theme');
+                if (saved) {
+                    document.documentElement.setAttribute('data-theme', saved);
+                } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                }
+            } catch (e) { }
+        })();
+    </script>
+
+</body>
+
+</html>

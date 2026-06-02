@@ -5,19 +5,46 @@
 # ]
 # ///
 """
-Usage Display — The Smallest OpenAI-Only Display Enrichment Example
-===================================================================
+Append Anything After Any Turn — The OpenAI Usage Display Pattern
+================================================================
 
-This example is intentionally minimal.
+This example is intentionally minimal. The footer it displays — OpenAI token
+usage — is just a stand-in for the real lesson:
 
-It teaches one pattern only:
+    **How to render anything you want after an assistant turn, without
+    modifying the conversation history.**
 
-1. keep the stored conversation canonical
-2. read raw API responses from the store
-3. enrich the visible transcript in ``Layout.render_messages()``
+``messages.json`` stays canonical — the model reply is recorded exactly as it
+was generated. The usage footer lives in ``raw_api_responses.jsonl`` (the
+framework writes it for you) and is rendered into the visible transcript
+from there. Two small seams, one on each side of persistence, cover both
+moments the user might be looking at the conversation:
 
-The assistant message itself stays untouched in ``messages.json``. Only the
-rendered display gets a usage footer.
+1. **Streaming time — ``UsageEngine`` (subclass of ``Orchestrator``).**
+   Wraps ``handle_message_stream`` and injects one extra ``delta`` event
+   right before the stream's ``done`` event. The engine has already
+   persisted the conversation by then, so what we inject reaches the
+   browser through the existing SSE channel and never lands in
+   ``messages.json``.
+
+2. **Render time — ``UsageLayout`` (subclass of ``Default``).**
+   Overrides ``render_messages`` to read the same
+   ``raw_api_responses.jsonl`` sidecar and append the same footer to each
+   assistant message. This fires every time a conversation is fetched
+   (page refresh, sidebar click, deep link), so the footer is visible
+   forever — not just during the live stream.
+
+The two halves share the same formatter (``_openai_usage_line``) and the
+same data source. Together they give you a complete pattern for
+*display-only* enrichment: live during streaming, persistent across
+reloads, and zero pollution of canonical history.
+
+Apply the same shape to display per-turn cost estimates, latency, moderation
+flags, retrieval citations, tool-call traces, or anything else derivable from
+the raw API response on disk. Swap ``_openai_usage_line()`` for any
+formatter that returns a Markdown/HTML string (or ``None`` to skip). See
+``usage_display_multi_provider.py`` for the same pattern generalised across
+OpenAI, Anthropic, and Gemini payload shapes.
 
 Prerequisites
 -------------
@@ -25,25 +52,15 @@ Set your OpenAI API key before running the app::
 
     export OPENAI_API_KEY="sk-..."
 
-This example also opts into streamed OpenAI usage data with
-``stream_options={"include_usage": True}``, so the usage footer still works
-with Chatnificent's default streaming UI.
+The app opts into streamed usage data with
+``stream_options={"include_usage": True}`` so the final OpenAI chunk carries
+the token counts we read from ``raw_api_responses.jsonl``.
 
 Running
 -------
 ::
 
     uv run --script examples/usage_display.py
-
-Send a message and the assistant reply will render with a footer like::
-
-    Usage: ↑ 10 + ↓ 20 = 30 Tokens
-
-What to Explore Next
---------------------
-- See ``usage_display_multi_provider.py`` for a more robust multi-provider version
-- Add cost estimation beside the usage line
-- Read a second sidecar file and layer another display-only enhancement
 """
 
 import chatnificent as chat
@@ -67,12 +84,15 @@ def _openai_usage_line(raw_response):
 
 
 class UsageEngine(chat.engine.Orchestrator):
-    """Stream the usage line as a final delta, after the conversation is saved.
+    """Streaming-time seam — inject the footer as a final ``delta`` event.
 
-    The engine's streaming loop calls ``_save_conversation`` BEFORE yielding
-    ``done`` (see ``Orchestrator.handle_message_stream``), so deltas injected
-    here ride the SSE channel to the browser without ever being added to
-    ``messages.json``. Display-only by construction.
+    ``Orchestrator.handle_message_stream`` calls ``_save_conversation`` BEFORE
+    yielding ``done``. Anything we yield between the parent generator's last
+    item and the ``done`` event rides the existing SSE channel to the client
+    without ever touching ``messages.json``.
+
+    To display something else, swap ``_openai_usage_line`` for your own
+    formatter; everything else stays the same.
     """
 
     def handle_message_stream(self, user_input, user_id, convo_id_from_url):
@@ -90,7 +110,15 @@ class UsageEngine(chat.engine.Orchestrator):
 
 
 class UsageLayout(chat.layout.Default):
-    """Append OpenAI token usage beneath each assistant message."""
+    """Render-time seam — append the footer every time a message is shown.
+
+    Fires on page refresh, sidebar navigation, and deep links — anywhere
+    ``render_messages`` is invoked. Reads the same ``raw_api_responses.jsonl``
+    sidecar as ``UsageEngine`` and appends the same footer, so the visible
+    transcript stays consistent across the live stream and every later view.
+
+    Mutates the rendered copy only — ``messages.json`` is never touched.
+    """
 
     def render_messages(self, messages, **kwargs):
         rendered = super().render_messages(messages, **kwargs)

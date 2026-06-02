@@ -5,21 +5,40 @@
 # ]
 # ///
 """
-Usage Display Multi-Provider — A Portable Display Enrichment Pattern
-====================================================================
+Append Anything After Any Turn — Across Providers
+==================================================
 
-This is the more robust companion to ``usage_display.py``.
+The robust companion to ``usage_display.py``. Same strategic lesson:
 
-The layout pattern stays the same:
+    **How to render anything you want after an assistant turn, without
+    modifying the conversation history.**
 
-1. call ``super().render_messages(...)``
-2. load raw API responses from the store
-3. extract usage from each saved payload
-4. append a usage footer to the visible assistant message
+The injection mechanism is the same two-seam pattern as the OpenAI-only
+example:
 
-What changes here is the payload parsing. OpenAI, Anthropic, and Gemini expose
-usage metadata differently, so this example keeps a few small helpers inside
-the script to normalize those shapes while leaving the framework untouched.
+1. **Streaming time — ``UsageEngine``** wraps
+   ``Orchestrator.handle_message_stream`` and yields one extra ``delta``
+   event right before ``done``, so the footer appears under the live reply
+   without ever entering ``messages.json``.
+
+2. **Render time — ``UsageLayout``** overrides ``render_messages`` to read
+   the same ``raw_api_responses.jsonl`` sidecar and append the same footer,
+   so the footer is also visible on every page refresh, sidebar click, and
+   deep link.
+
+What this example adds on top is the *portability* layer. The helpers below
+detect each provider's payload by **shape** rather than by name:
+
+- ``_looks_like_usage`` — a set-subset test against the three known
+  key vocabularies (OpenAI / Anthropic / Gemini)
+- ``_find_usage`` — recursive scan of arbitrarily nested raw payloads
+  (lists of chunks, message wrappers, deeply nested usage_metadata blocks)
+- ``_usage_line`` — single formatter that normalises all three shapes into
+  one display string
+
+The shape-detection pattern generalises beyond usage data. Anywhere you need
+to read a sidecar (raw responses, raw requests, retrieval logs, tool traces)
+and work across providers, this is the structure to copy.
 
 Prerequisites
 -------------
@@ -42,12 +61,6 @@ Running
 
 Swap providers by uncommenting a different ``llm=...`` line in the app
 definition below.
-
-What to Explore Next
---------------------
-- Extend the formatter with cached tokens or reasoning token fields
-- Add a per-turn cost estimate beside the token count
-- Combine this with ``conversation_summary.py`` or ``display_redaction.py``
 """
 
 from typing import Any, Optional
@@ -58,12 +71,15 @@ BASE_DIR = "usage_convos_multi_provider"
 
 
 class UsageEngine(chat.engine.Orchestrator):
-    """Stream the usage line as a final delta, after the conversation is saved.
+    """Streaming-time seam — inject the footer as a final ``delta`` event.
 
-    The engine's streaming loop calls ``_save_conversation`` BEFORE yielding
-    ``done`` (see ``Orchestrator.handle_message_stream``), so deltas injected
-    here ride the SSE channel to the browser without ever being added to
-    ``messages.json``. Display-only by construction.
+    ``Orchestrator.handle_message_stream`` calls ``_save_conversation`` BEFORE
+    yielding ``done``. Anything we yield between the parent generator's last
+    item and the ``done`` event rides the existing SSE channel to the client
+    without ever touching ``messages.json``.
+
+    To display something else, swap ``_usage_line`` for your own formatter;
+    everything else stays the same.
     """
 
     def handle_message_stream(self, user_input, user_id, convo_id_from_url):
@@ -81,7 +97,15 @@ class UsageEngine(chat.engine.Orchestrator):
 
 
 class UsageLayout(chat.layout.Default):
-    """Append token usage beneath assistant messages across providers."""
+    """Render-time seam — append the footer every time a message is shown.
+
+    Fires on page refresh, sidebar navigation, and deep links — anywhere
+    ``render_messages`` is invoked. Reads the same ``raw_api_responses.jsonl``
+    sidecar as ``UsageEngine`` and appends the same footer, so the visible
+    transcript stays consistent across the live stream and every later view.
+
+    Mutates the rendered copy only — ``messages.json`` is never touched.
+    """
 
     def render_messages(self, messages, **kwargs):
         rendered = super().render_messages(messages, **kwargs)
@@ -199,9 +223,9 @@ To compare providers, send the **same prompt**, then stop the server, swap the a
 
 
 app = chat.Chatnificent(
-    llm=chat.llm.OpenAI(stream_options={"include_usage": True}),
+    # llm=chat.llm.OpenAI(stream_options={"include_usage": True}),
     # llm=chat.llm.Gemini(),
-    # llm=chat.llm.Anthropic(),
+    llm=chat.llm.Anthropic(),
     engine=UsageEngine(),
     layout=UsageLayout(welcome_message=WELCOME_MESSAGE),
     store=chat.store.File(base_dir=BASE_DIR),

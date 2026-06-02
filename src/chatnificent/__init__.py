@@ -12,7 +12,7 @@ __version__ = _get_version("chatnificent")
 
 from typing import Optional
 
-from . import auth, engine, layout, llm, models, retrieval, server, store, templates, tools, url
+from . import auth, client, engine, layout, llm, models, retrieval, server, store, templates, tools, url
 
 
 class Chatnificent:

@@ -60,10 +60,33 @@ def _openai_usage_line(raw_response):
         usage = chunk.get("usage")
         if usage:
             return (
-                f"Usage: ↑ {usage['prompt_tokens']} + "
-                f"↓ {usage['completion_tokens']} = {usage['total_tokens']} Tokens"
+                f'<small style="opacity:0.6">Usage: ↑ {usage["prompt_tokens"]} + '
+                f"↓ {usage['completion_tokens']} = {usage['total_tokens']} Tokens</small>"
             )
     return None
+
+
+class UsageEngine(chat.engine.Orchestrator):
+    """Stream the usage line as a final delta, after the conversation is saved.
+
+    The engine's streaming loop calls ``_save_conversation`` BEFORE yielding
+    ``done`` (see ``Orchestrator.handle_message_stream``), so deltas injected
+    here ride the SSE channel to the browser without ever being added to
+    ``messages.json``. Display-only by construction.
+    """
+
+    def handle_message_stream(self, user_input, user_id, convo_id_from_url):
+        for event in super().handle_message_stream(
+            user_input, user_id, convo_id_from_url
+        ):
+            if event.get("event") == "done":
+                convo_id = event["data"]["conversation_id"]
+                raw_responses = self.app.store.load_raw_api_responses(user_id, convo_id)
+                if raw_responses:
+                    usage_line = _openai_usage_line(raw_responses[-1])
+                    if usage_line:
+                        yield {"event": "delta", "data": f"\n\n{usage_line}"}
+            yield event
 
 
 class UsageLayout(chat.layout.Default):
@@ -97,7 +120,7 @@ class UsageLayout(chat.layout.Default):
 
 WELCOME_MESSAGE = """## Token usage visible in transcript
 
-Every assistant turn ends with a usage line showing input/output token counts. **Refresh after each reply** to see the usage block render under the message.
+Every assistant turn ends with a usage line showing input/output token counts.
 
 <div id="suggestions">
   <button class="suggestion" data-insert-prompt="What's 2+2?">
@@ -117,6 +140,7 @@ Every assistant turn ends with a usage line showing input/output token counts. *
 
 app = chat.Chatnificent(
     llm=chat.llm.OpenAI(stream_options={"include_usage": True}),
+    engine=UsageEngine(),
     layout=UsageLayout(welcome_message=WELCOME_MESSAGE),
     store=chat.store.File(base_dir=BASE_DIR),
 )

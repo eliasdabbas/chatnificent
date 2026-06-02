@@ -57,6 +57,29 @@ import chatnificent as chat
 BASE_DIR = "usage_convos_multi_provider"
 
 
+class UsageEngine(chat.engine.Orchestrator):
+    """Stream the usage line as a final delta, after the conversation is saved.
+
+    The engine's streaming loop calls ``_save_conversation`` BEFORE yielding
+    ``done`` (see ``Orchestrator.handle_message_stream``), so deltas injected
+    here ride the SSE channel to the browser without ever being added to
+    ``messages.json``. Display-only by construction.
+    """
+
+    def handle_message_stream(self, user_input, user_id, convo_id_from_url):
+        for event in super().handle_message_stream(
+            user_input, user_id, convo_id_from_url
+        ):
+            if event.get("event") == "done":
+                convo_id = event["data"]["conversation_id"]
+                raw_responses = self.app.store.load_raw_api_responses(user_id, convo_id)
+                if raw_responses:
+                    usage_line = _usage_line(raw_responses[-1])
+                    if usage_line:
+                        yield {"event": "delta", "data": f"\n\n{usage_line}"}
+            yield event
+
+
 class UsageLayout(chat.layout.Default):
     """Append token usage beneath assistant messages across providers."""
 
@@ -111,7 +134,10 @@ def _usage_line(raw_response: Any) -> Optional[str]:
     else:
         return None
 
-    return f"Usage: ↑ {prompt_tokens} + ↓ {completion_tokens} = {total_tokens} Tokens"
+    return (
+        f'<small style="opacity:0.6">Usage: ↑ {prompt_tokens} + '
+        f"↓ {completion_tokens} = {total_tokens} Tokens</small>"
+    )
 
 
 def _find_usage(value: Any) -> Optional[dict]:
@@ -152,7 +178,7 @@ def _looks_like_usage(value: dict) -> bool:
 
 WELCOME_MESSAGE = """## Token usage across providers
 
-Each provider \u2014 OpenAI, Anthropic, Gemini \u2014 reports usage in its own shape, but the layout normalizes them all into the same `\u2191 prompt + \u2193 completion = total` line beneath each assistant turn (visible **after a page refresh**).
+Each provider \u2014 OpenAI, Anthropic, Gemini \u2014 reports usage in its own shape, but the layout normalizes them all into the same `\u2191 prompt + \u2193 completion = total` line beneath each assistant turn.
 
 To compare providers, send the **same prompt**, then stop the server, swap the active `llm=` line in `examples/usage_display_multi_provider.py`, and rerun. Each run writes to its own `usage_demo_multi/<provider>/` directory \u2014 so all three transcripts stay side-by-side.
 
@@ -176,6 +202,7 @@ app = chat.Chatnificent(
     llm=chat.llm.OpenAI(stream_options={"include_usage": True}),
     # llm=chat.llm.Gemini(),
     # llm=chat.llm.Anthropic(),
+    engine=UsageEngine(),
     layout=UsageLayout(welcome_message=WELCOME_MESSAGE),
     store=chat.store.File(base_dir=BASE_DIR),
 )

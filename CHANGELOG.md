@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.0.26] — 2026-06-02
+
+A Python client for talking to any running Chatnificent app over HTTP.
+
+### Added
+
+- **client**: new `chatnificent.client` module — `start_session`, `send_message` (generator yielding SSE events), `list_conversations`, `load_conversation`, `collect_text`, and a `Session` dataclass that carries cookie-scoped user identity across calls
+- **client**: handles both streaming (`text/event-stream`) and non-streaming JSON responses uniformly; cookie jar isolation enables multi-user scripting against the same server
+
 ## [0.0.25] — 2026-05-30
 
 ### Fixed

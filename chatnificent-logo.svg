@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-16 0 612 400" width="612" height="400" role="img" aria-label="Chatnificent — LLM chat app framework">
+  <title>Chatnificent two-bubble logo, monochrome</title>
+  <g>
+    <path d="M22 20 H232 a26 26 0 0 1 26 26 V178 a26 26 0 0 1 -26 26 H116 L72 256 L88 204 H22 a26 26 0 0 1 -26 -26 V46 a26 26 0 0 1 26 -26 Z" fill="#1a1a1a"/>
+    <text x="126" y="135" font-family="'Trebuchet MS','Segoe UI',system-ui,sans-serif" font-weight="700" font-size="92" letter-spacing="-3" fill="#ffffff" text-anchor="middle">Chat</text>
+  </g>
+  <g>
+    <path d="M258 44 H540 a26 26 0 0 1 26 26 V202 a26 26 0 0 1 -26 26 H460 L480 280 L426 228 H258 a26 26 0 0 1 -26 -26 V70 a26 26 0 0 1 26 -26 Z" fill="#ffffff" stroke="#1a1a1a" stroke-width="9"/>
+    <text x="400" y="159" font-family="'Trebuchet MS','Segoe UI',system-ui,sans-serif" font-weight="700" font-size="80" letter-spacing="-2.5" fill="#1a1a1a" text-anchor="middle">nificent</text>
+  </g>
+  <text x="290" y="332" font-family="'Trebuchet MS','Segoe UI',system-ui,sans-serif" font-weight="700" font-size="31" letter-spacing="-0.5" fill="#1a1a1a" text-anchor="middle">LLM chat app framework</text>
+  <text x="290" y="362" font-family="'Trebuchet MS','Segoe UI',system-ui,sans-serif" font-weight="400" font-size="20" fill="#6b6b6b" text-anchor="middle">Minimally complete. Maximally hackable.</text>
+</svg>

@@ -1,5 +1,5 @@
 
-<img src="chatnificent_logo.png" width="350">
+<img src="chatnificent-logo.svg" width="350">
 
 # Chatnificent
 

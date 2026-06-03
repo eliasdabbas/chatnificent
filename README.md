@@ -1,5 +1,7 @@
 
-<img src="chatnificent-logo.svg" width="350">
+<p align="center">
+  <img src="chatnificent-logo.svg" width="350">
+</p>
 
 # Chatnificent
 

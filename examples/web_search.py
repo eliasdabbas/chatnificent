@@ -191,7 +191,10 @@ app = chat.Chatnificent(
         model="gemini-3-flash-preview",
         tools=[GROUNDING_TOOL],
     ),
-    layout=WebSearchLayout(welcome_message=WELCOME_MESSAGE),
+    layout=WebSearchLayout(
+        page_title="Build an AI Chatbot App That Searches the Web With Gemini in Python | Chatnificent",
+        welcome_message=WELCOME_MESSAGE,
+    ),
     store=chat.store.File(base_dir="web_search_convos"),
 )
 

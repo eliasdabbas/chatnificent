@@ -140,7 +140,10 @@ Each is also served live at `/<user>/<convo>/<folder>/<N>.<ext>` — open the UR
 app = chat.Chatnificent(
     llm=FilesEcho(stream=False),
     store=chat.store.File(base_dir="./_convos_file_serving_advanced"),
-    layout=chat.layout.Default(welcome_message=WELCOME),
+    layout=chat.layout.Default(
+        page_title="Build an AI Chatbot App That Serves Multi-Format Artifacts in Python | Chatnificent",
+        welcome_message=WELCOME,
+    ),
 )
 
 if __name__ == "__main__":

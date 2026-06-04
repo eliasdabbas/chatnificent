@@ -142,7 +142,10 @@ Pick a ready-made dialog below, or write your own.
 app = chat.Chatnificent(
     llm=GeminiDialogTTS(model="gemini-3.1-flash-tts-preview", stream=False),
     store=chat.store.File(base_dir="./artifact_examples/_convos_gemini_tts_advanced"),
-    layout=chat.layout.Default(welcome_message=welcome_message),
+    layout=chat.layout.Default(
+        page_title="Build an AI Chatbot App That Generates Two-Speaker Dialog With Gemini in Python | Chatnificent",
+        welcome_message=welcome_message,
+    ),
 )
 
 if __name__ == "__main__":

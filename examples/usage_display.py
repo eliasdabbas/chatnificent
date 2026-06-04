@@ -169,7 +169,10 @@ Every assistant turn ends with a usage line showing input/output token counts.
 app = chat.Chatnificent(
     llm=chat.llm.OpenAI(stream_options={"include_usage": True}),
     engine=UsageEngine(),
-    layout=UsageLayout(welcome_message=WELCOME_MESSAGE),
+    layout=UsageLayout(
+        page_title="Build an AI Chatbot App That Displays Token Usage in Python | Chatnificent",
+        welcome_message=WELCOME_MESSAGE,
+    ),
     store=chat.store.File(base_dir=BASE_DIR),
 )
 

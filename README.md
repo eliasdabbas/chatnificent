@@ -230,7 +230,7 @@ uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/
 uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/single_app_multi_chat_mode.py
 
 # OpenAI Cookbook — From Cookbook to Production (requires OPENAI_API_KEY)
-uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/How_to_call_functions_with_chat_models.py
+uv run --script https://raw.githubusercontent.com/eliasdabbas/chatnificent/main/examples/how_to_call_functions_with_chat_models.py
 ```
 
 ## Examples

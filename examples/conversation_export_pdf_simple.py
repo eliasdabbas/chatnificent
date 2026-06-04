@@ -218,7 +218,10 @@ app = chat.Chatnificent(
     store=chat.store.File(
         base_dir="./artifact_examples/_convos_conversation_export_pdf_simple"
     ),
-    layout=chat.layout.Default(welcome_message=welcome_message),
+    layout=chat.layout.Default(
+        page_title="Build an AI Chatbot App That Exports Conversations to PDF in Python | Chatnificent",
+        welcome_message=welcome_message,
+    ),
 )
 
 

@@ -108,7 +108,10 @@ After your first reply, the engine fires a *second* LLM request to generate a ti
 
 app = chat.Chatnificent(
     engine=AutoTitleEngine(),
-    layout=chat.layout.Default(welcome_message=welcome_message),
+    layout=chat.layout.Default(
+        page_title="Build an AI Chatbot App That Auto-Generates Conversation Titles in Python | Chatnificent",
+        welcome_message=welcome_message,
+    ),
 )
 
 if __name__ == "__main__":

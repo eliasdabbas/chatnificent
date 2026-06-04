@@ -174,7 +174,10 @@ class GeminiMusicWithImages(chat.llm.Gemini):
 app = chat.Chatnificent(
     llm=GeminiMusicWithImages(model="lyria-3-clip-preview", stream=False),
     store=chat.store.File(base_dir="./artifact_examples/_convos_gemini_music_advanced"),
-    layout=chat.layout.Default(welcome_message=welcome_message),
+    layout=chat.layout.Default(
+        page_title="Build an AI Chatbot App That Generates Music From Image Prompts in Python | Chatnificent",
+        welcome_message=welcome_message,
+    ),
 )
 
 if __name__ == "__main__":

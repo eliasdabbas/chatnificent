@@ -143,7 +143,10 @@ app = chat.Chatnificent(
     # llm=chat.llm.Anthropic(),
     # llm=chat.llm.Gemini(),
     tools=tools,
-    layout=chat.layout.Default(welcome_message=welcome_message),
+    layout=chat.layout.Default(
+        page_title="How to Build an AI Chatbot App With Function Calling in Python | Chatnificent",
+        welcome_message=welcome_message,
+    ),
 )
 
 if __name__ == "__main__":

@@ -192,7 +192,10 @@ app = chat.Chatnificent(
     engine=ArtifactOrchestrator(),
     tools=tools,
     store=chat.store.File(base_dir="./artifact_examples/_convos_tool_qr_code_simple"),
-    layout=chat.layout.Default(welcome_message=welcome_message),
+    layout=chat.layout.Default(
+        page_title="Build an AI Chatbot App That Generates QR Codes in Python | Chatnificent",
+        welcome_message=welcome_message,
+    ),
 )
 
 

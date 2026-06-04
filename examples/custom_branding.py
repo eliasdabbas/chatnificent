@@ -94,7 +94,7 @@ app = chat.Chatnificent(
         slogan="We're here to help",
         logo_url=LOGO,
         favicon_url=LOGO,
-        page_title="Acme Support — Chat with us",
+        page_title="Python AI Chatbot App Example: Custom Branding | Chatnificent",
         welcome_message=WELCOME,
     ),
 )

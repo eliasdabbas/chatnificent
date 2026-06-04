@@ -173,7 +173,10 @@ below includes an audio cue.
 app = chat.Chatnificent(
     llm=GeminiVeo(model=VIDEO_MODEL, stream=False),
     store=chat.store.File(base_dir="./artifact_examples/_convos_gemini_video_simple"),
-    layout=chat.layout.Default(welcome_message=welcome_message),
+    layout=chat.layout.Default(
+        page_title="Build an AI Chatbot App That Generates Video With Gemini Veo 3.1 in Python | Chatnificent",
+        welcome_message=welcome_message,
+    ),
 )
 
 if __name__ == "__main__":

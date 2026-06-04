@@ -132,6 +132,9 @@ class OpenAIChatPlusTTS(chat.llm.OpenAI):
 app = chat.Chatnificent(
     llm=OpenAIChatPlusTTS(),
     store=chat.store.File(base_dir="./artifact_examples/_convos_openai_tts_advanced"),
+    layout=chat.layout.Default(
+        page_title="Build an AI Chatbot App That Streams Text and Speech With OpenAI in Python | Chatnificent",
+    ),
 )
 
 if __name__ == "__main__":

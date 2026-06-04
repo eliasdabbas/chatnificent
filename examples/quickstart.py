@@ -60,7 +60,10 @@ This is the **zero-dependency quickstart** running the `Echo` LLM — a mock tha
 </div>"""
 
 app = chat.Chatnificent(
-    layout=chat.layout.Default(welcome_message=welcome_message),
+    layout=chat.layout.Default(
+        page_title="How to Build an AI Chatbot App in Python — Quickstart | Chatnificent",
+        welcome_message=welcome_message,
+    ),
 )
 
 if __name__ == "__main__":

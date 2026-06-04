@@ -157,7 +157,10 @@ Four Python functions — `get_weather`, `roll_dice`, `get_current_time`, `calcu
 app = chat.Chatnificent(
     llm=chat.llm.OpenAI(),
     tools=tools,
-    layout=chat.layout.Default(welcome_message=welcome_message),
+    layout=chat.layout.Default(
+        page_title="Build an AI Chatbot App That Runs a Multi-Tool Agent Loop in Python | Chatnificent",
+        welcome_message=welcome_message,
+    ),
 )
 
 if __name__ == "__main__":

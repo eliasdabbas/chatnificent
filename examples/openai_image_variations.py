@@ -153,6 +153,7 @@ app = chat.Chatnificent(
         base_dir="./artifact_examples/_convos_openai_image_variations"
     ),
     layout=chat.layout.Default(
+        page_title="Build an AI Chatbot App That Generates OpenAI Image Variations in Python | Chatnificent",
         welcome_message=welcome_message,
         controls=[
             Control(

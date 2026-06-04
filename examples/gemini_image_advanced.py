@@ -386,8 +386,7 @@ app = chat.Chatnificent(
     llm=GeminiImageStudio(model="gemini-3.1-flash-image", stream=False),
     layout=Default(
         brand="Image Studio",
-        slogan="Nano Banana \u00b7 dialled in",
-        welcome_message=(
+        slogan="Nano Banana \u00b7 dialled in",        page_title="Build an AI Chatbot App That Runs a Gemini Image Studio in Python | Chatnificent",        welcome_message=(
             "## Image Studio\n\n"
             "Expand the **Image Studio** panel above the composer to pick a "
             "model, aspect ratio, resolution, and thinking level — then type "

@@ -107,6 +107,9 @@ class SVGEcho(chat.llm.Echo):
 
 
 app = chat.Chatnificent(
+    layout=chat.layout.Default(
+        page_title="Build an AI Chatbot App That Serves File Artifacts in Python | Chatnificent",
+    ),
     llm=SVGEcho(stream=False),
     store=chat.store.File(base_dir="./_convos_file_serving_simple"),
 )

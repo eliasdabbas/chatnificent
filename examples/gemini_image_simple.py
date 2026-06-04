@@ -136,7 +136,10 @@ Every prompt becomes a PNG. Describe a scene — style, mood, subject — and Ge
 app = chat.Chatnificent(
     llm=GeminiImage(model="gemini-3.1-flash-image", stream=False),
     store=chat.store.File(base_dir="./artifact_examples/_convos_gemini_image_simple"),
-    layout=chat.layout.Default(welcome_message=WELCOME_MESSAGE),
+    layout=chat.layout.Default(
+        page_title="Build an AI Chatbot App That Generates Images With Gemini in Python | Chatnificent",
+        welcome_message=WELCOME_MESSAGE,
+    ),
 )
 
 if __name__ == "__main__":

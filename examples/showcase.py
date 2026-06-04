@@ -73,7 +73,7 @@ INCLUDED_EXAMPLES = {
     "custom_branding",
     # Tools & agents
     "tool_calling",
-    "How_to_call_functions_with_chat_models",
+    "how_to_call_functions_with_chat_models",
     "multi_tool_agent",
     "tool_qr_code_simple",
     # Memory & titles

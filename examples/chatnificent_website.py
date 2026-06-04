@@ -86,7 +86,7 @@ MULTI_CHAT_MODE_STEM = "single_app_multi_chat_mode"
 INCLUDED_EXAMPLES = {
     "quickstart",
     "tool_calling",
-    "How_to_call_functions_with_chat_models",
+    "how_to_call_functions_with_chat_models",
     "system_prompt",
     "multi_tool_agent",
     "memory_tool",

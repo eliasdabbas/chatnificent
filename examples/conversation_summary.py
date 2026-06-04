@@ -251,7 +251,10 @@ app = chat.Chatnificent(
     llm=chat.llm.Anthropic(),
     # llm=chat.llm.Gemini(),
     engine=ConversationSummaryEngine(),
-    layout=ConversationSummaryLayout(welcome_message=WELCOME_MESSAGE),
+    layout=ConversationSummaryLayout(
+        page_title="Build an AI Chatbot App That Summarizes Conversations in Python | Chatnificent",
+        welcome_message=WELCOME_MESSAGE,
+    ),
     store=chat.store.File(base_dir="convo_summaries"),
 )
 

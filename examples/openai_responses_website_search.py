@@ -175,7 +175,10 @@ app = chat.Chatnificent(
         ],
         tool_choice="required",
     ),
-    layout=chat.layout.Default(welcome_message=welcome_message),
+    layout=chat.layout.Default(
+        page_title="Build an AI Chatbot App That Searches a Single Site With OpenAI in Python | Chatnificent",
+        welcome_message=welcome_message,
+    ),
 )
 
 

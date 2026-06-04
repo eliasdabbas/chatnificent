@@ -80,6 +80,9 @@ class OpenAITTS(chat.llm.OpenAI):
 app = chat.Chatnificent(
     llm=OpenAITTS(model="tts-1", stream=False),
     store=chat.store.File(base_dir="./artifact_examples/_convos_openai_tts_simple"),
+    layout=chat.layout.Default(
+        page_title="Build an AI Chatbot App That Speaks With OpenAI TTS in Python | Chatnificent",
+    ),
 )
 
 if __name__ == "__main__":

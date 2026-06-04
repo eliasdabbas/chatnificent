@@ -251,7 +251,10 @@ app = chat.Chatnificent(
     ),
     store=chat.store.File(base_dir="image_studio"),
     engine=ImageStudioEngine(),
-    layout=chat.layout.Default(welcome_message=WELCOME),
+    layout=chat.layout.Default(
+        page_title="Build an AI Chatbot App That Edits Images Multi-Turn With OpenAI in Python | Chatnificent",
+        welcome_message=WELCOME,
+    ),
 )
 
 

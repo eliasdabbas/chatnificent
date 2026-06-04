@@ -298,6 +298,7 @@ A research assistant where every search knob is a live UI control. Tune **reason
 app = chat.Chatnificent(
     llm=InteractiveSearch(),
     layout=Default(
+        page_title="Build an AI Chatbot App That Runs Interactive Web Search With OpenAI in Python | Chatnificent",
         welcome_message=WELCOME_MESSAGE,
         controls=[
             Control(

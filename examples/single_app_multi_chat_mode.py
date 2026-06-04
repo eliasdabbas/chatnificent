@@ -1630,6 +1630,7 @@ app = chat.Chatnificent(
     layout=MultiChatModeLayout(
         brand="Chatnificent",
         slogan="Single App, Multiple Chat Modes",
+        page_title="Python AI Chatbot App Example: Multiple Chat Modes | Chatnificent",
         controls=CONTROLS,
     ),
 )

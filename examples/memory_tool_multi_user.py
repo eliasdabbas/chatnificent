@@ -159,7 +159,10 @@ app = chat.Chatnificent(
     tools=tools,
     auth=UserAwareAuth(),
     store=chat.store.File("memory_chats"),
-    layout=chat.layout.Default(welcome_message=welcome_message),
+    layout=chat.layout.Default(
+        page_title="Python AI Chatbot App Example: Per-User Memory | Chatnificent",
+        welcome_message=welcome_message,
+    ),
 )
 
 if __name__ == "__main__":

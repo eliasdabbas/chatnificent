@@ -153,7 +153,10 @@ The LLM sees the raw text, but the layout redacts emails, phone numbers, and cre
 
 app = chat.Chatnificent(
     llm=chat.llm.Anthropic(),
-    layout=RedactionLayout(welcome_message=WELCOME_MESSAGE),
+    layout=RedactionLayout(
+        page_title="Build an AI Chatbot App That Redacts PII on Display in Python | Chatnificent",
+        welcome_message=WELCOME_MESSAGE,
+    ),
     store=chat.store.File(base_dir="display_redaction_convos"),
 )
 

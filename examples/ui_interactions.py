@@ -107,6 +107,7 @@ The dropdown above the messages directly controls `max_completion_tokens`. Pick 
 
 app = chat.Chatnificent(
     layout=chat.layout.Default(
+        page_title="Python AI Chatbot App Example: Custom UI Controls | Chatnificent",
         controls=[control],
         welcome_message=welcome_message,
     )

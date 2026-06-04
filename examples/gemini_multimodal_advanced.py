@@ -116,7 +116,10 @@ Two Gemini endpoints in one turn: `gemini-2.5-flash` writes the story, `gemini-3
 app = chat.Chatnificent(
     llm=GeminiChatPlusImage(model=CHAT_MODEL),
     store=chat.store.File(base_dir="./artifact_examples/_convos_gemini_multimodal_advanced"),
-    layout=chat.layout.Default(welcome_message=welcome_message),
+    layout=chat.layout.Default(
+        page_title="Build an AI Chatbot App That Writes Stories and Illustrations With Gemini in Python | Chatnificent",
+        welcome_message=welcome_message,
+    ),
 )
 
 if __name__ == "__main__":

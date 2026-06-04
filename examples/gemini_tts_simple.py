@@ -160,7 +160,10 @@ Ask anything. Gemini streams a written answer, then synthesizes it as audio so y
 app = chat.Chatnificent(
     llm=GeminiChatPlusTTS(model="gemini-2.5-flash"),
     store=chat.store.File(base_dir="./artifact_examples/_convos_gemini_tts_simple"),
-    layout=chat.layout.Default(welcome_message=WELCOME_MESSAGE),
+    layout=chat.layout.Default(
+        page_title="Build an AI Chatbot App That Speaks With Gemini TTS in Python | Chatnificent",
+        welcome_message=WELCOME_MESSAGE,
+    ),
 )
 
 if __name__ == "__main__":

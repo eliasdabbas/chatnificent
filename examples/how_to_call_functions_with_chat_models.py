@@ -52,7 +52,7 @@ returns real current conditions or a multi-day outlook.
 
 Run
 ---
-    uv run openai_cookbook/How_to_call_functions_with_chat_models.py
+    uv run --script examples/how_to_call_functions_with_chat_models.py
 
 Then open http://127.0.0.1:7777 and try:
 
@@ -225,7 +225,10 @@ tools.register_function(get_n_day_weather_forecast)
 app = chat.Chatnificent(
     llm=WeatherAI(),
     tools=tools,
-    layout=chat.layout.Default(welcome_message=welcome_message),
+    layout=chat.layout.Default(
+        page_title="How to Build an AI Chatbot App With OpenAI Function Calling in Python | Chatnificent",
+        welcome_message=welcome_message,
+    ),
 )
 
 if __name__ == "__main__":

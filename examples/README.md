@@ -125,4 +125,4 @@ Production implementations of [OpenAI Cookbook](https://github.com/openai/openai
 
 | # | Example | Cookbook Notebook | Dependencies |
 |---|---------|------------------|--------------|
-| 48 | [How_to_call_functions_with_chat_models.py](How_to_call_functions_with_chat_models.py) | [How_to_call_functions_with_chat_models.ipynb](https://github.com/openai/openai-cookbook/blob/main/examples/How_to_call_functions_with_chat_models.ipynb) | `chatnificent[openai]` |
+| 48 | [how_to_call_functions_with_chat_models.py](how_to_call_functions_with_chat_models.py) | [How_to_call_functions_with_chat_models.ipynb](https://github.com/openai/openai-cookbook/blob/main/examples/How_to_call_functions_with_chat_models.ipynb) | `chatnificent[openai]` |

@@ -3,6 +3,64 @@
   <img src="chatnificent-logo.svg" width="350">
 </p>
 
+> 🎉 **New — 33 live example apps now running on [chatnificent.com](https://chatnificent.com).** Every app is a single Python file you can [read on GitHub](https://github.com/eliasdabbas/chatnificent/tree/main/examples) and run yourself.
+
+<details>
+<summary><strong>Browse all 33 live apps →</strong></summary>
+
+#### Start here
+- [Quickstart](https://chatnificent.com/chat/quickstart/) — zero-dependency starting point with the built-in Echo provider
+- [Custom branding](https://chatnificent.com/chat/custom-branding/) — rebrand name, slogan, logo, favicon, title, welcome — in one constructor call
+
+#### Tools & agents
+- [Tool calling](https://chatnificent.com/chat/tool-calling/) — register a plain Python function; schema inferred from type hints + docstring
+- [Multi-tool agent](https://chatnificent.com/chat/multi-tool-agent/) — several tools, one agent loop, multi-turn task completion
+- [OpenAI Cookbook port](https://chatnificent.com/chat/how-to-call-functions-with-chat-models/) — the classic "How to call functions with chat models" recipe
+- [QR code tool](https://chatnificent.com/chat/tool-qr-code-simple/) — a tool that returns a real file; PNG persisted and rendered inline
+
+#### Images
+- [OpenAI image — simple](https://chatnificent.com/chat/openai-image-simple/) — every prompt becomes a PNG via `images.generate`
+- [OpenAI image variations](https://chatnificent.com/chat/openai-image-variations/) — generate variations and compare side-by-side
+- [OpenAI image studio](https://chatnificent.com/chat/openai-responses-image-studio/) — multi-turn image editing on the Responses API
+- [Gemini image — simple](https://chatnificent.com/chat/gemini-image-simple/) — same artifact recipe wired to Google's Gemini image model
+- [Gemini image — advanced](https://chatnificent.com/chat/gemini-image-advanced/) — live "studio" panel: model, aspect ratio, resolution, thinking level
+- [Gemini text + illustration](https://chatnificent.com/chat/gemini-multimodal-advanced/) — write a story with one model, illustrate with another
+
+#### Audio & video
+- [OpenAI TTS — simple](https://chatnificent.com/chat/openai-tts-simple/) — every message becomes a spoken `<audio>` clip
+- [OpenAI TTS — advanced](https://chatnificent.com/chat/openai-tts-advanced/) — stream chat reply, then append narration in the same bubble
+- [Gemini TTS — simple](https://chatnificent.com/chat/gemini-tts-simple/) — chat in text, then narrate; voice reshuffled from a 30-voice roster
+- [Gemini TTS — advanced](https://chatnificent.com/chat/gemini-tts-advanced/) — render a two-speaker dialog into one stitched WAV
+- [Gemini music — simple](https://chatnificent.com/chat/gemini-music-simple/) — 30-second MP3 from a text prompt via Lyria 3
+- [Gemini music — advanced](https://chatnificent.com/chat/gemini-music-advanced/) — Lyria 3 plus image prompts for inspiration
+- [Gemini video — simple](https://chatnificent.com/chat/gemini-video-simple/) — 4-second clip via Veo 3.1 Fast; async polling inside the LLM pillar
+
+#### Search
+- [Web search](https://chatnificent.com/chat/web-search/) — Gemini with Google Search grounding, parsed into result cards
+- [Interactive search](https://chatnificent.com/chat/openai-responses-interactive-search/) — reasoning effort, domain restriction, search type as live UI controls
+- [Website search](https://chatnificent.com/chat/openai-responses-website-search/) — restrict OpenAI's hosted web search to a single site
+
+#### Files & artifacts
+- [File serving — simple](https://chatnificent.com/chat/file-serving-simple/) — canonical Artifact recipe with no provider SDK
+- [File serving — advanced](https://chatnificent.com/chat/file-serving-advanced/) — SVG + WAV + text interleaved in a single assistant turn
+- [Export to PDF — simple](https://chatnificent.com/chat/conversation-export-pdf-simple/) — render the conversation to PDF after every reply
+- [Export to PDF — advanced](https://chatnificent.com/chat/conversation-export-pdf-advanced/) — on-demand export with Pydantic cover page
+
+#### Conversation state
+- [Auto title](https://chatnificent.com/chat/auto-title/) — model-generated sidebar titles after the first exchange
+- [Conversation summary](https://chatnificent.com/chat/conversation-summary/) — append a fresh summary to a sidecar file each turn
+- [Per-user memory](https://chatnificent.com/chat/memory-tool-multi-user/) — Anthropic's native memory tool, scoped per user
+- [Multi-chat mode](https://chatnificent.com/chat/single-app-multi-chat-mode/) — one app, four conversation modes locked per chat
+
+#### UI & display
+- [UI interactions](https://chatnificent.com/chat/ui-interactions/) — bind dropdowns, sliders, and toggles to LLM call kwargs
+- [Usage display](https://chatnificent.com/chat/usage-display/) — surface per-turn token counts from the raw API response
+- [Display redaction](https://chatnificent.com/chat/display-redaction/) — mask emails, phones, card numbers in the visible transcript
+
+</details>
+
+---
+
 # Chatnificent
 
 **LLM chat app framework. Minimally complete. Maximally hackable.**
